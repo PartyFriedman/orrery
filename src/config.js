@@ -2,9 +2,9 @@
 // Enheter: tenk på dem som millimeter.
 
 export const gear = {
-  teeth: 24,          // antall tenner
+  teeth: 36,          // antall tenner
   module: 2,          // tannstørrelse (diameter = modul × antall tenner)
-  thickness: 5,       // tykkelse på hjulet
+  thickness: 1.5,       // tykkelse på hjulet
   holeRadius: 4,      // radius på hullet i midten
   speed: 2,           // rotasjonshastighet i omdreininger per minutt
 };
