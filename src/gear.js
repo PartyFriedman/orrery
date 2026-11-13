@@ -3,12 +3,13 @@ import * as THREE from 'three';
 // Evolventfunksjonen: hvor langt en evolventkurve har "svingt" ved en gitt vinkel.
 const involute = (angle) => Math.tan(angle) - angle;
 
-// Lager formen til ett tannhjul og returnerer en 3D-geometri som ligger flatt.
-export function createGearGeometry({
+// Lager det flate omrisset av ett tannhjul (tenner, hull og eiker).
+export function createGearShape({
   teeth,
   module,
   pressureAngle,
   thickness,
+  backlash = 0,
   holeRadius,
   spokes,
   spokeWidth,
@@ -22,6 +23,11 @@ export function createGearGeometry({
   const rootRadius = pitchRadius - 1.25 * module;    // bunnen mellom tennene
   const step = (Math.PI * 2) / teeth;                // vinkel per tann
 
+  // Den avrundede kanten gjør omrisset litt større. Vi gjør tennene tilsvarende
+  // tynnere, pluss halve klaringen, så to hjul ikke overlapper.
+  const bevel = Math.min(0.3, thickness * 0.1);
+  const thinning = (bevel + backlash / 2) / baseRadius;
+
   const point = (radius, angle) =>
     new THREE.Vector2(Math.cos(angle) * radius, Math.sin(angle) * radius);
 
@@ -30,7 +36,7 @@ export function createGearGeometry({
   const halfToothAngle = (radius) => {
     const r = Math.max(radius, baseRadius);
     const phi = Math.acos(baseRadius / r);
-    return Math.max(0, step / 4 + involute(alpha) - involute(phi));
+    return Math.max(0, step / 4 + involute(alpha) - involute(phi) - thinning);
   };
 
   // Radier vi sampler flanken på: rett radielt stykke under grunnsirkelen,
@@ -101,9 +107,14 @@ export function createGearGeometry({
     }
   }
 
-  const bevel = Math.min(0.3, thickness * 0.1);
+  return { shape, bevel };
+}
+
+// Gjør omrisset om til en 3D-geometri som ligger flatt.
+export function createGearGeometry(settings) {
+  const { shape, bevel } = createGearShape(settings);
   const geometry = new THREE.ExtrudeGeometry(shape, {
-    depth: thickness - bevel * 2,
+    depth: settings.thickness - bevel * 2,
     bevelEnabled: true,
     bevelThickness: bevel,
     bevelSize: bevel,
