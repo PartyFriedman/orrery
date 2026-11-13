@@ -1,60 +1,81 @@
-import './style.css'
-import heroImg from './assets/hero.png'
-import javascriptLogo from './assets/javascript.svg'
-import viteLogo from './assets/vite.svg'
-import { setupCounter } from './counter.js'
+import './style.css';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { gear, look } from './config.js';
+import { createGearGeometry } from './gear.js';
 
-document.querySelector('#app').innerHTML = `
-<section id="center">
-  <div class="hero">
-    <img src="${heroImg}" class="base" width="170" height="179">
-    <img src="${javascriptLogo}" class="framework" alt="JavaScript logo"/>
-    <img src="${viteLogo}" class="vite" alt="Vite logo" />
-  </div>
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/main.js</code> and save to test <code>HMR</code></p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
+// Renderer (tegneflaten) med myke skygger.
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+document.querySelector('#app').appendChild(renderer.domElement);
 
-<div class="ticks"></div>
+// Scene og bakgrunn.
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(look.background);
 
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#documentation-icon"></use></svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-    <ul>
-      <li>
-        <a href="https://vite.dev/" target="_blank">
-          <img class="logo" src="${viteLogo}" alt="" />
-          Explore Vite
-        </a>
-      </li>
-      <li>
-        <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" target="_blank">
-          <img class="button-icon" src="${javascriptLogo}" alt="">
-          Learn more
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#social-icon"></use></svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li><a href="https://github.com/vitejs/vite" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#github-icon"></use></svg>GitHub</a></li>
-      <li><a href="https://chat.vite.dev/" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#discord-icon"></use></svg>Discord</a></li>
-      <li><a href="https://x.com/vite_js" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#x-icon"></use></svg>X.com</a></li>
-      <li><a href="https://bsky.app/profile/vite.dev" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#bluesky-icon"></use></svg>Bluesky</a></li>
-    </ul>
-  </div>
-</section>
+// Kamera skrått ovenfra.
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 1000);
+camera.position.set(55, 65, 75);
 
-<div class="ticks"></div>
-<section id="spacer"></section>
-`
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI / 2 - 0.05; // ikke under gulvet
 
-setupCounter(document.querySelector('#counter'))
+// Lys: mykt fyll-lys + ett hovedlys som kaster skygge.
+scene.add(new THREE.HemisphereLight('#ffffff', '#9a9a9a', 1.6));
+
+const sun = new THREE.DirectionalLight('#ffffff', 2.2);
+sun.position.set(30, 60, 20);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.radius = 6;
+sun.shadow.blurSamples = 16;
+sun.shadow.bias = -0.0005;
+const s = sun.shadow.camera;
+s.left = s.bottom = -50;
+s.right = s.top = 50;
+s.near = 1;
+s.far = 150;
+scene.add(sun);
+
+// Gulv i samme farge som bakgrunnen, så bare skyggen synes.
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(400, 400),
+  new THREE.MeshStandardMaterial({ color: look.background, roughness: 1 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// Tannhjulet, løftet litt over gulvet.
+const gearMesh = new THREE.Mesh(
+  createGearGeometry(gear),
+  new THREE.MeshStandardMaterial({ color: look.gearColor, roughness: 0.85, metalness: 0 })
+);
+gearMesh.position.y = 2;
+gearMesh.castShadow = true;
+gearMesh.receiveShadow = true;
+scene.add(gearMesh);
+
+// Tilpass ved endring av vindusstørrelse.
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Animasjon: roter hjulet med valgt hastighet (omdreininger per minutt).
+let lastTime = null;
+renderer.setAnimationLoop((time) => {
+  const seconds = lastTime === null ? 0 : (time - lastTime) / 1000;
+  lastTime = time;
+
+  gearMesh.rotation.y += (gear.speed / 60) * Math.PI * 2 * seconds;
+
+  controls.update();
+  renderer.render(scene, camera);
+});
