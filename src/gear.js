@@ -8,7 +8,6 @@ export function createGearShape({
   teeth,
   module,
   pressureAngle,
-  thickness,
   backlash = 0,
   holeRadius,
   spokes,
@@ -23,10 +22,9 @@ export function createGearShape({
   const rootRadius = pitchRadius - 1.25 * module;    // bunnen mellom tennene
   const step = (Math.PI * 2) / teeth;                // vinkel per tann
 
-  // Den avrundede kanten gjør omrisset litt større. Vi gjør tennene tilsvarende
-  // tynnere, pluss halve klaringen, så to hjul ikke overlapper.
-  const bevel = Math.min(0.3, thickness * 0.1);
-  const thinning = (bevel + backlash / 2) / baseRadius;
+  // Tennene gjøres litt tynnere (halve klaringen på hvert hjul), så to hjul
+  // ikke gnisser mot hverandre.
+  const thinning = backlash / 2 / baseRadius;
 
   const point = (radius, angle) =>
     new THREE.Vector2(Math.cos(angle) * radius, Math.sin(angle) * radius);
@@ -107,18 +105,25 @@ export function createGearShape({
     }
   }
 
-  return { shape, bevel };
+  return shape;
 }
 
-// Gjør omrisset om til en 3D-geometri som ligger flatt.
+// Gjør omrisset om til en 3D-geometri som ligger flatt, med avfasede kanter.
 export function createGearGeometry(settings) {
-  const { shape, bevel } = createGearShape(settings);
+  const shape = createGearShape(settings);
+
+  // Avfasingen kan ikke være mer enn knapt halve tykkelsen.
+  const chamfer = Math.min(settings.chamfer ?? 0, settings.thickness * 0.4);
+
   const geometry = new THREE.ExtrudeGeometry(shape, {
-    depth: settings.thickness - bevel * 2,
-    bevelEnabled: true,
-    bevelThickness: bevel,
-    bevelSize: bevel,
-    bevelSegments: 2,
+    depth: settings.thickness - chamfer * 2,
+    bevelEnabled: chamfer > 0,
+    bevelThickness: chamfer,
+    bevelSize: chamfer,
+    // Skjær avfasingen innover fra omrisset, så hjulet aldri blir bredere
+    // enn tannprofilen (og tennene dermed ikke kan overlappe).
+    bevelOffset: -chamfer,
+    bevelSegments: 1, // ett trinn = en ren, skrå flate (ikke avrundet)
     curveSegments: 48,
   });
 

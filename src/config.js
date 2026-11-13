@@ -6,8 +6,9 @@ export const gear = {
   module: 2,          // tannstørrelse (diameter = modul × antall tenner)
   pressureAngle: 20,  // trykkvinkel i grader (20 er standard; høyere = kraftigere, spissere tenner)
   thickness: 1.5,     // tykkelse på hjulene
+  chamfer: 0.3,       // avfasing: bredden på den skrå kanten rundt alle kanter (maks 40 % av tykkelsen)
   backlash: 0.2,      // litt klaring mellom tennene, så de ikke gnisser mot hverandre
-  speed: 2,           // farten på det store hjulet, i omdreininger per minutt
+  speed: 1,           // farten på det store hjulet, i omdreininger per minutt
 };
 
 // Det store hjulet (driver).
@@ -42,8 +43,8 @@ export const look = {
   glossRoughness: 0.3,    // hvor myk glansen er (lav = skarpere refleksjoner)
 
   // Lys.
-  exposure: 1.5,              // total lysstyrke i bildet
-  environmentIntensity: 0.3,  // mykt lys og refleksjoner fra omgivelsene
+  exposure: 1.2,              // total lysstyrke i bildet
+  environmentIntensity: 0.2,  // mykt lys og refleksjoner fra omgivelsene
   lightIntensity: 5.0,        // styrken på hovedlyset
   lightHeight: 22,            // grader over gulvet (lavt = streiflys, 90 = rett ovenfra)
   lightDirection: 150,        // grader rundt: 0 = fra høyre, 90 = bakfra, 180 = fra venstre
