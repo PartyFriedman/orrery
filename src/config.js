@@ -31,6 +31,23 @@ export const smallGear = {
 };
 
 export const look = {
-  background: '#d6d6d6', // lys grå bakgrunn
-  gearColor: '#ffffff',  // matt hvitt
+  // Bakgrunn: svak gradient ovenfra og ned.
+  backgroundTop: '#3a3d40',
+  backgroundBottom: '#121314',
+
+  // Materialet (satengmatt hvit lakk).
+  gearColor: '#f4f6f7',   // nesten hvit, så toppflaten ikke brenner ut
+  roughness: 0.4,         // 0 = speil, 1 = helt matt
+  gloss: 0.70,            // klarlakk-glans oppå (0 = ingen, 1 = full)
+  glossRoughness: 0.3,    // hvor myk glansen er (lav = skarpere refleksjoner)
+
+  // Lys.
+  exposure: 1.5,              // total lysstyrke i bildet
+  environmentIntensity: 0.3,  // mykt lys og refleksjoner fra omgivelsene
+  lightIntensity: 5.0,        // styrken på hovedlyset
+  lightHeight: 22,            // grader over gulvet (lavt = streiflys, 90 = rett ovenfra)
+  lightDirection: 150,        // grader rundt: 0 = fra høyre, 90 = bakfra, 180 = fra venstre
+  lightSpread: 1.1,           // hvor bred lyskjeglen er (lavere = mer dramatisk fall mot kantene)
+  shadowStrength: 0.55,       // hvor mørk skyggen på gulvet er (0–1)
+  shadowSoftness: 6,          // hvor myk skyggekanten er
 };

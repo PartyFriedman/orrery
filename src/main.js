@@ -1,6 +1,7 @@
 import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { gear, bigGear, smallGear, look } from './config.js';
 import { createGearGeometry } from './gear.js';
 
@@ -13,17 +14,27 @@ const bigX = bigTipRadius - totalWidth / 2; // midtstill paret i bildet
 const smallX = bigX + centerDistance;
 const ratio = bigGear.teeth / smallGear.teeth; // lille hjul går så mange ganger fortere
 
-// Renderer (tegneflaten) med myke skygger.
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+// Renderer (tegneflaten) med myke skygger. Den er gjennomsiktig, så
+// bakgrunnsgradienten bak (fra siden selv) synes uten noen gulvkant.
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x000000, 0);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
+// Tonemapping demper de lyseste flatene i stedet for å brenne dem ut til ren hvit.
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = look.exposure;
 document.querySelector('#app').appendChild(renderer.domElement);
 
-// Scene og bakgrunn.
+document.body.style.background =
+  `linear-gradient(to bottom, ${look.backgroundTop}, ${look.backgroundBottom})`;
+
+// Scene med miljøkart: et mykt "rom" som gir lys og refleksjoner fra alle kanter.
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(look.background);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = look.environmentIntensity;
 
 // Kamera skrått ovenfra, trukket så langt tilbake at begge hjulene får plass.
 const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 2000);
@@ -42,39 +53,49 @@ controls.target.set(0, 0, 0);
 controls.enableDamping = true;
 controls.maxPolarAngle = Math.PI / 2 - 0.05; // ikke under gulvet
 
-// Lys: mykt fyll-lys + ett hovedlys som kaster skygge.
-scene.add(new THREE.HemisphereLight('#ffffff', '#9a9a9a', 1.6));
-
-const sun = new THREE.DirectionalLight('#ffffff', 2.2);
-sun.position.set(30, 60, 20);
+// Hovedlys: lavt fra siden, så det streifer toppflaten og fanger tennene.
+// Et spotlys med helt myk kant gir en glidende overgang fra lyst til mørkere
+// over flatene. Fyll-lyset kommer fra miljøkartet.
+const lightDistance = 140;
+const sun = new THREE.SpotLight('#ffffff', look.lightIntensity);
+sun.decay = 0;     // lyset svekkes ikke med avstanden, bare mot kanten av lyskjeglen
+sun.penumbra = 1;  // helt myk kant
+sun.angle = Math.atan((totalWidth / 2) * look.lightSpread / lightDistance);
+const height = THREE.MathUtils.degToRad(look.lightHeight);
+const around = THREE.MathUtils.degToRad(look.lightDirection);
+sun.position.set(
+  Math.cos(height) * Math.cos(around) * lightDistance,
+  Math.sin(height) * lightDistance,
+  -Math.cos(height) * Math.sin(around) * lightDistance
+);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.radius = 6;
+sun.shadow.radius = look.shadowSoftness;
 sun.shadow.blurSamples = 16;
 sun.shadow.bias = -0.0005;
-const s = sun.shadow.camera;
-// Skyggeområdet må dekke begge hjulene.
-const shadowSize = totalWidth / 2 + 10;
-s.left = s.bottom = -shadowSize;
-s.right = s.top = shadowSize;
-s.near = 1;
-s.far = 200;
+sun.shadow.normalBias = 0.05; // hindrer stripete skygge når lyset kommer lavt inn
+sun.shadow.camera.near = 10;
+sun.shadow.camera.far = lightDistance * 2;
 scene.add(sun);
+scene.add(sun.target); // lyset peker mot midten av scenen
 
-// Gulv i samme farge som bakgrunnen, så bare skyggen synes.
+// Usynlig gulv som bare viser skyggen, så det ikke finnes noen gulvkant.
 const floor = new THREE.Mesh(
   new THREE.PlaneGeometry(400, 400),
-  new THREE.MeshStandardMaterial({ color: look.background, roughness: 1 })
+  new THREE.ShadowMaterial({ opacity: look.shadowStrength })
 );
 floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 scene.add(floor);
 
 // Tannhjulene, løftet litt over gulvet.
-const gearMaterial = new THREE.MeshStandardMaterial({
+// Satengmatt hvit lakk: halvmatt grunnfarge med et tynt, mykt klarlakklag oppå.
+const gearMaterial = new THREE.MeshPhysicalMaterial({
   color: look.gearColor,
-  roughness: 0.85,
+  roughness: look.roughness,
   metalness: 0,
+  clearcoat: look.gloss,
+  clearcoatRoughness: look.glossRoughness,
 });
 function addGear(settings, x) {
   const mesh = new THREE.Mesh(createGearGeometry({ ...gear, ...settings }), gearMaterial);

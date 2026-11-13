@@ -3,7 +3,7 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #d6d6d6;
+  background: #8f9194; /* reserve; selve gradienten settes fra config.js */
 }
 
 canvas {
