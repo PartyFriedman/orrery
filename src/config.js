@@ -136,13 +136,13 @@ export const panels = {
   // Trionda-ballen). amplitude er hvor langt S-en svinger ut (andel av
   // kantlengden). bulge gjør hver bue bredere ytterst: 0 gir rolige bølger,
   // rundt 1 gir tydelige armer. For store verdier gir en feilmelding.
-  sun:     { pattern: 'trionda', amplitude: 0.12, bulge: 0.5, seamWidth: 0.1 },  // sola er stor: bredere fuger
+  sun:     { pattern: 'trionda', amplitude: 0.32, bulge: 0.2, seamWidth: 0.1 },  // sola er stor: bredere fuger
 };
 
 // Rødt brukes sparsomt: sola, og en tynn ring der hver planetstolpe møter armen.
 export const accent = {
-  red: '#c21632',         // fargen på det røde
-  sunStyle: 'lacquer',    // 'lacquer' = blank rød lakk, 'glass' = rødt glass med lys innenfra
+  red: '#960820',         // fargen på det røde
+  sunStyle: 'glass',    // 'lacquer' = blank rød lakk, 'glass' = rødt glass med lys innenfra
   glow: 1,                // hvor sterkt glasssola lyser innenfra (bare for 'glass')
   ringWidth: 0.16,        // tykkelsen på den røde ringen rundt planetstolpene
 };
