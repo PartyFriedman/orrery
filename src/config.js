@@ -5,22 +5,30 @@
 // følger av tanntallene.
 export const drive = {
   speed: 3,           // omdreininger per minutt for mellomakselen
+  distance: 48,       // avstanden fra mellomakselen til sentrum; alle hjulpar må nå over den
+  shaftRadius: 2,     // tykkelsen på mellomakselen
 };
 
-// Felles for hjulparet nederst (må være like for at de skal kunne gripe inn i hverandre).
+// Sentralakselen og rørene rundt den. Rørene ligger innenfra og ut i den
+// rekkefølgen armene trenger (kortest arm innerst), og radiene følger av den.
+export const center = {
+  axleRadius: 1.5,    // den faste sentralakselen
+  tubeWall: 1,        // hvor mye tykkere hvert rør er enn det inni
+};
+
+// Felles for hjulparene nederst. Tannstørrelsen (modulen) regnes ut for hvert
+// par, så paret når nøyaktig fra mellomakselen til sentrum.
 export const gear = {
-  module: 2,          // tannstørrelse (diameter = modul × antall tenner)
   pressureAngle: 20,  // trykkvinkel i grader (20 er standard; høyere = kraftigere, spissere tenner)
   thickness: 1.5,     // tykkelse på hjulene
   chamfer: 0.3,       // avfasing: bredden på den skrå kanten rundt alle kanter (maks 40 % av tykkelsen)
   backlash: 0.2,      // litt klaring mellom tennene, så de ikke gnisser mot hverandre
 };
 
-// Det store hjulet: sitter nederst på røret rundt sentralakselen og bærer jordarmen.
-// Hullet i midten er også tykkelsen på røret.
+// Det store hjulet: sitter nederst på jordas rør og bærer jordarmen.
+// Hullet i midten følger røret.
 export const bigGear = {
   teeth: 36,          // antall tenner
-  holeRadius: 4,      // radius på hullet i midten
   spokes: 3,          // antall eiker (0 = helt hjul uten utsparinger)
   spokeWidth: 3,      // bredden på hver eike
   hubWidth: 4,        // hvor bred ringen rundt hullet i midten er
@@ -30,7 +38,6 @@ export const bigGear = {
 // Det lille hjulet: sitter på mellomakselen og driver det store.
 export const smallGear = {
   teeth: 12,
-  holeRadius: 2,
   spokes: 0,          // for lite til eiker med disse målene
   spokeWidth: 1.5,
   hubWidth: 2,
@@ -44,8 +51,20 @@ export const arm = {
   thickness: 1,
 };
 
-// Månehjulverket på jordarmen. Et fast hjul på sentralakselen driver en
-// pinion på armen. På samme aksel sitter et kjedehjul, og et kjede overfører
+// Merkur, Venus og Mars: hver har sitt eget rør med et hjul nederst, drevet fra
+// mellomakselen, og en arm øverst. Omløpstiden følger av tanntallene:
+// år per runde = (tubeTeeth / driveTeeth) × (smallGear.teeth / bigGear.teeth).
+// period er bare målet den sammenlignes med. radius er kulas størrelse
+// (jorda har bodies.earthRadius).
+export const planets = {
+  mercury: { period: 0.2408, driveTeeth: 29, tubeTeeth: 21, armLength: 30,  radius: 1.5 },
+  venus:   { period: 0.6152, driveTeeth: 19, tubeTeeth: 35, armLength: 52,  radius: 3.8 },
+  mars:    { period: 1.8809, driveTeeth: 11, tubeTeeth: 62, armLength: 108, radius: 2.1 },
+};
+
+// Månehjulverket på jordarmen. Et fast hjul driver en pinion på armen. Det
+// faste hjulet sitter på et eget fast rør mellom Venus-røret og jord-røret
+// (sentralakselen er dekket av Merkur- og Venus-rørene der). På samme aksel sitter et kjedehjul, og et kjede overfører
 // bevegelsen til kjedehjulet under jorda, som bærer månearmen.
 // Månen går (fixed/pinion) × (driveSprocket/moonSprocket) runder rundt jorda per runde armen tar.
 export const moonTrain = {
@@ -56,13 +75,13 @@ export const moonTrain = {
   // Avstanden mellom leddene i kjedet. Kjedehjulenes størrelse følger av den
   // og tanntallet. Den justeres litt automatisk så kjedet går opp i hele ledd.
   chainPitch: 1.5,
-  fixed:         { teeth: 60, holeRadius: 2,   spokes: 5, spokeWidth: 2,   hubWidth: 3, rimWidth: 2 },   // fast på sentralakselen
+  fixed:         { teeth: 60,                  spokes: 5, spokeWidth: 2,   hubWidth: 3, rimWidth: 2 },   // fast på det faste røret
   pinion:        { teeth: 12, holeRadius: 1,   spokes: 0, spokeWidth: 1,   hubWidth: 1, rimWidth: 1 },   // på armen, går rundt det faste hjulet
   driveSprocket: { teeth: 47, holeRadius: 1,   spokes: 4, spokeWidth: 1.5, hubWidth: 2, rimWidth: 1.5 }, // samme aksel som pinion
   moonSprocket:  { teeth: 19, holeRadius: 1.5, spokes: 0, spokeWidth: 1,   hubWidth: 1, rimWidth: 1 },   // under jorda, bærer månearmen
-  // Parallellføringen: to like store kjedehjul, ett fast på sentralakselen og
-  // ett under jorda. Hullet i midten følger akselen hvert hjul sitter på.
-  parallelSprocket: { teeth: 24, spokes: 4, spokeWidth: 1, hubWidth: 1.5, rimWidth: 1 },
+  // Parallellføringen: to like store kjedehjul, ett fast i midten og ett under
+  // jorda. Hullet i midten følger røret eller tappen hvert hjul sitter på.
+  parallelSprocket: { teeth: 32, spokes: 4, spokeWidth: 1, hubWidth: 1.5, rimWidth: 1 },
 };
 
 // Hellingene som parallellføringen holder i samme retning i rommet.
@@ -74,13 +93,13 @@ export const tilt = {
   moonNodeDirection: 0,     // knutelinjen, der månen krysser jordbanen (høyest 90° etter)
 };
 
-// Kulene og hvor de sitter. Sola står i samme høyde som jorda, så linjen
-// mellom dem er vannrett og månen går over og under den.
+// Kulene og hvor de sitter. Sola og planetene står i samme høyde, så linjen
+// mellom jorda og sola er vannrett og månen går over og under den.
 export const bodies = {
   sunRadius: 10,
   earthRadius: 4,
-  earthHeight: 24,    // høyden på sentrum av jorda, sola og månen
-  moonRadius: 1.5,
+  height: 34,         // høyden på sentrum av sola og alle planetene
+  moonRadius: 1.1,    // 27 % av jorda, som i virkeligheten
   moonOrbit: 15,      // avstanden fra jorda til månen
 };
 

@@ -2,13 +2,16 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { drive, gear, bigGear, smallGear, arm, moonTrain, bodies, look } from './config.js';
+import { drive, center, gear, bigGear, smallGear, arm, planets, moonTrain, bodies, look } from './config.js';
 import { createGearGeometry, createSprocketGeometry } from './gear.js';
-import { layout, anglesAt, moonChain, parallelChain, earthAxis, moonRing, moonLift } from './mechanism.js';
+import {
+  layout, anglesAt, pairModule, tube, heights, reach as armReach,
+  moonChain, parallelChain, earthAxis, moonRing, moonLift,
+} from './mechanism.js';
 
 // Hvor langt ut og opp modellen rekker, så kamera og lys kan tilpasses.
-const reach = arm.length + bodies.moonOrbit + bodies.moonRadius;
-const modelHeight = bodies.earthHeight + bodies.sunRadius;
+const reach = Math.max(...Object.values(armReach).map((r) => r.outer));
+const modelHeight = bodies.height + bodies.sunRadius;
 
 // Renderer (tegneflaten) med myke skygger. Den er gjennomsiktig, så
 // bakgrunnsgradienten bak (fra siden selv) synes uten noen gulvkant.
@@ -147,35 +150,35 @@ function addGroupAt(parent, point) {
   return group;
 }
 
-// Høyder, nedenfra og opp.
-const gap = 0.5;
-const chainGap = 1.2;                                                   // ekstra luft mellom to kjeder over hverandre
-const mainY = 2;                                                        // hjulparet nederst
-const mainTop = mainY + gear.thickness;
-const armY = mainTop + 1.5;                                             // jordarmen
+// Høyder (regnet ut i mechanism.js, nedenfra og opp).
+const { gap } = heights;
+const armY = heights.arm.earth;                // jordarmen
 const armTop = armY + arm.thickness;
-const level1 = armTop + gap;                                            // fast hjul og pinion
-const parallelLevel = level1 + moonTrain.thickness + gap;               // parallellkjedet
-const moonChainLevel = parallelLevel + moonTrain.thickness + chainGap;  // månekjedet
-const moonArmY = moonChainLevel + moonTrain.thickness + gap;            // månearmen
+const level1 = heights.level1;                 // fast hjul og pinion
+const parallelLevel = heights.parallel;        // parallellkjedet
+const moonChainLevel = heights.moonChain;      // månekjedet
+const moonArmY = heights.moonArm;              // månearmen
 const moonArmTop = moonArmY + arm.thickness;
-
-// Månestaven glir opp og ned i en hylse på månearmen, og en fot på staven
-// hviler på den skrå ringen rett under jorda. Hylsa må romme hele vandringen.
-const travel = moonRing.maxLift;
-const ringY = bodies.earthHeight - bodies.earthRadius - 1;
-const sleeveTop = ringY - travel - 0.5;
-const neededSleeve = 2 * travel + 0.5;
-if (sleeveTop - moonArmY < neededSleeve) {
-  const minHeight = bodies.earthHeight + neededSleeve - (sleeveTop - moonArmY);
-  throw new Error(
-    `bodies.earthHeight må være minst ${minHeight.toFixed(1)} så månestaven får plass til å gå opp og ned (er ${bodies.earthHeight}).`
-  );
-}
+const travel = moonRing.maxLift;               // hvor langt månestaven går opp og ned
+const ringY = heights.ring;
+const sleeveTop = heights.sleeveTop;
 
 const pillarRadius = 0.9; // jordstolpen og tappen parallellhjulet går på
-const mainGear = (settings) => ({ ...gear, ...settings });
 const trainGear = (settings) => ({ ...gear, ...moonTrain, ...settings });
+
+// Et hjul i et av parene nederst. Modulen følger av paret, og hjulet får eiker
+// når det er stort nok til det.
+function pairGear(teeth, otherTeeth, holeRadius, style = null) {
+  const module = pairModule(teeth, otherTeeth);
+  if (style) return { ...gear, ...style, teeth, module, holeRadius };
+  const rimRadius = (module * teeth) / 2 - 1.25 * module - 1.5 * module;
+  const hubRadius = holeRadius + 2 * module;
+  const spokes = rimRadius - hubRadius > 4 ? (teeth >= 40 ? 5 : 4) : 0;
+  return {
+    ...gear, teeth, module, holeRadius, spokes,
+    spokeWidth: 1.5 * module, hubWidth: 2 * module, rimWidth: 1.5 * module,
+  };
+}
 
 // Et kjede: ruller som ligger i setene på kjedehjulene, holdt sammen av
 // lenkeplater over og under. Annenhver lenke har platene ytterst, som på et
@@ -232,28 +235,56 @@ function addChain(parent, chain, y) {
   };
 }
 
-// --- Det som står fast: sentralakselen med sola, det faste hjulet og det faste kjedehjulet. ---
-addShaft(scene, moonTrain.fixed.holeRadius, 0, bodies.earthHeight);
-addSphere(scene, bodies.sunRadius).position.y = bodies.earthHeight;
-addGear(scene, trainGear(moonTrain.fixed), level1); // dreier aldri
-addSprocket(scene, { ...moonTrain.parallelSprocket, holeRadius: moonTrain.fixed.holeRadius }, parallelChain.radius1, parallelLevel);
+// --- Det som står fast: sentralakselen med sola. ---
+addShaft(scene, center.axleRadius, 0, bodies.height);
+addSphere(scene, bodies.sunRadius).position.y = bodies.height;
 
-// --- Mellomakselen med det lille hjulet, der inngangen kommer inn. ---
+// Det faste røret for månehjulverket, med det faste hjulet og det faste
+// kjedehjulet øverst. Det holdes av en brakett som går bakover (bort fra
+// mellomakselen) til en stolpe ned til gulvet.
+addShaft(scene, tube.fixed.outer, heights.bottom.fixed, heights.fixedTop);
+addGear(scene, trainGear({ ...moonTrain.fixed, holeRadius: tube.fixed.outer }), level1); // dreier aldri
+addSprocket(scene, { ...moonTrain.parallelSprocket, holeRadius: tube.fixed.outer }, parallelChain.radius1, parallelLevel);
+const bracket = addGroupAt(scene, layout.center);
+bracket.rotation.y = Math.PI / 2;
+const bracketTop = heights.bottom.fixed + arm.thickness;
+addBar(bracket, drive.distance, arm.width * 0.75, heights.bottom.fixed, bracketTop);
+addShaft(bracket, arm.width * 0.3, 0, bracketTop).position.x = drive.distance;
+
+// --- Mellomakselen, der inngangen kommer inn. Den har ett hjul for hver planet. ---
 const driveGroup = addGroupAt(scene, layout.drive);
-addShaft(driveGroup, smallGear.holeRadius, 0, mainTop + gap);
-addGear(driveGroup, mainGear(smallGear), mainY);
+addShaft(driveGroup, drive.shaftRadius, 0, heights.driveTop);
+addGear(driveGroup, pairGear(smallGear.teeth, bigGear.teeth, drive.shaftRadius, smallGear), heights.bottom.earth);
+for (const [name, p] of Object.entries(planets)) {
+  addGear(driveGroup, pairGear(p.driveTeeth, p.tubeTeeth, drive.shaftRadius), heights.bottom[name]);
+}
 
-// --- Armen: røret rundt sentralakselen, det store hjulet nederst og stanga ut til jorda. ---
+// --- Merkur, Venus og Mars: rør med hjul nederst, arm øverst, stolpe og kule. ---
+const planetGroups = {};
+for (const [name, p] of Object.entries(planets)) {
+  const group = new THREE.Group();
+  scene.add(group);
+  const y = heights.arm[name];
+  addShaft(group, tube[name].outer, heights.bottom[name], y);
+  addGear(group, pairGear(p.tubeTeeth, p.driveTeeth, tube[name].outer), heights.bottom[name]);
+  addShaft(group, tube[name].outer + 1, y, y + arm.thickness); // navet
+  addBar(group, p.armLength, arm.width * 0.75, y, y + arm.thickness);
+  addShaft(group, 0.5, y + arm.thickness, bodies.height).position.x = p.armLength;
+  addSphere(group, p.radius).position.set(p.armLength, bodies.height, 0);
+  planetGroups[name] = group;
+}
+
+// --- Jordarmen: røret, det store hjulet nederst og stanga ut til jorda. ---
 const armGroup = new THREE.Group();
 scene.add(armGroup);
-addShaft(armGroup, bigGear.holeRadius, mainY, armY);
-addGear(armGroup, mainGear(bigGear), mainY);
+addShaft(armGroup, tube.earth.outer, heights.bottom.earth, armY);
+addGear(armGroup, pairGear(bigGear.teeth, smallGear.teeth, tube.earth.outer, bigGear), heights.bottom.earth);
 addBar(armGroup, arm.length, arm.width, armY, armTop);
-addShaft(armGroup, bigGear.holeRadius + 1, armY, armTop); // navet midt på armen
+addShaft(armGroup, tube.earth.outer + 1, armY, armTop); // navet midt på armen
 
 // Pinion og det store månekjedehjulet på samme aksel, som går rundt det faste hjulet.
 const pinionGroup = addGroupAt(armGroup, layout.pinion);
-addShaft(pinionGroup, moonTrain.pinion.holeRadius, armTop, moonChainLevel + moonTrain.thickness + gap * 0.6);
+addShaft(pinionGroup, moonTrain.pinion.holeRadius, armTop, heights.pinionTop);
 addGear(pinionGroup, trainGear(moonTrain.pinion), level1);
 addSprocket(pinionGroup, moonTrain.driveSprocket, moonChain.radius1, moonChainLevel);
 
@@ -269,11 +300,11 @@ addShaft(earthGroup, pillarRadius, armTop, parallelLevel);
 const parallelGroup = new THREE.Group();
 earthGroup.add(parallelGroup);
 addSprocket(parallelGroup, { ...moonTrain.parallelSprocket, holeRadius: pillarRadius }, parallelChain.radius2, parallelLevel);
-addShaft(parallelGroup, pillarRadius, parallelLevel, bodies.earthHeight);
+addShaft(parallelGroup, pillarRadius, parallelLevel, bodies.height);
 
 // Jorda, med aksen og ekvator så hellingen synes.
 const earthMount = new THREE.Group();
-earthMount.position.y = bodies.earthHeight;
+earthMount.position.y = bodies.height;
 earthMount.rotation.y = earthAxis.direction;
 parallelGroup.add(earthMount);
 const earthTilted = new THREE.Group();
@@ -324,12 +355,12 @@ const footSize = 0.2;
 const moonPin = new THREE.Group();
 moonPin.position.x = bodies.moonOrbit;
 moonGroup.add(moonPin);
-addShaft(moonPin, 0.35, moonArmY + travel + 0.1, bodies.earthHeight);
+addShaft(moonPin, 0.35, moonArmY + travel + 0.1, bodies.height);
 const footLength = bodies.moonOrbit - moonRing.radius;
 const foot = addMesh(moonPin, new THREE.CylinderGeometry(footSize, footSize, footLength, 12));
 foot.rotation.z = Math.PI / 2;
 foot.position.set(-footLength / 2, ringY + bandThickness / 2 + footSize, 0);
-addSphere(moonPin, bodies.moonRadius).position.y = bodies.earthHeight;
+addSphere(moonPin, bodies.moonRadius).position.y = bodies.height;
 
 // Tilpass ved endring av vindusstørrelse.
 window.addEventListener('resize', () => {
@@ -350,6 +381,7 @@ renderer.setAnimationLoop((time) => {
   const a = anglesAt(input);
   driveGroup.rotation.y = a.driveAngle;
   armGroup.rotation.y = a.armAngle;
+  for (const name in planetGroups) planetGroups[name].rotation.y = a.planetAngles[name];
   pinionGroup.rotation.y = a.pinionAngle;
   updateMoonChain(a.moonChainOffset);
   updateParallelChain(a.parallelChainOffset);
