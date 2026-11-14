@@ -1,17 +1,23 @@
 // Alle tall du vil justere, samlet på ett sted.
 // Enheter: tenk på dem som millimeter.
 
-// Felles for alle hjulene (må være like for at de skal kunne gripe inn i hverandre).
+// Inngangen: mellomakselen dreies med fast fart. All annen bevegelse
+// følger av tanntallene.
+export const drive = {
+  speed: 3,           // omdreininger per minutt for mellomakselen
+};
+
+// Felles for hjulparet nederst (må være like for at de skal kunne gripe inn i hverandre).
 export const gear = {
   module: 2,          // tannstørrelse (diameter = modul × antall tenner)
   pressureAngle: 20,  // trykkvinkel i grader (20 er standard; høyere = kraftigere, spissere tenner)
   thickness: 1.5,     // tykkelse på hjulene
   chamfer: 0.3,       // avfasing: bredden på den skrå kanten rundt alle kanter (maks 40 % av tykkelsen)
   backlash: 0.2,      // litt klaring mellom tennene, så de ikke gnisser mot hverandre
-  speed: 1,           // farten på det store hjulet, i omdreininger per minutt
 };
 
-// Det store hjulet (driver).
+// Det store hjulet: sitter nederst på røret rundt sentralakselen og bærer jordarmen.
+// Hullet i midten er også tykkelsen på røret.
 export const bigGear = {
   teeth: 36,          // antall tenner
   holeRadius: 4,      // radius på hullet i midten
@@ -21,14 +27,46 @@ export const bigGear = {
   rimWidth: 3,        // hvor bred tannkransen er innenfor tennene
 };
 
-// Det lille hjulet (drives av det store).
+// Det lille hjulet: sitter på mellomakselen og driver det store.
 export const smallGear = {
-  teeth: 12,          // antall tenner
+  teeth: 12,
   holeRadius: 2,
   spokes: 0,          // for lite til eiker med disse målene
   spokeWidth: 1.5,
   hubWidth: 2,
   rimWidth: 2,
+};
+
+// Jordarmen, som går fra røret i midten ut til jorda.
+export const arm = {
+  length: 80,         // fra sentrum til jorda
+  width: 4,
+  thickness: 1,
+};
+
+// Månehjulverket på jordarmen. Et fast hjul på sentralakselen driver et
+// tannhjulspar på armen, som via et mellomhjul driver månehjulet under jorda.
+// Månen går (fixed/pinion) × (wheel/moonWheel) runder rundt jorda per runde armen tar.
+export const moonTrain = {
+  module: 1,          // mindre tenner enn hjulparet nederst
+  thickness: 1,
+  chamfer: 0.2,
+  backlash: 0.1,
+  fixed:     { teeth: 60, holeRadius: 2,   spokes: 5, spokeWidth: 2,   hubWidth: 3,   rimWidth: 2 },   // fast på sentralakselen
+  pinion:    { teeth: 12, holeRadius: 1,   spokes: 0, spokeWidth: 1,   hubWidth: 1,   rimWidth: 1 },   // på armen, går rundt det faste hjulet
+  wheel:     { teeth: 47, holeRadius: 1,   spokes: 4, spokeWidth: 2,   hubWidth: 2.5, rimWidth: 2 },   // samme aksel som pinion
+  idler:     { teeth: 15, holeRadius: 1,   spokes: 0, spokeWidth: 1,   hubWidth: 1,   rimWidth: 1 },   // mellomhjul, snur retningen
+  moonWheel: { teeth: 19, holeRadius: 1.5, spokes: 0, spokeWidth: 1,   hubWidth: 1,   rimWidth: 1 },   // under jorda, bærer månearmen
+};
+
+// Kulene og hvor de sitter.
+export const bodies = {
+  sunRadius: 10,
+  sunHeight: 34,      // høyden på sentrum av sola
+  earthRadius: 4,
+  earthHeight: 20,    // høyden på sentrum av jorda (og månen)
+  moonRadius: 1.5,
+  moonOrbit: 15,      // avstanden fra jorda til månen
 };
 
 export const look = {
