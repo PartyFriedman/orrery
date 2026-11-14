@@ -7,6 +7,8 @@ import * as THREE from 'three';
 //   'kites'      drager (deltoid-heksekontaeder: 60 drager rundt ikosaederets hjørner)
 //   'rhombi'     ruter (rombisk triakontaeder: 30 ruter, én per ikosaederkant)
 //   'pentagons'  femkanter med ringer rundt (dodekaeder)
+//   'trionda'    fire like paneler fra et tetraeder, med S-formede kanter
+//                (styres med amplitude og bulge i stedet for subdivisions)
 //
 // subdivisions sier hvor mange biter hver grunnflate deles i langs kanten.
 //
@@ -147,7 +149,163 @@ const patterns = {
     return out;
   },
 };
-export const panelPatterns = Object.keys(patterns);
+export const panelPatterns = [...Object.keys(patterns), 'trionda'];
+
+// --- Trionda: fire like paneler fra et tetraeder, med S-formede kanter ---
+// Tetraederets fire hjørner på kula. Hver kant byttes ut med en S-kurve.
+const tetraVertices = [[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]]
+  .map(([x, y, z]) => new THREE.Vector3(x, y, z).normalize());
+const tetraFaces = [[0, 1, 2], [0, 3, 1], [0, 2, 3], [1, 3, 2]].map((f) => {
+  // Hjørnene mot klokka sett utenfra.
+  const [a, b, c] = f.map((i) => tetraVertices[i]);
+  const outward = b.clone().sub(a).cross(c.clone().sub(a)).dot(a.clone().add(b).add(c)) > 0;
+  return outward ? f : [f[0], f[2], f[1]];
+});
+const edgeSamples = 240; // punkter langs hver S-kurve
+
+// S-kurven fra a til b på enhetskula. Den går langs storsirkelen fra a til b og
+// svinger ut til siden: først til den ene siden, så like langt til den andre.
+// Kurven er punktsymmetrisk om midten av kanten (en halv omdreining der bytter
+// om a og b og gir den samme kurven), så den blir lik fra begge naboene. Den
+// regnes bare ut fra a og b, så alle seks kantene og alle fire panelene blir like.
+//   amplitude: hvor langt ut den svinger, som andel av kantlengden
+//   bulge: 0 gir en rolig bølge; høyere gjør hver bue bredere ytterst enn ved
+//          roten, så den blir en arm
+function sCurve(a, b, amplitude, bulge, samples = edgeSamples) {
+  const angle = a.angleTo(b);
+  const side = a.clone().cross(b).normalize();   // vinkelrett på kanten, langs kula
+  const toward = side.clone().cross(a);          // fra a mot b
+  const alongEdge = (x) => a.clone().multiplyScalar(Math.cos(x * angle)).addScaledVector(toward, Math.sin(x * angle));
+  // Første halvdel av S-en (fra a til midten), som vinkel phi fra 0 til pi.
+  const half = (phi) => ({
+    x: 0.25 * (1 - Math.cos(phi)) - bulge * 0.15 * Math.sin(2 * phi) * Math.sin(phi),
+    y: Math.sin(phi),
+  });
+  const point = (s) => {
+    let x, y;
+    if (s <= 0.5) ({ x, y } = half(2 * Math.PI * s));
+    else { const h = half(2 * Math.PI * (1 - s)); x = 1 - h.x; y = -h.y; } // speilet om midten
+    const offset = amplitude * angle * y;
+    return alongEdge(x).multiplyScalar(Math.cos(offset)).addScaledVector(side, Math.sin(offset));
+  };
+  return Array.from({ length: samples + 1 }, (_, i) => point(i / samples));
+}
+
+// Sjekker at S-kurvene ikke krysser hverandre eller seg selv.
+function checkTrionda(amplitude, bulge) {
+  const edges = [];
+  for (const f of tetraFaces) for (let k = 0; k < 3; k++) {
+    const i = f[k], j = f[(k + 1) % 3];
+    if (i < j) edges.push({ i, j, pts: sCurve(tetraVertices[i], tetraVertices[j], amplitude, bulge, 300) });
+  }
+  const near = 0.12; // se bort fra punkter like ved et felles hjørne, der kurvene møtes
+  let closest = Infinity;
+  for (let e = 0; e < edges.length; e++) for (let f = e; f < edges.length; f++) {
+    const A = edges[e], B = edges[f];
+    const shared = [A.i, A.j].filter((v) => v === B.i || v === B.j).map((v) => tetraVertices[v]);
+    for (let p = 0; p < A.pts.length; p++) for (let q = e === f ? p + 30 : 0; q < B.pts.length; q++) {
+      const pa = A.pts[p], pb = B.pts[q];
+      if (shared.some((v) => pa.angleTo(v) < near && pb.angleTo(v) < near)) continue;
+      closest = Math.min(closest, pa.distanceTo(pb));
+    }
+  }
+  if (closest < 0.02) {
+    throw new Error('Solmønsteret (trionda) krysser seg selv: gjør amplitude eller bulge mindre i panels.sun.');
+  }
+}
+
+// Stereografisk projeksjon rundt et punkt c på kula, og tilbake. Den tåler store
+// paneler (opp mot en halvkule) uten å strekke dem ut.
+function stereographic(c) {
+  const e1 = new THREE.Vector3(1, 0, 0).cross(c);
+  if (e1.lengthSq() < 0.1) e1.set(0, 1, 0).cross(c);
+  e1.normalize();
+  const e2 = c.clone().cross(e1);
+  return {
+    to: (p) => new THREE.Vector2(p.dot(e1), p.dot(e2)).divideScalar(1 + p.dot(c)),
+    from: (q) => {
+      const r2 = q.x * q.x + q.y * q.y;
+      return e1.clone().multiplyScalar(2 * q.x).addScaledVector(e2, 2 * q.y).addScaledVector(c, 1 - r2).divideScalar(1 + r2);
+    },
+  };
+}
+
+// Er punktet q innenfor mangekanten (2D)?
+function inside(q, poly) {
+  let hit = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if ((a.y > q.y) !== (b.y > q.y) && q.x < ((b.x - a.x) * (q.y - a.y)) / (b.y - a.y) + a.x) hit = !hit;
+  }
+  return hit;
+}
+
+// Gjør en triangulering penere (2D): så lenge et par nabotrekanter blir
+// bedre av å bytte diagonal (Delaunay), byttes den. Kantene av omrisset har
+// bare én trekant og blir aldri byttet, så omrisset holder seg. Earcut lager
+// lange, smale trekanter; etter dette blir de omtrent like store som avstanden
+// mellom punktene, og da følger de kula når de legges ut på den.
+function delaunayFlip(points, faces) {
+  const cross = (a, b, c) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  const tris = faces.map(([a, b, c]) => (cross(points[a], points[b], points[c]) > 0 ? [a, b, c] : [a, c, b]));
+  const inCircle = (a, b, c, d) => {
+    const [ax, ay, bx, by, cx, cy] = [a.x - d.x, a.y - d.y, b.x - d.x, b.y - d.y, c.x - d.x, c.y - d.y];
+    return (ax * ax + ay * ay) * (bx * cy - cx * by) - (bx * bx + by * by) * (ax * cy - cx * ay) + (cx * cx + cy * cy) * (ax * by - bx * ay) > 1e-12;
+  };
+  for (let pass = 0; pass < 100; pass++) {
+    const edges = new Map();
+    tris.forEach((t, ti) => {
+      for (let k = 0; k < 3; k++) {
+        const u = t[k], v = t[(k + 1) % 3];
+        const key = u < v ? `${u}-${v}` : `${v}-${u}`;
+        if (!edges.has(key)) edges.set(key, []);
+        edges.get(key).push(ti);
+      }
+    });
+    let flips = 0;
+    const touched = new Set();
+    for (const [key, list] of edges) {
+      if (list.length !== 2 || touched.has(list[0]) || touched.has(list[1])) continue;
+      const [u, v] = key.split('-').map(Number);
+      const [t1, t2] = list.map((i) => tris[i]);
+      const p = t1.find((x) => x !== u && x !== v);
+      const q = t2.find((x) => x !== u && x !== v);
+      // Ordne så t1 = (a, b, p) mot klokka, med q på den andre siden av a–b.
+      const i1 = t1.indexOf(p);
+      const a = t1[(i1 + 1) % 3], b = t1[(i1 + 2) % 3];
+      if (!inCircle(points[a], points[b], points[p], points[q])) continue;
+      // Bare bytt når firkanten a, q, b, p er konveks.
+      if (cross(points[p], points[a], points[q]) <= 0 || cross(points[q], points[b], points[p]) <= 0) continue;
+      tris[list[0]] = [p, a, q];
+      tris[list[1]] = [q, b, p];
+      touched.add(list[0]);
+      touched.add(list[1]);
+      flips++;
+    }
+    if (flips === 0) break;
+  }
+  return tris;
+}
+
+// De fire panelene som omriss på enhetskula, krympet inn så det blir fuger.
+// Kanten flyttes like langt inn overalt, vinkelrett på seg selv, langs kula.
+function triondaOutlines(amplitude, bulge, inset) {
+  checkTrionda(amplitude, bulge);
+  return tetraFaces.map((f) => {
+    const outline = [];
+    for (let k = 0; k < 3; k++) {
+      outline.push(...sCurve(tetraVertices[f[k]], tetraVertices[f[(k + 1) % 3]], amplitude, bulge).slice(0, -1));
+    }
+    const center = f.reduce((s, i) => s.add(tetraVertices[i]), new THREE.Vector3()).normalize();
+    const n = outline.length;
+    const shrunk = outline.map((p, i) => {
+      const tangent = outline[(i + 1) % n].clone().sub(outline[(i - 1 + n) % n]);
+      const inward = p.clone().cross(tangent).normalize(); // til venstre for kanten, sett utenfra
+      return p.clone().addScaledVector(inward, inset).normalize();
+    });
+    return { center, outline: shrunk };
+  });
+}
 
 // Krymper en flat, konveks mangekant (2D, mot klokka) så hver kant flytter seg
 // `inset` innover. Hvert nytt hjørne er der to forskjøvne kanter krysser.
@@ -176,11 +334,12 @@ const curveStep = 0.08;
 // Gir tilbake geometrien til panelene og radiusen kjernen skal ha. Geometrien
 // har to materialgrupper: toppene (0) og sidene med undersiden (1), så sidene
 // kan få samme mørke farge som kjernen og fugene blir mørke hele veien.
-export function createPanelGeometry({ radius, pattern, subdivisions, seamWidth, seamDepth, shape = 'curved' }) {
+export function createPanelGeometry({
+  radius, pattern, subdivisions, seamWidth, seamDepth, shape = 'curved', amplitude = 0, bulge = 0,
+}) {
   if (shape !== 'curved' && shape !== 'flat') throw new Error(`Ukjent panelform '${shape}'. Velg 'curved' eller 'flat'.`);
-  const build = patterns[pattern];
-  if (!build) throw new Error(`Ukjent panelmønster '${pattern}'. Velg mellom: ${panelPatterns.join(', ')}.`);
-  const polygons = build(Math.max(1, Math.round(subdivisions)));
+  if (!panelPatterns.includes(pattern)) throw new Error(`Ukjent panelmønster '${pattern}'. Velg mellom: ${panelPatterns.join(', ')}.`);
+  const polygons = pattern === 'trionda' ? [] : patterns[pattern](Math.max(1, Math.round(subdivisions)));
 
   const tops = [];      // toppen av panelene
   const topNormals = [];
@@ -263,6 +422,54 @@ export function createPanelGeometry({ radius, pattern, subdivisions, seamWidth, 
     }
   }
 
+  // Trionda: fire store paneler med S-kanter. Hvert panel fylles med punkter på
+  // kula (kanten og et rutenett innenfor), som deles i trekanter. Alle punktene
+  // ligger på kula, så panelene er alltid buet, også når shape er 'flat'.
+  if (pattern === 'trionda') {
+    const down = 1 - (seamDepth * 2) / radius;
+    const spacing = curveStep / 2; // i projeksjonen er avstandene omtrent halvparten av vinkelen
+    for (const { center, outline } of triondaOutlines(amplitude, bulge, seamWidth / 2 / radius)) {
+      const proj = stereographic(center);
+      const edge2 = outline.map(proj.to);
+      // Rutenett innenfor kanten, med litt avstand til den.
+      const min = new THREE.Vector2(Infinity, Infinity);
+      const max = new THREE.Vector2(-Infinity, -Infinity);
+      edge2.forEach((p) => { min.min(p); max.max(p); });
+      // Hvert punkt flyttes bittelitt (alltid likt), så ingen ligger på rett linje.
+      // Ellers hopper trianguleringen over punkter og lager lange, smale
+      // trekanter som ikke følger kula.
+      const interior = [];
+      let n = 0;
+      for (let x = min.x; x <= max.x; x += spacing) for (let y = min.y; y <= max.y; y += spacing) {
+        n++;
+        const jitter = spacing * 0.02;
+        const q = new THREE.Vector2(x + jitter * Math.sin(n * 12.9898), y + jitter * Math.sin(n * 78.233));
+        if (inside(q, edge2) && edge2.every((p) => p.distanceTo(q) > spacing * 0.6)) interior.push(q);
+      }
+      const flatPoints = [...edge2, ...interior];
+      const faces = delaunayFlip(flatPoints, THREE.ShapeUtils.triangulateShape([...edge2], interior.map((q) => [q])));
+      const points = flatPoints.map((q) => proj.from(q).multiplyScalar(radius));
+      for (const [i, j, k] of faces) {
+        const a = points[i];
+        let b = points[j], c = points[k];
+        const cross = b.clone().sub(a).cross(c.clone().sub(a));
+        if (cross.lengthSq() < 1e-12) continue;                // hopp over trekanter uten areal
+        if (cross.dot(a) < 0) [b, c] = [c, b];                 // vendt utover
+        push(tops, a, b, c);
+        push(topNormals, a.clone().normalize(), b.clone().normalize(), c.clone().normalize());
+        lowest = Math.min(lowest, planeDistance(a, b, c));
+        push(sides, a.clone().multiplyScalar(down), c.clone().multiplyScalar(down), b.clone().multiplyScalar(down)); // undersiden
+      }
+      // Sidene langs kanten, ned i fugen.
+      const rim = outline.map((p) => p.clone().multiplyScalar(radius));
+      for (let i = 0; i < rim.length; i++) {
+        const s0 = rim[i], s1 = rim[(i + 1) % rim.length];
+        push(sides, s0, s1.clone().multiplyScalar(down), s0.clone().multiplyScalar(down));
+        push(sides, s0, s1, s1.clone().multiplyScalar(down));
+      }
+    }
+  }
+
   // Normaler: toppene har sine fra før (rett ut, eller panelets retning når de er
   // flate). Sidene og undersiden får sin egen flate.
   const sideNormals = [];
@@ -279,6 +486,6 @@ export function createPanelGeometry({ radius, pattern, subdivisions, seamWidth, 
 
   // Kjernen ligger seamDepth under det laveste punktet på panelene, så fugene
   // går ned til den overalt.
-  return { geometry, coreRadius: lowest - seamDepth, count: polygons.length };
+  return { geometry, coreRadius: lowest - seamDepth, count: pattern === 'trionda' ? 4 : polygons.length };
 }
 

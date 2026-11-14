@@ -125,11 +125,26 @@ export const panels = {
   shape: 'curved',    // 'curved' = panelene følger kula (rund silhuett), 'flat' = flate plater
   seamWidth: 0.04,    // bredden på fugene
   seamDepth: 0.12,    // hvor dypt fugene går ned til den mørke kjernen
+  // seamWidth og seamDepth kan også settes på hver kule under, for eksempel
+  // bredere fuger på sola og store planeter. Da gjelder den verdien for den kula.
   mercury: { pattern: 'kites',     subdivisions: 1 },  // 60 drager
   venus:   { pattern: 'rhombi',    subdivisions: 2 },  // 120 ruter
   earth:   { pattern: 'triangles', subdivisions: 2 },  // 80 trekanter
   mars:    { pattern: 'quads',     subdivisions: 3 },  // 54 firkanter
   moon:    { pattern: 'pentagons', subdivisions: 1 },  // 12 femkanter med en ring av trapeser rundt (72 paneler)
+  // Sola: fire like paneler fra et tetraeder, der hver kant er en S-kurve (som
+  // Trionda-ballen). amplitude er hvor langt S-en svinger ut (andel av
+  // kantlengden). bulge gjør hver bue bredere ytterst: 0 gir rolige bølger,
+  // rundt 1 gir tydelige armer. For store verdier gir en feilmelding.
+  sun:     { pattern: 'trionda', amplitude: 0.12, bulge: 0.5, seamWidth: 0.1 },  // sola er stor: bredere fuger
+};
+
+// Rødt brukes sparsomt: sola, og en tynn ring der hver planetstolpe møter armen.
+export const accent = {
+  red: '#c21632',         // fargen på det røde
+  sunStyle: 'lacquer',    // 'lacquer' = blank rød lakk, 'glass' = rødt glass med lys innenfra
+  glow: 1,                // hvor sterkt glasssola lyser innenfra (bare for 'glass')
+  ringWidth: 0.16,        // tykkelsen på den røde ringen rundt planetstolpene
 };
 
 export const look = {
@@ -144,7 +159,7 @@ export const look = {
   glossRoughness: 0.3,    // hvor myk glansen er (lav = skarpere refleksjoner)
 
   // Mørkt metall i fugene mellom panelene.
-  seamColor: '#a3aaaf',
+  seamColor: '#303538',
   seamMetalness: 0.6,
   seamRoughness: 0.45,
 
