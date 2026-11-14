@@ -49,7 +49,7 @@ export const arm = {
 // bevegelsen til kjedehjulet under jorda, som bærer månearmen.
 // Månen går (fixed/pinion) × (driveSprocket/moonSprocket) runder rundt jorda per runde armen tar.
 export const moonTrain = {
-  module: 1.5,          // tannstørrelse på fixed og pinion
+  module: 1,          // tannstørrelse på fixed og pinion
   thickness: 1,
   chamfer: 0.2,
   backlash: 0.1,
@@ -60,14 +60,26 @@ export const moonTrain = {
   pinion:        { teeth: 12, holeRadius: 1,   spokes: 0, spokeWidth: 1,   hubWidth: 1, rimWidth: 1 },   // på armen, går rundt det faste hjulet
   driveSprocket: { teeth: 47, holeRadius: 1,   spokes: 4, spokeWidth: 1.5, hubWidth: 2, rimWidth: 1.5 }, // samme aksel som pinion
   moonSprocket:  { teeth: 19, holeRadius: 1.5, spokes: 0, spokeWidth: 1,   hubWidth: 1, rimWidth: 1 },   // under jorda, bærer månearmen
+  // Parallellføringen: to like store kjedehjul, ett fast på sentralakselen og
+  // ett under jorda. Hullet i midten følger akselen hvert hjul sitter på.
+  parallelSprocket: { teeth: 24, spokes: 4, spokeWidth: 1, hubWidth: 1.5, rimWidth: 1 },
 };
 
-// Kulene og hvor de sitter.
+// Hellingene som parallellføringen holder i samme retning i rommet.
+// Retninger er grader rundt, sett ovenfra: 0 = mot høyre (+x), 90 = bakover.
+export const tilt = {
+  earthAxis: 23.44,         // jordaksens helning
+  earthAxisDirection: 0,    // retningen jordaksen heller mot
+  moonOrbit: 5.14,          // månebanens helning mot jordbanen
+  moonNodeDirection: 0,     // knutelinjen, der månen krysser jordbanen (høyest 90° etter)
+};
+
+// Kulene og hvor de sitter. Sola står i samme høyde som jorda, så linjen
+// mellom dem er vannrett og månen går over og under den.
 export const bodies = {
   sunRadius: 10,
-  sunHeight: 34,      // høyden på sentrum av sola
   earthRadius: 4,
-  earthHeight: 20,    // høyden på sentrum av jorda (og månen)
+  earthHeight: 24,    // høyden på sentrum av jorda, sola og månen
   moonRadius: 1.5,
   moonOrbit: 15,      // avstanden fra jorda til månen
 };
