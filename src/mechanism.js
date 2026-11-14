@@ -5,7 +5,7 @@
 // Vinkler er i radianer, målt mot klokka sett ovenfra, fra +x.
 // Posisjoner er i planet: { x, y } der planets y tilsvarer -z i three.js.
 
-import { drive, center, gear, bigGear, smallGear, arm, planets, moonTrain, bodies, tilt } from './config.js';
+import { drive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, tilt } from './config.js';
 
 const pitchRadius = (module, teeth) => (module * teeth) / 2;
 
@@ -50,13 +50,35 @@ export const tubes = tubeNames.map((name, i) => ({
 }));
 export const tube = Object.fromEntries(tubes.map((t) => [t.name, t]));
 
+// Mål på armene og det som står ytterst på dem (stolpe, tapp eller hylse),
+// brukt både av scenen og av avstandssjekkene. Enden er minst så bred at
+// kragen rundt stolpen får plass på den flate toppen, innenfor avfasingen.
+const armPart = (rootWidth, postRadius) => {
+  const collarRadius = postRadius + armStyle.collarWidth;
+  return {
+    rootHalf: rootWidth / 2,
+    endRadius: Math.max((rootWidth / 2) * armStyle.tipWidth, collarRadius + armStyle.chamfer + 0.05),
+    postRadius,
+    collarRadius,
+  };
+};
+export const armParts = {
+  planet: armPart(arm.width * 0.75, 0.5), // planetarmene og stolpene
+  earth: armPart(arm.width, 0.9),         // jordarmen og tappen parallellhjulet går på
+  moon: armPart(arm.width * 0.75, 0.8),   // månearmen og hylsa
+};
+
 // Hvor nær og hvor langt fra sentrum hver arm rekker med det den bærer.
 // Jorda rekker så langt som månearmen og månen.
-const moonReach = bodies.moonOrbit + Math.max(bodies.moonRadius, arm.width / 4);
+const moonReach = bodies.moonOrbit + Math.max(bodies.moonRadius, armParts.moon.endRadius, armParts.moon.collarRadius);
 const reachOf = (name) => {
   if (name === 'earth') return { inner: arm.length - moonReach, outer: arm.length + moonReach };
   const p = planets[name];
-  return { inner: p.armLength - Math.max(p.radius, 0.5), outer: p.armLength + Math.max(p.radius, arm.width / 2) };
+  const part = armParts.planet;
+  return {
+    inner: p.armLength - Math.max(p.radius, part.collarRadius),
+    outer: p.armLength + Math.max(p.radius, part.endRadius),
+  };
 };
 export const reach = Object.fromEntries(sortedArms.map((a) => [a.name, reachOf(a.name)]));
 

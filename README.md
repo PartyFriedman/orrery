@@ -34,6 +34,7 @@ Every number you can adjust lives in [src/config.js](src/config.js):
 - **`center`**: the thickness of the sun's axle and the tubes around it.
 - **`gear`**, **`bigGear`**, **`smallGear`**: the earth's year gears and what all the bottom gears share, such as tooth count, spokes and chamfer.
 - **`arm`**: length and size of the earth arm.
+- **`armStyle`**: how the arms taper, the soft transition into the hub, the edge chamfer, and the collar around each post.
 - **`planets`**: tooth counts, arm length and size for Mercury, Venus and Mars, plus the period each one aims for.
 - **`moonTrain`**: the moon gears, the sprockets for both chains, and the chain pitch.
 - **`tilt`**: the earth's axial tilt, the moon's orbital tilt, and the directions they point in.
@@ -47,4 +48,5 @@ Shaft positions, tube order, heights, tooth sizes, chain lengths and sprocket si
 - [src/main.js](src/main.js): scene, camera, lighting, the parts and animation
 - [src/mechanism.js](src/mechanism.js): the mechanism as pure math (tube order, heights, shaft positions, chain paths, and every angle from the input)
 - [src/gear.js](src/gear.js): builds gear and sprocket geometry (tooth profiles, hole, spokes and chamfer)
+- [src/arm.js](src/arm.js): builds the tapered arms with rounded ends and a soft transition into the hub
 - [src/config.js](src/config.js): all the settings

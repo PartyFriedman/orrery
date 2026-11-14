@@ -2,10 +2,11 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { drive, center, gear, bigGear, smallGear, arm, planets, moonTrain, bodies, look } from './config.js';
+import { drive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, look } from './config.js';
 import { createGearGeometry, createSprocketGeometry } from './gear.js';
+import { createArmGeometry } from './arm.js';
 import {
-  layout, anglesAt, pairModule, tube, heights, reach as armReach,
+  layout, anglesAt, pairModule, tube, heights, reach as armReach, armParts,
   moonChain, parallelChain, earthAxis, moonRing, moonLift,
 } from './mechanism.js';
 
@@ -142,6 +143,23 @@ function addBar(parent, length, width, y0, y1) {
   addShaft(parent, width / 2, y0, y1).position.x = length;
   addShaft(parent, width / 2, y0, y1);
 }
+// En arm langs +x som smalner av mot enden, med myk overgang inn i navet og
+// en krage rundt stolpen ytterst. Navet stikker litt opp over og ned under
+// armen, så flatene ikke ligger i samme høyde. hub: false når navet er et rør
+// som tegnes for seg.
+function addArm(parent, { length, hubRadius, part, y, hub = true }) {
+  const geometry = createArmGeometry({
+    length, hubRadius, rootHalf: part.rootHalf, endRadius: part.endRadius,
+    fillet: armStyle.fillet, thickness: arm.thickness, chamfer: armStyle.chamfer,
+  });
+  addMesh(parent, geometry).position.y = y;
+  if (hub) addShaft(parent, hubRadius, y - armStyle.hubRise, y + arm.thickness + armStyle.hubRise);
+  // Kragen smalner av oppover, så stolpen ikke går rett ned i armen.
+  const collar = addMesh(parent, new THREE.CylinderGeometry(
+    part.postRadius + armStyle.collarWidth * 0.25, part.collarRadius, armStyle.collarHeight, 32
+  ));
+  collar.position.set(length, y + arm.thickness + armStyle.collarHeight / 2, 0);
+}
 // Gruppe som står på et punkt i planet (planets y er -z i three.js).
 function addGroupAt(parent, point) {
   const group = new THREE.Group();
@@ -163,7 +181,7 @@ const travel = moonRing.maxLift;               // hvor langt månestaven går op
 const ringY = heights.ring;
 const sleeveTop = heights.sleeveTop;
 
-const pillarRadius = 0.9; // jordstolpen og tappen parallellhjulet går på
+const pillarRadius = armParts.earth.postRadius; // jordstolpen og tappen parallellhjulet går på
 const trainGear = (settings) => ({ ...gear, ...moonTrain, ...settings });
 
 // Et hjul i et av parene nederst. Modulen følger av paret, og hjulet får eiker
@@ -267,9 +285,8 @@ for (const [name, p] of Object.entries(planets)) {
   const y = heights.arm[name];
   addShaft(group, tube[name].outer, heights.bottom[name], y);
   addGear(group, pairGear(p.tubeTeeth, p.driveTeeth, tube[name].outer), heights.bottom[name]);
-  addShaft(group, tube[name].outer + 1, y, y + arm.thickness); // navet
-  addBar(group, p.armLength, arm.width * 0.75, y, y + arm.thickness);
-  addShaft(group, 0.5, y + arm.thickness, bodies.height).position.x = p.armLength;
+  addArm(group, { length: p.armLength, hubRadius: tube[name].outer + 1, part: armParts.planet, y });
+  addShaft(group, armParts.planet.postRadius, y + arm.thickness, bodies.height).position.x = p.armLength;
   addSphere(group, p.radius).position.set(p.armLength, bodies.height, 0);
   planetGroups[name] = group;
 }
@@ -279,8 +296,7 @@ const armGroup = new THREE.Group();
 scene.add(armGroup);
 addShaft(armGroup, tube.earth.outer, heights.bottom.earth, armY);
 addGear(armGroup, pairGear(bigGear.teeth, smallGear.teeth, tube.earth.outer, bigGear), heights.bottom.earth);
-addBar(armGroup, arm.length, arm.width, armY, armTop);
-addShaft(armGroup, tube.earth.outer + 1, armY, armTop); // navet midt på armen
+addArm(armGroup, { length: arm.length, hubRadius: tube.earth.outer + 1, part: armParts.earth, y: armY });
 
 // Pinion og det store månekjedehjulet på samme aksel, som går rundt det faste hjulet.
 const pinionGroup = addGroupAt(armGroup, layout.pinion);
@@ -346,9 +362,10 @@ for (let k = 0; k < 3; k++) {
 const moonGroup = new THREE.Group();
 earthGroup.add(moonGroup);
 addSprocket(moonGroup, moonTrain.moonSprocket, moonChain.radius2, moonChainLevel);
-addShaft(moonGroup, moonTrain.moonSprocket.holeRadius, parallelLevel + moonTrain.thickness + 0.1, moonArmTop);
-addBar(moonGroup, bodies.moonOrbit, arm.width * 0.5, moonArmY, moonArmTop);
-addShaft(moonGroup, 0.8, moonArmTop, sleeveTop).position.x = bodies.moonOrbit; // hylsa
+// Røret er navet til månearmen, og stikker litt opp over den.
+addShaft(moonGroup, moonTrain.moonSprocket.holeRadius, parallelLevel + moonTrain.thickness + 0.1, moonArmTop + armStyle.hubRise);
+addArm(moonGroup, { length: bodies.moonOrbit, hubRadius: moonTrain.moonSprocket.holeRadius, part: armParts.moon, y: moonArmY, hub: false });
+addShaft(moonGroup, armParts.moon.postRadius, moonArmTop, sleeveTop).position.x = bodies.moonOrbit; // hylsa
 
 // Månestaven med foten og månen. Den flyttes opp og ned etter ringen.
 const footSize = 0.2;

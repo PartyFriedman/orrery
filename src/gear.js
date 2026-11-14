@@ -168,7 +168,7 @@ export function createSprocketGeometry(settings) {
 }
 
 // Gjør et flatt omriss om til en geometri som ligger flatt, med avfasede kanter.
-function extrudeFlat(shape, thickness, chamferSetting = 0) {
+export function extrudeFlat(shape, thickness, chamferSetting = 0) {
   // Avfasingen kan ikke være mer enn knapt halve tykkelsen.
   const chamfer = Math.min(chamferSetting, thickness * 0.4);
 
