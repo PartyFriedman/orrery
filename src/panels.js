@@ -11,8 +11,8 @@ import * as THREE from 'three';
 // subdivisions sier hvor mange biter hver grunnflate deles i langs kanten.
 //
 // Hvert panel er en mangekant krympet like mye inn fra alle kantene, så fugene
-// blir like brede overalt. Hjørnene ligger på kula, så naboene møtes i samme
-// høyde, og hvert panel lyses som én flat plate. Panelene har litt tykkelse
+// blir like brede overalt. Panelene er enten buet etter kula eller flate plater
+// med hjørnene på kula. Panelene har litt tykkelse
 // innover, og under dem ligger en mørk kjerne som synes i fugene.
 
 // --- Grunnformene, alle bygget fra ikosaederet (unntatt kuben) ---
@@ -168,10 +168,16 @@ function insetPolygon(points, inset) {
   });
 }
 
+// Hvor fint de buede panelene deles opp (omtrent i radianer langs kula): ca. 4,6°
+// per bit, så silhuetten blir rund.
+const curveStep = 0.08;
+
+// shape: 'curved' følger kula, 'flat' gir flate plater.
 // Gir tilbake geometrien til panelene og radiusen kjernen skal ha. Geometrien
 // har to materialgrupper: toppene (0) og sidene med undersiden (1), så sidene
 // kan få samme mørke farge som kjernen og fugene blir mørke hele veien.
-export function createPanelGeometry({ radius, pattern, subdivisions, seamWidth, seamDepth }) {
+export function createPanelGeometry({ radius, pattern, subdivisions, seamWidth, seamDepth, shape = 'curved' }) {
+  if (shape !== 'curved' && shape !== 'flat') throw new Error(`Ukjent panelform '${shape}'. Velg 'curved' eller 'flat'.`);
   const build = patterns[pattern];
   if (!build) throw new Error(`Ukjent panelmønster '${pattern}'. Velg mellom: ${panelPatterns.join(', ')}.`);
   const polygons = build(Math.max(1, Math.round(subdivisions)));
@@ -198,28 +204,67 @@ export function createPanelGeometry({ radius, pattern, subdivisions, seamWidth, 
     flat.forEach((p, i) => { const q = flat[(i + 1) % flat.length]; area += p.x * q.y - q.x * p.y; });
     if (area < 0) flat = flat.reverse(); // mot klokka sett utenfra
 
-    // Krymp, og løft hjørnene tilbake ut på kula. Da møtes naboene i nøyaktig
-    // samme høyde selv når panelet ikke ligger helt i ett plan (firkanter og
-    // større mangekanter på en kule gjør sjelden det).
+    // Krymp mangekanten. Punktene løftes så ut på kula langs strålen fra
+    // sentrum, så naboene møtes i nøyaktig samme høyde (firkanter og større
+    // mangekanter på en kule ligger sjelden i ett plan).
     const inset = insetPolygon(flat, seamWidth / 2 / radius);
-    const outer = inset.map((p) => normal.clone().addScaledVector(e1, p.x).addScaledVector(e2, p.y).setLength(radius));
-    const inner = outer.map((v) => v.clone().multiplyScalar(1 - (seamDepth * 2) / radius));
+    const toSphere = (p) => normal.clone().addScaledVector(e1, p.x).addScaledVector(e2, p.y).setLength(radius);
+    const down = 1 - (seamDepth * 2) / radius; // undersiden av panelet
+    const k = inset.length;
+    const topTri = (a, b, c, n) => {
+      push(tops, a, b, c);
+      push(topNormals, ...(n ? [n, n, n] : [a, b, c].map((v) => v.clone().normalize())));
+      lowest = Math.min(lowest, planeDistance(a, b, c));
+    };
+    const wall = (s0, s1) => {
+      // En bit av siden mellom to punkter langs kanten, ned til undersiden.
+      push(sides, s0, s1.clone().multiplyScalar(down), s0.clone().multiplyScalar(down));
+      push(sides, s0, s1, s1.clone().multiplyScalar(down));
+    };
 
-    const k = outer.length;
-    for (let i = 1; i < k - 1; i++) {
-      push(tops, outer[0], outer[i], outer[i + 1]);   // toppen, vendt utover
-      push(topNormals, normal, normal, normal);       // lyses som én flat plate
-      lowest = Math.min(lowest, planeDistance(outer[0], outer[i], outer[i + 1]));
-      push(sides, inner[0], inner[i + 1], inner[i]);  // undersiden, vendt innover
+    if (shape === 'flat') {
+      // Flatt panel: hjørnene på kula, flatene imellom rette, lyses som én plate.
+      const outer = inset.map(toSphere);
+      const inner = outer.map((v) => v.clone().multiplyScalar(down));
+      for (let i = 1; i < k - 1; i++) {
+        topTri(outer[0], outer[i], outer[i + 1], normal);
+        push(sides, inner[0], inner[i + 1], inner[i]); // undersiden, vendt innover
+      }
+      for (let i = 0; i < k; i++) wall(outer[i], outer[(i + 1) % k]);
+      continue;
     }
+
+    // Buet panel: mangekanten deles i trekanter fra midten, og hver av dem i et
+    // fint rutenett der alle punktene ligger på kula. Normalene peker rett ut
+    // fra sentrum, så både lyset og silhuetten blir runde. Hele panelet bruker
+    // samme oppdeling, så nabotrekantene møtes uten sprekker.
+    const mid2 = inset.reduce((s, p) => s.add(p), new THREE.Vector2()).divideScalar(k);
+    const longest = Math.max(...inset.map((p, i) => Math.max(p.distanceTo(mid2), p.distanceTo(inset[(i + 1) % k]))));
+    const m = Math.max(1, Math.ceil(longest / curveStep));
+    const midInner = toSphere(mid2).multiplyScalar(down);
     for (let i = 0; i < k; i++) {
-      const i2 = (i + 1) % k;
-      push(sides, outer[i], inner[i], inner[i2]);    // sidene, som ses ned i fugene
-      push(sides, outer[i], inner[i2], outer[i2]);
+      const a = inset[i];
+      const b = inset[(i + 1) % k];
+      const at = (s, t) => toSphere(new THREE.Vector2(
+        mid2.x + ((a.x - mid2.x) * s + (b.x - mid2.x) * t) / m,
+        mid2.y + ((a.y - mid2.y) * s + (b.y - mid2.y) * t) / m,
+      ));
+      for (let s = 0; s < m; s++) for (let t = 0; t < m - s; t++) {
+        topTri(at(s, t), at(s + 1, t), at(s, t + 1));
+        if (s + t < m - 1) topTri(at(s + 1, t), at(s + 1, t + 1), at(s, t + 1));
+      }
+      // Langs kanten fra a til b: siden ned i fugen, og undersiden.
+      for (let j = 0; j < m; j++) {
+        const s0 = at(m - j, j);
+        const s1 = at(m - j - 1, j + 1);
+        wall(s0, s1);
+        push(sides, midInner, s1.clone().multiplyScalar(down), s0.clone().multiplyScalar(down));
+      }
     }
   }
 
-  // Normaler: toppene får panelets retning, sidene og undersiden sin egen flate.
+  // Normaler: toppene har sine fra før (rett ut, eller panelets retning når de er
+  // flate). Sidene og undersiden får sin egen flate.
   const sideNormals = [];
   for (let i = 0; i < sides.length; i += 9) {
     const [a, b, c] = [0, 3, 6].map((o) => new THREE.Vector3(sides[i + o], sides[i + o + 1], sides[i + o + 2]));

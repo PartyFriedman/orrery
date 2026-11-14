@@ -122,8 +122,9 @@ export const bodies = {
 // Sekskanter er spart til Saturn.
 // subdivisions: hvor mange biter hver grunnflate deles i langs kanten.
 export const panels = {
-  seamWidth: 0.02,    // bredden på fugene
-  seamDepth: 0.08,    // hvor dypt fugene går ned til den mørke kjernen
+  shape: 'curved',    // 'curved' = panelene følger kula (rund silhuett), 'flat' = flate plater
+  seamWidth: 0.04,    // bredden på fugene
+  seamDepth: 0.12,    // hvor dypt fugene går ned til den mørke kjernen
   mercury: { pattern: 'kites',     subdivisions: 1 },  // 60 drager
   venus:   { pattern: 'rhombi',    subdivisions: 2 },  // 120 ruter
   earth:   { pattern: 'triangles', subdivisions: 2 },  // 80 trekanter
@@ -143,7 +144,7 @@ export const look = {
   glossRoughness: 0.3,    // hvor myk glansen er (lav = skarpere refleksjoner)
 
   // Mørkt metall i fugene mellom panelene.
-  seamColor: '#1c1f22',
+  seamColor: '#a3aaaf',
   seamMetalness: 0.6,
   seamRoughness: 0.45,
 

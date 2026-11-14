@@ -149,7 +149,7 @@ function addPlanetSphere(parent, radius, name) {
   const group = new THREE.Group();
   parent.add(group);
   const { geometry, coreRadius } = createPanelGeometry({
-    radius, seamWidth: panels.seamWidth, seamDepth: panels.seamDepth, ...panels[name],
+    radius, shape: panels.shape, seamWidth: panels.seamWidth, seamDepth: panels.seamDepth, ...panels[name],
   });
   const panelMesh = new THREE.Mesh(geometry, [material, seamMaterial]); // hvite topper, mørke sider
   panelMesh.castShadow = true;
