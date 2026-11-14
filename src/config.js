@@ -115,6 +115,22 @@ export const bodies = {
   moonOrbit: 15,      // avstanden fra jorda til månen
 };
 
+// Planetene og månen er kuler av paneler med smale, mørke fuger imellom, og
+// hver har sitt eget mønster. Sola beholder sin glatte form foreløpig.
+// Mønstre: 'triangles' (geodesiske trekanter), 'quads' (firkanter fra en kube),
+// 'kites' (drager), 'rhombi' (ruter), 'pentagons' (femkanter med ringer rundt).
+// Sekskanter er spart til Saturn.
+// subdivisions: hvor mange biter hver grunnflate deles i langs kanten.
+export const panels = {
+  seamWidth: 0.02,    // bredden på fugene
+  seamDepth: 0.08,    // hvor dypt fugene går ned til den mørke kjernen
+  mercury: { pattern: 'kites',     subdivisions: 1 },  // 60 drager
+  venus:   { pattern: 'rhombi',    subdivisions: 2 },  // 120 ruter
+  earth:   { pattern: 'triangles', subdivisions: 2 },  // 80 trekanter
+  mars:    { pattern: 'quads',     subdivisions: 3 },  // 54 firkanter
+  moon:    { pattern: 'pentagons', subdivisions: 1 },  // 12 femkanter med en ring av trapeser rundt (72 paneler)
+};
+
 export const look = {
   // Bakgrunn: svak gradient ovenfra og ned.
   backgroundTop: '#3a3d40',
@@ -126,8 +142,13 @@ export const look = {
   gloss: 0.70,            // klarlakk-glans oppå (0 = ingen, 1 = full)
   glossRoughness: 0.3,    // hvor myk glansen er (lav = skarpere refleksjoner)
 
+  // Mørkt metall i fugene mellom panelene.
+  seamColor: '#1c1f22',
+  seamMetalness: 0.6,
+  seamRoughness: 0.45,
+
   // Lys.
-  exposure: 1.2,              // total lysstyrke i bildet
+  exposure: 1.0,              // total lysstyrke i bildet
   environmentIntensity: 0.2,  // mykt lys og refleksjoner fra omgivelsene
   lightIntensity: 5.0,        // styrken på hovedlyset
   lightHeight: 22,            // grader over gulvet (lavt = streiflys, 90 = rett ovenfra)

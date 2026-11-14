@@ -2,9 +2,10 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { drive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, look } from './config.js';
+import { drive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, panels, look } from './config.js';
 import { createGearGeometry, createSprocketGeometry } from './gear.js';
 import { createArmGeometry } from './arm.js';
+import { createPanelGeometry } from './panels.js';
 import {
   layout, anglesAt, pairModule, tube, heights, reach as armReach, armParts,
   moonChain, parallelChain, earthAxis, moonRing, moonLift,
@@ -135,6 +136,29 @@ function addShaft(parent, radius, y0, y1) {
 }
 function addSphere(parent, radius) {
   return addMesh(parent, new THREE.SphereGeometry(radius, 64, 32));
+}
+// Mørkt metall som synes i fugene mellom panelene.
+const seamMaterial = new THREE.MeshPhysicalMaterial({
+  color: look.seamColor,
+  metalness: look.seamMetalness,
+  roughness: look.seamRoughness,
+});
+// En planet som kule av paneler (mønsteret står i panels i config): hvite
+// topper, mørke sider og en mørk kjerne under, som synes i fugene.
+function addPlanetSphere(parent, radius, name) {
+  const group = new THREE.Group();
+  parent.add(group);
+  const { geometry, coreRadius } = createPanelGeometry({
+    radius, seamWidth: panels.seamWidth, seamDepth: panels.seamDepth, ...panels[name],
+  });
+  const panelMesh = new THREE.Mesh(geometry, [material, seamMaterial]); // hvite topper, mørke sider
+  panelMesh.castShadow = true;
+  panelMesh.receiveShadow = true;
+  group.add(panelMesh);
+  const core = new THREE.Mesh(new THREE.SphereGeometry(coreRadius, 48, 24), seamMaterial);
+  core.receiveShadow = true;
+  group.add(core);
+  return group;
 }
 // Flat stang langs +x fra x = 0 til `length`, med runde ender.
 function addBar(parent, length, width, y0, y1) {
@@ -287,7 +311,7 @@ for (const [name, p] of Object.entries(planets)) {
   addGear(group, pairGear(p.tubeTeeth, p.driveTeeth, tube[name].outer), heights.bottom[name]);
   addArm(group, { length: p.armLength, hubRadius: tube[name].outer + 1, part: armParts.planet, y });
   addShaft(group, armParts.planet.postRadius, y + arm.thickness, bodies.height).position.x = p.armLength;
-  addSphere(group, p.radius).position.set(p.armLength, bodies.height, 0);
+  addPlanetSphere(group, p.radius, name).position.set(p.armLength, bodies.height, 0);
   planetGroups[name] = group;
 }
 
@@ -326,7 +350,7 @@ parallelGroup.add(earthMount);
 const earthTilted = new THREE.Group();
 earthTilted.rotation.z = -earthAxis.tilt; // heller toppen mot +x i earthMount
 earthMount.add(earthTilted);
-addSphere(earthTilted, bodies.earthRadius);
+addPlanetSphere(earthTilted, bodies.earthRadius, 'earth');
 addShaft(earthTilted, 0.25, -(bodies.earthRadius + 0.6), bodies.earthRadius + 1.5); // jordaksen
 const equator = addMesh(earthTilted, new THREE.TorusGeometry(bodies.earthRadius + 0.04, 0.12, 12, 96));
 equator.rotation.x = Math.PI / 2;
@@ -377,7 +401,7 @@ const footLength = bodies.moonOrbit - moonRing.radius;
 const foot = addMesh(moonPin, new THREE.CylinderGeometry(footSize, footSize, footLength, 12));
 foot.rotation.z = Math.PI / 2;
 foot.position.set(-footLength / 2, ringY + bandThickness / 2 + footSize, 0);
-addSphere(moonPin, bodies.moonRadius).position.y = bodies.height;
+addPlanetSphere(moonPin, bodies.moonRadius, 'moon').position.y = bodies.height;
 
 // Tilpass ved endring av vindusstørrelse.
 window.addEventListener('resize', () => {

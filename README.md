@@ -39,7 +39,8 @@ Every number you can adjust lives in [src/config.js](src/config.js):
 - **`moonTrain`**: the moon gears, the sprockets for both chains, and the chain pitch.
 - **`tilt`**: the earth's axial tilt, the moon's orbital tilt, and the directions they point in.
 - **`bodies`**: sizes of the sun, earth and moon, the height of the sun and planets, and the moon's distance from the earth.
-- **`look`**: background, material (satin white lacquer), lighting and shadow.
+- **`panels`**: the panel pattern on each planet and the moon (triangles, quads, kites, rhombi or pentagons), how finely each is divided, and how wide and deep the seams are.
+- **`look`**: background, material (satin white lacquer), seam colour, lighting and shadow.
 
 Shaft positions, tube order, heights, tooth sizes, chain lengths and sprocket sizes are calculated from these numbers, so the gears always mesh, the chains always fit and the arms stay clear of each other. If a combination doesn't fit, an error in the browser console says which setting to change.
 
@@ -49,4 +50,5 @@ Shaft positions, tube order, heights, tooth sizes, chain lengths and sprocket si
 - [src/mechanism.js](src/mechanism.js): the mechanism as pure math (tube order, heights, shaft positions, chain paths, and every angle from the input)
 - [src/gear.js](src/gear.js): builds gear and sprocket geometry (tooth profiles, hole, spokes and chamfer)
 - [src/arm.js](src/arm.js): builds the tapered arms with rounded ends and a soft transition into the hub
+- [src/panels.js](src/panels.js): builds the planet spheres from panels with dark seams, in a different pattern for each body
 - [src/config.js](src/config.js): all the settings
