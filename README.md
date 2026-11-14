@@ -34,11 +34,14 @@ Every number you can adjust lives in [src/config.js](src/config.js):
 - **`center`**: the thickness of the sun's axle and the tubes around it.
 - **`gear`**, **`bigGear`**, **`smallGear`**: the earth's year gears and what all the bottom gears share, such as tooth count, spokes and chamfer.
 - **`arm`**: length and size of the earth arm.
+- **`armStyle`**: how the arms taper, the soft transition into the hub, the edge chamfer, and the collar around each post.
 - **`planets`**: tooth counts, arm length and size for Mercury, Venus and Mars, plus the period each one aims for.
 - **`moonTrain`**: the moon gears, the sprockets for both chains, and the chain pitch.
 - **`tilt`**: the earth's axial tilt, the moon's orbital tilt, and the directions they point in.
 - **`bodies`**: sizes of the sun, earth and moon, the height of the sun and planets, and the moon's distance from the earth.
-- **`look`**: background, material (satin white lacquer), lighting and shadow.
+- **`panels`**: the panel pattern on each planet, the moon and the sun (triangles, quads, kites, rhombi, pentagons, or for the sun four identical panels with S-shaped edges, like a Trionda ball, whose swing and bulge you can set), how finely each is divided, whether the panels are curved to the sphere or flat plates, and how wide and deep the seams are.
+- **`accent`**: the red colour, whether the sun is glossy red lacquer or red glass lit from inside, and the thin red ring where each planet post meets its arm.
+- **`look`**: background, material (satin white lacquer), seam colour, lighting and shadow.
 
 Shaft positions, tube order, heights, tooth sizes, chain lengths and sprocket sizes are calculated from these numbers, so the gears always mesh, the chains always fit and the arms stay clear of each other. If a combination doesn't fit, an error in the browser console says which setting to change.
 
@@ -47,4 +50,6 @@ Shaft positions, tube order, heights, tooth sizes, chain lengths and sprocket si
 - [src/main.js](src/main.js): scene, camera, lighting, the parts and animation
 - [src/mechanism.js](src/mechanism.js): the mechanism as pure math (tube order, heights, shaft positions, chain paths, and every angle from the input)
 - [src/gear.js](src/gear.js): builds gear and sprocket geometry (tooth profiles, hole, spokes and chamfer)
+- [src/arm.js](src/arm.js): builds the tapered arms with rounded ends and a soft transition into the hub
+- [src/panels.js](src/panels.js): builds the planet spheres from panels with dark seams, in a different pattern for each body
 - [src/config.js](src/config.js): all the settings

@@ -2,10 +2,12 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { drive, center, gear, bigGear, smallGear, arm, planets, moonTrain, bodies, look } from './config.js';
+import { drive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, panels, accent, look } from './config.js';
 import { createGearGeometry, createSprocketGeometry } from './gear.js';
+import { createArmGeometry } from './arm.js';
+import { createPanelGeometry } from './panels.js';
 import {
-  layout, anglesAt, pairModule, tube, heights, reach as armReach,
+  layout, anglesAt, pairModule, tube, heights, reach as armReach, armParts,
   moonChain, parallelChain, earthAxis, moonRing, moonLift,
 } from './mechanism.js';
 
@@ -135,12 +137,107 @@ function addShaft(parent, radius, y0, y1) {
 function addSphere(parent, radius) {
   return addMesh(parent, new THREE.SphereGeometry(radius, 64, 32));
 }
+// Mørkt metall som synes i fugene mellom panelene.
+const seamMaterial = new THREE.MeshPhysicalMaterial({
+  color: look.seamColor,
+  metalness: look.seamMetalness,
+  roughness: look.seamRoughness,
+});
+// Rødt: blank rød lakk, brukt på ringene ved stolpene og på lakksola.
+const redLacquer = new THREE.MeshPhysicalMaterial({
+  color: accent.red,
+  roughness: 0.2,
+  metalness: 0,
+  clearcoat: 1,
+  clearcoatRoughness: 0.05,
+});
+// En planet som kule av paneler (mønsteret står i panels i config): hvite
+// topper, mørke sider og en mørk kjerne under, som synes i fugene. Sola
+// bruker den samme kula med andre materialer.
+function addPlanetSphere(parent, radius, name, topMaterial = material, coreMaterial = seamMaterial) {
+  const group = new THREE.Group();
+  parent.add(group);
+  const { geometry, coreRadius } = createPanelGeometry({
+    radius, shape: panels.shape, seamWidth: panels.seamWidth, seamDepth: panels.seamDepth, ...panels[name],
+  });
+  const panelMesh = new THREE.Mesh(geometry, [topMaterial, seamMaterial]); // topper, mørke sider
+  panelMesh.castShadow = true;
+  panelMesh.receiveShadow = true;
+  group.add(panelMesh);
+  const core = new THREE.Mesh(new THREE.SphereGeometry(coreRadius, 48, 24), coreMaterial);
+  core.receiveShadow = true;
+  group.add(core);
+  return group;
+}
 // Flat stang langs +x fra x = 0 til `length`, med runde ender.
 function addBar(parent, length, width, y0, y1) {
   const bar = addMesh(parent, new THREE.BoxGeometry(length, y1 - y0, width));
   bar.position.set(length / 2, (y0 + y1) / 2, 0);
   addShaft(parent, width / 2, y0, y1).position.x = length;
   addShaft(parent, width / 2, y0, y1);
+}
+// En arm langs +x som smalner av mot enden, med myk overgang inn i navet og
+// en krage rundt stolpen ytterst. Navet stikker litt opp over og ned under
+// armen, så flatene ikke ligger i samme høyde. hub: false når navet er et rør
+// som tegnes for seg.
+function addArm(parent, { length, hubRadius, part, y, hub = true, ring = false }) {
+  const geometry = createArmGeometry({
+    length, hubRadius, rootHalf: part.rootHalf, endRadius: part.endRadius,
+    fillet: armStyle.fillet, thickness: arm.thickness, chamfer: armStyle.chamfer,
+  });
+  addMesh(parent, geometry).position.y = y;
+  if (hub) addShaft(parent, hubRadius, y - armStyle.hubRise, y + arm.thickness + armStyle.hubRise);
+  // Kragen smalner av oppover, så stolpen ikke går rett ned i armen.
+  const collar = addMesh(parent, new THREE.CylinderGeometry(
+    part.postRadius + armStyle.collarWidth * 0.25, part.collarRadius, armStyle.collarHeight, 32
+  ));
+  collar.position.set(length, y + arm.thickness + armStyle.collarHeight / 2, 0);
+  if (ring) {
+    // En tynn rød ring rundt stolpen, oppå kragen.
+    const red = new THREE.Mesh(
+      new THREE.TorusGeometry(part.postRadius + accent.ringWidth / 2, accent.ringWidth / 2, 12, 48),
+      redLacquer
+    );
+    red.rotation.x = Math.PI / 2;
+    red.position.set(length, y + arm.thickness + armStyle.collarHeight + accent.ringWidth / 2, 0);
+    red.castShadow = true;
+    parent.add(red);
+  }
+}
+// Sola: en kule av buede paneler i rødt, som planetene. To varianter i config:
+// 'lacquer' er blank rød lakk med mørke fuger. 'glass' er rødt glass med en
+// glødende kjerne og et rødt lys i midten, så den lyser innenfra og fugene gløder.
+function addSun() {
+  if (accent.sunStyle !== 'lacquer' && accent.sunStyle !== 'glass') {
+    throw new Error(`Ukjent solstil '${accent.sunStyle}'. Velg 'lacquer' eller 'glass'.`);
+  }
+  if (accent.sunStyle === 'lacquer') {
+    addPlanetSphere(scene, bodies.sunRadius, 'sun', redLacquer).position.y = bodies.height;
+    return;
+  }
+  const glass = new THREE.MeshPhysicalMaterial({
+    color: accent.red,
+    roughness: 0.15,
+    metalness: 0,
+    transmission: 0.6,      // slipper lyset fra kjernen gjennom
+    thickness: 1.5,
+    ior: 1.5,
+    attenuationColor: accent.red,
+    attenuationDistance: 3,
+    emissive: accent.red,
+    emissiveIntensity: 0.35 * accent.glow,
+  });
+  const glowCore = new THREE.MeshStandardMaterial({
+    color: accent.red,
+    emissive: accent.red,
+    emissiveIntensity: 2 * accent.glow,
+  });
+  const sunSphere = addPlanetSphere(scene, bodies.sunRadius, 'sun', glass, glowCore);
+  sunSphere.position.y = bodies.height;
+  sunSphere.children[0].castShadow = false; // glasset skal ikke stenge lyset inne i skyggekartet
+  const light = new THREE.PointLight(accent.red, 8 * accent.glow, 0, 1); // svakt rødt lys innenfra
+  light.position.y = bodies.height;
+  scene.add(light);
 }
 // Gruppe som står på et punkt i planet (planets y er -z i three.js).
 function addGroupAt(parent, point) {
@@ -163,7 +260,7 @@ const travel = moonRing.maxLift;               // hvor langt månestaven går op
 const ringY = heights.ring;
 const sleeveTop = heights.sleeveTop;
 
-const pillarRadius = 0.9; // jordstolpen og tappen parallellhjulet går på
+const pillarRadius = armParts.earth.postRadius; // jordstolpen og tappen parallellhjulet går på
 const trainGear = (settings) => ({ ...gear, ...moonTrain, ...settings });
 
 // Et hjul i et av parene nederst. Modulen følger av paret, og hjulet får eiker
@@ -237,7 +334,7 @@ function addChain(parent, chain, y) {
 
 // --- Det som står fast: sentralakselen med sola. ---
 addShaft(scene, center.axleRadius, 0, bodies.height);
-addSphere(scene, bodies.sunRadius).position.y = bodies.height;
+addSun();
 
 // Det faste røret for månehjulverket, med det faste hjulet og det faste
 // kjedehjulet øverst. Det holdes av en brakett som går bakover (bort fra
@@ -267,10 +364,9 @@ for (const [name, p] of Object.entries(planets)) {
   const y = heights.arm[name];
   addShaft(group, tube[name].outer, heights.bottom[name], y);
   addGear(group, pairGear(p.tubeTeeth, p.driveTeeth, tube[name].outer), heights.bottom[name]);
-  addShaft(group, tube[name].outer + 1, y, y + arm.thickness); // navet
-  addBar(group, p.armLength, arm.width * 0.75, y, y + arm.thickness);
-  addShaft(group, 0.5, y + arm.thickness, bodies.height).position.x = p.armLength;
-  addSphere(group, p.radius).position.set(p.armLength, bodies.height, 0);
+  addArm(group, { length: p.armLength, hubRadius: tube[name].outer + 1, part: armParts.planet, y, ring: true });
+  addShaft(group, armParts.planet.postRadius, y + arm.thickness, bodies.height).position.x = p.armLength;
+  addPlanetSphere(group, p.radius, name).position.set(p.armLength, bodies.height, 0);
   planetGroups[name] = group;
 }
 
@@ -279,8 +375,7 @@ const armGroup = new THREE.Group();
 scene.add(armGroup);
 addShaft(armGroup, tube.earth.outer, heights.bottom.earth, armY);
 addGear(armGroup, pairGear(bigGear.teeth, smallGear.teeth, tube.earth.outer, bigGear), heights.bottom.earth);
-addBar(armGroup, arm.length, arm.width, armY, armTop);
-addShaft(armGroup, tube.earth.outer + 1, armY, armTop); // navet midt på armen
+addArm(armGroup, { length: arm.length, hubRadius: tube.earth.outer + 1, part: armParts.earth, y: armY, ring: true });
 
 // Pinion og det store månekjedehjulet på samme aksel, som går rundt det faste hjulet.
 const pinionGroup = addGroupAt(armGroup, layout.pinion);
@@ -310,7 +405,7 @@ parallelGroup.add(earthMount);
 const earthTilted = new THREE.Group();
 earthTilted.rotation.z = -earthAxis.tilt; // heller toppen mot +x i earthMount
 earthMount.add(earthTilted);
-addSphere(earthTilted, bodies.earthRadius);
+addPlanetSphere(earthTilted, bodies.earthRadius, 'earth');
 addShaft(earthTilted, 0.25, -(bodies.earthRadius + 0.6), bodies.earthRadius + 1.5); // jordaksen
 const equator = addMesh(earthTilted, new THREE.TorusGeometry(bodies.earthRadius + 0.04, 0.12, 12, 96));
 equator.rotation.x = Math.PI / 2;
@@ -346,9 +441,10 @@ for (let k = 0; k < 3; k++) {
 const moonGroup = new THREE.Group();
 earthGroup.add(moonGroup);
 addSprocket(moonGroup, moonTrain.moonSprocket, moonChain.radius2, moonChainLevel);
-addShaft(moonGroup, moonTrain.moonSprocket.holeRadius, parallelLevel + moonTrain.thickness + 0.1, moonArmTop);
-addBar(moonGroup, bodies.moonOrbit, arm.width * 0.5, moonArmY, moonArmTop);
-addShaft(moonGroup, 0.8, moonArmTop, sleeveTop).position.x = bodies.moonOrbit; // hylsa
+// Røret er navet til månearmen, og stikker litt opp over den.
+addShaft(moonGroup, moonTrain.moonSprocket.holeRadius, parallelLevel + moonTrain.thickness + 0.1, moonArmTop + armStyle.hubRise);
+addArm(moonGroup, { length: bodies.moonOrbit, hubRadius: moonTrain.moonSprocket.holeRadius, part: armParts.moon, y: moonArmY, hub: false });
+addShaft(moonGroup, armParts.moon.postRadius, moonArmTop, sleeveTop).position.x = bodies.moonOrbit; // hylsa
 
 // Månestaven med foten og månen. Den flyttes opp og ned etter ringen.
 const footSize = 0.2;
@@ -360,7 +456,7 @@ const footLength = bodies.moonOrbit - moonRing.radius;
 const foot = addMesh(moonPin, new THREE.CylinderGeometry(footSize, footSize, footLength, 12));
 foot.rotation.z = Math.PI / 2;
 foot.position.set(-footLength / 2, ringY + bandThickness / 2 + footSize, 0);
-addSphere(moonPin, bodies.moonRadius).position.y = bodies.height;
+addPlanetSphere(moonPin, bodies.moonRadius, 'moon').position.y = bodies.height;
 
 // Tilpass ved endring av vindusstørrelse.
 window.addEventListener('resize', () => {

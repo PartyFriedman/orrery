@@ -4,7 +4,7 @@
 // Inngangen: mellomakselen dreies med fast fart. All annen bevegelse
 // følger av tanntallene.
 export const drive = {
-  speed: 3,           // omdreininger per minutt for mellomakselen
+  speed: 1,           // omdreininger per minutt for mellomakselen
   distance: 48,       // avstanden fra mellomakselen til sentrum; alle hjulpar må nå over den
   shaftRadius: 2,     // tykkelsen på mellomakselen
 };
@@ -49,6 +49,18 @@ export const arm = {
   length: 80,         // fra sentrum til jorda
   width: 4,
   thickness: 1,
+};
+
+// Formen på armene (planetarmene, jordarmen og månearmen): de smalner av fra
+// navet ut mot kula, har runde ender, møter navet med en myk overgang, og
+// stolpen møter armen med en krage.
+export const armStyle = {
+  tipWidth: 0.40,     // bredden ytterst, som andel av bredden ved navet
+  fillet: 2,          // hvor langt ut langs armen den myke overgangen inn i navet går
+  chamfer: 0.2,       // avfasing langs kantene
+  hubRise: 0.2,       // så mye navet stikker opp over og ned under armen
+  collarWidth: 0.4,   // hvor langt kragen går ut fra stolpen nederst
+  collarHeight: 0.65,  // høyden på kragen
 };
 
 // Merkur, Venus og Mars: hver har sitt eget rør med et hjul nederst, drevet fra
@@ -103,6 +115,38 @@ export const bodies = {
   moonOrbit: 15,      // avstanden fra jorda til månen
 };
 
+// Planetene og månen er kuler av paneler med smale, mørke fuger imellom, og
+// hver har sitt eget mønster. Sola beholder sin glatte form foreløpig.
+// Mønstre: 'triangles' (geodesiske trekanter), 'quads' (firkanter fra en kube),
+// 'kites' (drager), 'rhombi' (ruter), 'pentagons' (femkanter med ringer rundt).
+// Sekskanter er spart til Saturn.
+// subdivisions: hvor mange biter hver grunnflate deles i langs kanten.
+export const panels = {
+  shape: 'curved',    // 'curved' = panelene følger kula (rund silhuett), 'flat' = flate plater
+  seamWidth: 0.04,    // bredden på fugene
+  seamDepth: 0.12,    // hvor dypt fugene går ned til den mørke kjernen
+  // seamWidth og seamDepth kan også settes på hver kule under, for eksempel
+  // bredere fuger på sola og store planeter. Da gjelder den verdien for den kula.
+  mercury: { pattern: 'kites',     subdivisions: 1 },  // 60 drager
+  venus:   { pattern: 'rhombi',    subdivisions: 2 },  // 120 ruter
+  earth:   { pattern: 'triangles', subdivisions: 2 },  // 80 trekanter
+  mars:    { pattern: 'quads',     subdivisions: 3 },  // 54 firkanter
+  moon:    { pattern: 'pentagons', subdivisions: 1 },  // 12 femkanter med en ring av trapeser rundt (72 paneler)
+  // Sola: fire like paneler fra et tetraeder, der hver kant er en S-kurve (som
+  // Trionda-ballen). amplitude er hvor langt S-en svinger ut (andel av
+  // kantlengden). bulge gjør hver bue bredere ytterst: 0 gir rolige bølger,
+  // rundt 1 gir tydelige armer. For store verdier gir en feilmelding.
+  sun:     { pattern: 'trionda', amplitude: 0.32, bulge: 0.2, seamWidth: 0.1 },  // sola er stor: bredere fuger
+};
+
+// Rødt brukes sparsomt: sola, og en tynn ring der hver planetstolpe møter armen.
+export const accent = {
+  red: '#960820',         // fargen på det røde
+  sunStyle: 'glass',    // 'lacquer' = blank rød lakk, 'glass' = rødt glass med lys innenfra
+  glow: 1,                // hvor sterkt glasssola lyser innenfra (bare for 'glass')
+  ringWidth: 0.16,        // tykkelsen på den røde ringen rundt planetstolpene
+};
+
 export const look = {
   // Bakgrunn: svak gradient ovenfra og ned.
   backgroundTop: '#3a3d40',
@@ -114,8 +158,13 @@ export const look = {
   gloss: 0.70,            // klarlakk-glans oppå (0 = ingen, 1 = full)
   glossRoughness: 0.3,    // hvor myk glansen er (lav = skarpere refleksjoner)
 
+  // Mørkt metall i fugene mellom panelene.
+  seamColor: '#303538',
+  seamMetalness: 0.6,
+  seamRoughness: 0.45,
+
   // Lys.
-  exposure: 1.2,              // total lysstyrke i bildet
+  exposure: 1.0,              // total lysstyrke i bildet
   environmentIntensity: 0.2,  // mykt lys og refleksjoner fra omgivelsene
   lightIntensity: 5.0,        // styrken på hovedlyset
   lightHeight: 22,            // grader over gulvet (lavt = streiflys, 90 = rett ovenfra)
