@@ -7,7 +7,7 @@
   chamfered end. Refer to the moodboard
 
 ## Arms
-- Arms taper from the hub towards the planet, with rounded ends.
+-- Arms are parallel, with rounded ends, for a calm, technical line.
 - Arms meet the hub with a soft transition, never a sharp corner.
 
 ## Panels

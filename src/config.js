@@ -4,7 +4,7 @@
 // Inngangen: mellomakselen dreies med fast fart. All annen bevegelse
 // følger av tanntallene.
 export const drive = {
-  speed: 3,           // omdreininger per minutt for mellomakselen
+  speed: 1,           // omdreininger per minutt for mellomakselen
   distance: 48,       // avstanden fra mellomakselen til sentrum; alle hjulpar må nå over den
   shaftRadius: 2,     // tykkelsen på mellomakselen
 };
@@ -55,12 +55,12 @@ export const arm = {
 // navet ut mot kula, har runde ender, møter navet med en myk overgang, og
 // stolpen møter armen med en krage.
 export const armStyle = {
-  tipWidth: 0.65,     // bredden ytterst, som andel av bredden ved navet
+  tipWidth: 0.40,     // bredden ytterst, som andel av bredden ved navet
   fillet: 2,          // hvor langt ut langs armen den myke overgangen inn i navet går
   chamfer: 0.2,       // avfasing langs kantene
   hubRise: 0.2,       // så mye navet stikker opp over og ned under armen
   collarWidth: 0.4,   // hvor langt kragen går ut fra stolpen nederst
-  collarHeight: 0.5,  // høyden på kragen
+  collarHeight: 0.65,  // høyden på kragen
 };
 
 // Merkur, Venus og Mars: hver har sitt eget rør med et hjul nederst, drevet fra
