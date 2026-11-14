@@ -49,7 +49,7 @@ export const arm = {
 // bevegelsen til kjedehjulet under jorda, som bærer månearmen.
 // Månen går (fixed/pinion) × (driveSprocket/moonSprocket) runder rundt jorda per runde armen tar.
 export const moonTrain = {
-  module: 1,          // tannstørrelse på fixed og pinion
+  module: 0.7,          // tannstørrelse på fixed og pinion
   thickness: 1,
   chamfer: 0.2,
   backlash: 0.1,
