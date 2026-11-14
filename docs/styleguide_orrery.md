@@ -19,3 +19,6 @@
 - Red is used sparingly: the sun, and a thin ring where each planet post
   meets its arm.
 - No colours other than white, dark metal and red
+
+## Cogs
+- The arms in the cogs meet the edge with a smooth fillet
