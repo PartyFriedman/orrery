@@ -75,16 +75,67 @@ export function createGearShape({
     }
   }
   const shape = new THREE.Shape(outline);
+  cutHoleAndSpokes(shape, { holeRadius, spokes, spokeWidth, hubWidth }, rootRadius - rimWidth);
+  return shape;
+}
 
-  // Hullet i midten.
+// Lager det flate omrisset av et kjedehjul: runde seter der rullene i kjedet
+// ligger, med tenner imellom som smalner av utover.
+export function createSprocketShape({
+  teeth,
+  pitchRadius,   // der midten av rullene ligger
+  rollerRadius,
+  holeRadius,
+  spokes,
+  spokeWidth,
+  hubWidth,
+  rimWidth,
+}) {
+  const step = (Math.PI * 2) / teeth;
+  const seatRadius = rollerRadius * 1.1;             // litt klaring rundt rullen
+  const tipRadius = pitchRadius + rollerRadius * 1.3;
+  // Vinkelen (fra setets midte) der setet slutter og tannflanken begynner.
+  const seatEdge = Math.asin(Math.min(1, seatRadius / pitchRadius)) * 0.999;
+  const seatEdgeRadius = pitchRadius * Math.cos(seatEdge);
+  // Der flanken når tuppen; resten av tanna er flat på toppen.
+  const flankEnd = seatEdge + (step / 2 - seatEdge) * 0.6;
+
+  // Radius ved en vinkel `d` fra nærmeste sete.
+  const radiusAt = (d) => {
+    if (d < seatEdge) {
+      // Innerste skjæring mellom strålen og setets sirkel.
+      const s = pitchRadius * Math.sin(d);
+      return pitchRadius * Math.cos(d) - Math.sqrt(seatRadius ** 2 - s ** 2);
+    }
+    if (d < flankEnd) {
+      const k = (d - seatEdge) / (flankEnd - seatEdge);
+      return seatEdgeRadius + (tipRadius - seatEdgeRadius) * Math.sin((k * Math.PI) / 2);
+    }
+    return tipRadius;
+  };
+
+  const outline = [];
+  const samples = 32; // punkter per tann
+  for (let i = 0; i < teeth * samples; i++) {
+    const angle = (i / samples) * step; // setene ligger på vinkel 0, step, 2·step, …
+    const fromSeat = Math.abs(angle - Math.round(angle / step) * step);
+    const r = radiusAt(fromSeat);
+    outline.push(new THREE.Vector2(Math.cos(angle) * r, Math.sin(angle) * r));
+  }
+
+  const shape = new THREE.Shape(outline);
+  cutHoleAndSpokes(shape, { holeRadius, spokes, spokeWidth, hubWidth }, pitchRadius - seatRadius - rimWidth);
+  return shape;
+}
+
+// Skjærer hullet i midten, og eventuelt "vinduer" mellom navet og kransen
+// (innenfor rimRadius) så det står igjen rette eiker med fast bredde.
+function cutHoleAndSpokes(shape, { holeRadius, spokes, spokeWidth, hubWidth }, rimRadius) {
   const hole = new THREE.Path();
   hole.absarc(0, 0, holeRadius, 0, Math.PI * 2, true);
   shape.holes.push(hole);
 
-  // Eiker: vi skjærer ut "vinduer" mellom navet og tannkransen,
-  // og lar det stå igjen rette eiker med fast bredde.
   const hubRadius = holeRadius + hubWidth;
-  const rimRadius = rootRadius - rimWidth;
   const half = spokeWidth / 2;
   if (spokes > 0 && hubRadius < rimRadius && half < hubRadius) {
     const spokeStep = (Math.PI * 2) / spokes;
@@ -104,19 +155,25 @@ export function createGearShape({
       shape.holes.push(win);
     }
   }
-
-  return shape;
 }
 
-// Gjør omrisset om til en 3D-geometri som ligger flatt, med avfasede kanter.
+// Tannhjul som 3D-geometri: ligger flatt, med avfasede kanter.
 export function createGearGeometry(settings) {
-  const shape = createGearShape(settings);
+  return extrudeFlat(createGearShape(settings), settings.thickness, settings.chamfer);
+}
 
+// Kjedehjul som 3D-geometri.
+export function createSprocketGeometry(settings) {
+  return extrudeFlat(createSprocketShape(settings), settings.thickness, settings.chamfer);
+}
+
+// Gjør et flatt omriss om til en geometri som ligger flatt, med avfasede kanter.
+function extrudeFlat(shape, thickness, chamferSetting = 0) {
   // Avfasingen kan ikke være mer enn knapt halve tykkelsen.
-  const chamfer = Math.min(settings.chamfer ?? 0, settings.thickness * 0.4);
+  const chamfer = Math.min(chamferSetting, thickness * 0.4);
 
   const geometry = new THREE.ExtrudeGeometry(shape, {
-    depth: settings.thickness - chamfer * 2,
+    depth: thickness - chamfer * 2,
     bevelEnabled: chamfer > 0,
     bevelThickness: chamfer,
     bevelSize: chamfer,

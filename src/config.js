@@ -44,19 +44,22 @@ export const arm = {
   thickness: 1,
 };
 
-// Månehjulverket på jordarmen. Et fast hjul på sentralakselen driver et
-// tannhjulspar på armen, som via et mellomhjul driver månehjulet under jorda.
-// Månen går (fixed/pinion) × (wheel/moonWheel) runder rundt jorda per runde armen tar.
+// Månehjulverket på jordarmen. Et fast hjul på sentralakselen driver en
+// pinion på armen. På samme aksel sitter et kjedehjul, og et kjede overfører
+// bevegelsen til kjedehjulet under jorda, som bærer månearmen.
+// Månen går (fixed/pinion) × (driveSprocket/moonSprocket) runder rundt jorda per runde armen tar.
 export const moonTrain = {
-  module: 1,          // mindre tenner enn hjulparet nederst
+  module: 1,          // tannstørrelse på fixed og pinion
   thickness: 1,
   chamfer: 0.2,
   backlash: 0.1,
-  fixed:     { teeth: 60, holeRadius: 2,   spokes: 5, spokeWidth: 2,   hubWidth: 3,   rimWidth: 2 },   // fast på sentralakselen
-  pinion:    { teeth: 12, holeRadius: 1,   spokes: 0, spokeWidth: 1,   hubWidth: 1,   rimWidth: 1 },   // på armen, går rundt det faste hjulet
-  wheel:     { teeth: 47, holeRadius: 1,   spokes: 4, spokeWidth: 2,   hubWidth: 2.5, rimWidth: 2 },   // samme aksel som pinion
-  idler:     { teeth: 15, holeRadius: 1,   spokes: 0, spokeWidth: 1,   hubWidth: 1,   rimWidth: 1 },   // mellomhjul, snur retningen
-  moonWheel: { teeth: 19, holeRadius: 1.5, spokes: 0, spokeWidth: 1,   hubWidth: 1,   rimWidth: 1 },   // under jorda, bærer månearmen
+  // Avstanden mellom leddene i kjedet. Kjedehjulenes størrelse følger av den
+  // og tanntallet. Den justeres litt automatisk så kjedet går opp i hele ledd.
+  chainPitch: 1.5,
+  fixed:         { teeth: 60, holeRadius: 2,   spokes: 5, spokeWidth: 2,   hubWidth: 3, rimWidth: 2 },   // fast på sentralakselen
+  pinion:        { teeth: 12, holeRadius: 1,   spokes: 0, spokeWidth: 1,   hubWidth: 1, rimWidth: 1 },   // på armen, går rundt det faste hjulet
+  driveSprocket: { teeth: 47, holeRadius: 1,   spokes: 4, spokeWidth: 1.5, hubWidth: 2, rimWidth: 1.5 }, // samme aksel som pinion
+  moonSprocket:  { teeth: 19, holeRadius: 1.5, spokes: 0, spokeWidth: 1,   hubWidth: 1, rimWidth: 1 },   // under jorda, bærer månearmen
 };
 
 // Kulene og hvor de sitter.
