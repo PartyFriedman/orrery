@@ -116,6 +116,40 @@ export const armStyle = {
   collarHeight: 0.65,  // høyden på kragen
 };
 
+export const look = {
+  // Bakgrunn: svak gradient ovenfra og ned.
+  backgroundTop: '#3a3d40',
+  backgroundBottom: '#121314',
+
+  // Materialet (satengmatt hvit lakk).
+  gearColor: '#f4f6f7',   // nesten hvit, så toppflaten ikke brenner ut
+  roughness: 0.4,         // 0 = speil, 1 = helt matt
+  gloss: 0.70,            // klarlakk-glans oppå (0 = ingen, 1 = full)
+  glossRoughness: 0.3,    // hvor myk glansen er (lav = skarpere refleksjoner)
+
+  // Kjedene (ruller og lenkeplater). Standard er det samme som hjulene.
+  // Mørkt metall som i fugene: '#303538', metalness 0.6, roughness 0.45.
+  chainColor: '#303538',
+  chainMetalness: 1,      // 0 = lakk, 1 = metall
+  chainRoughness: 0.5,    // 0 = speil, 1 = helt matt
+  chainGloss: 0.70,       // klarlakk-glans oppå (0 = ingen)
+
+  // Mørkt metall i fugene mellom panelene.
+  seamColor: '#303538',
+  seamMetalness: 0.6,
+  seamRoughness: 0.45,
+
+  // Lys.
+  exposure: 1.0,              // total lysstyrke i bildet
+  environmentIntensity: 0.2,  // mykt lys og refleksjoner fra omgivelsene
+  lightIntensity: 5.0,        // styrken på hovedlyset
+  lightHeight: 22,            // grader over gulvet (lavt = streiflys, 90 = rett ovenfra)
+  lightDirection: 150,        // grader rundt: 0 = fra høyre, 90 = bakfra, 180 = fra venstre
+  lightSpread: 1.1,           // hvor bred lyskjeglen er (lavere = mer dramatisk fall mot kantene)
+  shadowStrength: 0.55,       // hvor mørk skyggen på gulvet er (0–1)
+  shadowSoftness: 6,          // hvor myk skyggekanten er
+};
+
 // Saturns ring: tre bånd av frostet glass som dreier hver for seg rundt Saturns
 // skrå akse og bærer hver sin måne (se saturnMoons). Ringen holder retningen i
 // rommet, som jordaksen. Radiene er i ganger Saturns radius, bredder og
@@ -162,7 +196,7 @@ export const saturnRing = {
   rim: { color: '#ffffff', strength: 0.35, sharpness: 3 },  // sharpness: høyere = smalere kant
   // Stagene under ringen: hvert bånd bæres av sine egne stag fra et nav på den
   // skrå akselen, som en paraply. Navene ligger så stagene går klar av kula.
-  struts: { count: 3, width: 0.16, color: '#303538', metalness: 0.6, roughness: 0.45 },
+  struts: { count: 3, width: 0.16, color: look.gearColor, metalness: 0.6, roughness: 0.45 },
   mix: {
     glassBands: 2,      // antall bånd innenfra som er glass (2 = alt innenfor spalten, 1 = bare C-ringen)
     gapColor: '#303538', gapMetalness: 0.6, gapRoughness: 0.45,  // den mørke spalten (som fugene)
@@ -397,39 +431,6 @@ export const accent = {
   ringWidth: 0.16,        // tykkelsen på den røde ringen rundt planetstolpene
 };
 
-export const look = {
-  // Bakgrunn: svak gradient ovenfra og ned.
-  backgroundTop: '#3a3d40',
-  backgroundBottom: '#121314',
-
-  // Materialet (satengmatt hvit lakk).
-  gearColor: '#f4f6f7',   // nesten hvit, så toppflaten ikke brenner ut
-  roughness: 0.4,         // 0 = speil, 1 = helt matt
-  gloss: 0.70,            // klarlakk-glans oppå (0 = ingen, 1 = full)
-  glossRoughness: 0.3,    // hvor myk glansen er (lav = skarpere refleksjoner)
-
-  // Kjedene (ruller og lenkeplater). Standard er det samme som hjulene.
-  // Mørkt metall som i fugene: '#303538', metalness 0.6, roughness 0.45.
-  chainColor: '#303538',
-  chainMetalness: 1,      // 0 = lakk, 1 = metall
-  chainRoughness: 0.5,    // 0 = speil, 1 = helt matt
-  chainGloss: 0.70,       // klarlakk-glans oppå (0 = ingen)
-
-  // Mørkt metall i fugene mellom panelene.
-  seamColor: '#303538',
-  seamMetalness: 0.6,
-  seamRoughness: 0.45,
-
-  // Lys.
-  exposure: 1.0,              // total lysstyrke i bildet
-  environmentIntensity: 0.2,  // mykt lys og refleksjoner fra omgivelsene
-  lightIntensity: 5.0,        // styrken på hovedlyset
-  lightHeight: 22,            // grader over gulvet (lavt = streiflys, 90 = rett ovenfra)
-  lightDirection: 150,        // grader rundt: 0 = fra høyre, 90 = bakfra, 180 = fra venstre
-  lightSpread: 1.1,           // hvor bred lyskjeglen er (lavere = mer dramatisk fall mot kantene)
-  shadowStrength: 0.55,       // hvor mørk skyggen på gulvet er (0–1)
-  shadowSoftness: 6,          // hvor myk skyggekanten er
-};
 
 // Plexus-kuler. Vises på testsiden plexus.html, og på en kule i modellen når den
 // har pattern 'plexusA', 'plexusB' eller 'plexusC' i panels over. Tallene her
