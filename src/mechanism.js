@@ -7,7 +7,7 @@
 
 import {
   drive, outerDrive, spacing, center, gear, bigGear, smallGear, arm, armStyle,
-  planets, moonTrain, bodies, tilt, moonSize, time,
+  planets, moonTrain, bodies, tilt, moonSize, time, jupiterMoons, accent,
 } from './config.js';
 import { longitudeAt, addYears } from './ephemeris.js';
 
@@ -130,6 +130,13 @@ export const armParts = {
   planet: armPart(arm.width * 0.75, 0.5), // planetarmene og stolpene
   earth: armPart(arm.width, 0.9),         // jordarmen og tappen parallellhjulet går på
   moon: armPart(arm.width * 0.75, 0.8),   // månearmen og hylsa
+  // Månearmene ved Jupiter: smale, uten krage, så de går klar av nabostolpene.
+  jupiterMoon: {
+    rootHalf: jupiterMoons.armWidth / 2,
+    endRadius: jupiterMoons.postRadius + 0.2,
+    postRadius: jupiterMoons.postRadius,
+    collarRadius: jupiterMoons.postRadius,
+  },
 };
 
 // --- Plass rundt hver planet ---
@@ -155,8 +162,63 @@ export const moonSystems = Object.fromEntries(Object.entries(planets).map(([name
 }));
 
 // Hvilken mekanikk som ligger over armen: jorda har månehjulverk med
-// parallellføring, andre har det de reserverer plass til.
+// parallellføring, Jupiter har månerøret ('moonDrive'), andre har det de
+// reserverer plass til.
 export const mechanismOf = (name) => (name === 'earth' ? 'moons+parallel' : planets[name].mechanism ?? null);
+for (const [name, p] of Object.entries(planets)) {
+  if (p.mechanism === 'moonDrive' && name !== 'jupiter') {
+    throw new Error(`planets.${name}.mechanism: 'moonDrive' er bare bygget for Jupiter.`);
+  }
+}
+
+// --- Hjulverket ved Jupiter ---
+// Rundt Jupiter-stolpen står kragen (nederst) og ett rør per måne, Io innerst.
+// Forlegsakselen står layDistance innenfor stolpen, og hvert hjulpar har den
+// modulen som gjør at paret når over. Alle mål her er fra Jupiter-stolpen.
+const J = jupiterMoons;
+const jupiterMoonNames = planets.jupiter.moons;
+const layModule = (teeth1, teeth2) => (2 * J.layDistance) / (teeth1 + teeth2);
+const tipOf = (module, teeth) => pitchRadius(module, teeth) + module;
+const rootOf = (module, teeth) => pitchRadius(module, teeth) - 1.25 * module;
+export const jupiterTrain = (() => {
+  const post = armParts.planet.postRadius;
+  const collarModule = layModule(J.collarTeeth, J.collarPinion);
+  const train = {
+    collar: { inner: post, outer: post + J.tubeWall, module: collarModule },
+    moons: {},
+  };
+  jupiterMoonNames.forEach((name, i) => {
+    const [layTeeth, moonTeeth] = J.steps[name];
+    train.moons[name] = {
+      inner: post + i * J.tubeWall,
+      outer: post + (i + 1) * J.tubeWall,
+      module: layModule(layTeeth, moonTeeth),
+      layTeeth,
+      moonTeeth,
+    };
+  });
+  const gears = [
+    { name: 'kragen', module: collarModule, moonTeeth: J.collarTeeth, layTeeth: J.collarPinion, outer: train.collar.outer },
+    ...jupiterMoonNames.map((name) => ({ name, ...train.moons[name] })),
+  ];
+  // Det hjulverket rekker ut fra stolpen: hjulene på forlegsakselen ligger lengst inne.
+  train.reach = Math.max(...gears.map((g) => Math.max(J.layDistance + tipOf(g.module, g.layTeeth), tipOf(g.module, g.moonTeeth))));
+  for (const g of gears) {
+    if (rootOf(g.module, g.moonTeeth) < g.outer + 0.2) {
+      throw new Error(`Hjulet på ${g.name === 'kragen' ? 'kragen' : `røret til ${g.name}`} ved Jupiter er for lite til røret: endre tanntallene i jupiterMoons.`);
+    }
+    if (rootOf(g.module, g.layTeeth) < J.shaftRadius + 0.2) {
+      throw new Error(`Hjulet på forlegsakselen ved Jupiter som driver ${g.name} er for lite til akselen: endre tanntallene eller gjør jupiterMoons.shaftRadius mindre.`);
+    }
+    if (tipOf(g.module, g.moonTeeth) > J.layDistance - J.shaftRadius - 0.3) {
+      throw new Error(`Hjulet til ${g.name} ved Jupiter går for nær forlegsakselen: øk jupiterMoons.layDistance.`);
+    }
+    if (tipOf(g.module, g.layTeeth) > J.layDistance - g.outer - 0.3) {
+      throw new Error(`Hjulet på forlegsakselen som driver ${g.name} går for nær rørene på Jupiter-stolpen: øk jupiterMoons.layDistance.`);
+    }
+  }
+  return train;
+})();
 
 // Kjedehjulene ute ved planeten (og kjedet rundt dem) rekker så langt ut fra
 // planetens sentrum.
@@ -164,6 +226,7 @@ const chainEnd = (teeth) => sprocketRadius(teeth, moonTrain.chainPitch) + moonTr
 const mechanismEnd = (name) => {
   const kind = mechanismOf(name);
   if (!kind) return 0;
+  if (kind === 'moonDrive') return jupiterTrain.reach;
   return Math.max(chainEnd(moonSprocket.teeth), kind === 'moons+parallel' ? chainEnd(parallelSprocket.teeth) : 0);
 };
 
@@ -187,6 +250,12 @@ function envelopeOf(name) {
 const pinionX = pitchRadius(moonTrain.module, fixed.teeth) + pitchRadius(moonTrain.module, pinion.teeth);
 const mechanismMinimum = (name) => {
   if (!mechanismOf(name)) return 0;
+  if (mechanismOf(name) === 'moonDrive') {
+    // Kjedet fra månerøret ut til kragen, og forlegsakselen inne i kjedesløyfa.
+    const p = J.chainPitch;
+    const big = sprocketRadius(J.tubeSprocket, p), small = sprocketRadius(J.collarSprocket, p);
+    return Math.max(big + small + 2 * p, big + p + J.layDistance + J.shaftRadius + 0.3);
+  }
   const p = moonTrain.chainPitch;
   const moonChainNeeds = pinionX + sprocketRadius(driveSprocket.teeth, p) + sprocketRadius(moonSprocket.teeth, p) + 2 * p;
   const parallelNeeds = 2 * sprocketRadius(parallelSprocket.teeth, p) + 2 * p;
@@ -229,14 +298,19 @@ export const reach = {};
 // Der er sentralakselen dekket av de innerste rørene, så hjulet får et eget fast
 // rør rett innenfor planetens rør, holdt av en brakett nede i tårnet.
 // Jordas faste rør heter 'fixed'; de andre 'fixed-mars' osv.
+// Jupiters måner drives i stedet av et månerør på samme plass ('drive-jupiter'),
+// som dreier og har et hjul nederst i tårnet, som planetrørene.
 const tubeNames = order.flatMap((name) => {
-  if (!mechanismOf(name)) return [name];
+  const kind = mechanismOf(name);
+  if (!kind) return [name];
+  if (kind === 'moonDrive') return [`drive-${name}`, name];
   return [name === 'earth' ? 'fixed' : `fixed-${name}`, name];
 });
 export const tubes = tubeNames.map((name, i) => ({
   name,
   fixed: name.startsWith('fixed'),
-  owner: name === 'fixed' ? 'earth' : name.replace('fixed-', ''),
+  drive: name.startsWith('drive-'),
+  owner: name === 'fixed' ? 'earth' : name.replace(/^(fixed|drive)-/, ''),
   inner: center.axleRadius + i * center.tubeWall,
   outer: center.axleRadius + (i + 1) * center.tubeWall,
 }));
@@ -284,6 +358,35 @@ export const moonChain = makeChain('Månekjedet', layout.pinion, layout.earth, d
 // baklengs like fort som armen går rundt, og kjedet overfører det 1:1. Dermed
 // står hjulet under jorda stille i rommet, uansett hvor armen er.
 export const parallelChain = makeChain('Parallellkjedet', layout.center, layout.earth, parallelSprocket.teeth, parallelSprocket.teeth);
+
+// Kjedet over Jupiter-armen: fra kjedehjulet på månerøret ved sentrum til
+// kjedehjulet på kragen ved Jupiter-stolpen (i armens koordinatsystem).
+export const jupiterLayout = {
+  post: { x: armLengths.jupiter, y: 0 },
+  lay: { x: armLengths.jupiter - J.layDistance, y: 0 },
+};
+export const jupiterChain = makeChain('Kjedet til Jupiters måner', layout.center, jupiterLayout.post,
+  J.tubeSprocket, J.collarSprocket, J.chainPitch);
+{
+  // Forlegsakselen står inne i kjedesløyfa og må gå klar av kjedet.
+  let nearest = Infinity;
+  const L = jupiterChain.links * jupiterChain.pitch;
+  for (let u = 0; u < L; u += 0.02) {
+    const p = jupiterChain.point(u);
+    nearest = Math.min(nearest, Math.hypot(p.x - jupiterLayout.lay.x, p.y - jupiterLayout.lay.y));
+  }
+  jupiterTrain.layToChain = nearest - jupiterChain.rollerRadius * 1.25 - J.shaftRadius;
+  if (jupiterTrain.layToChain < 0.3) {
+    throw new Error('Forlegsakselen ved Jupiter går for nær kjedet: endre jupiterMoons.layDistance eller kjedehjulene.');
+  }
+  const root = (chain, r) => r - chain.rollerRadius * 1.1;
+  if (root(jupiterChain, jupiterChain.radius1) < tube['drive-jupiter'].outer + 0.2) {
+    throw new Error('Kjedehjulet på månerøret er for lite til røret: øk jupiterMoons.tubeSprocket.');
+  }
+  if (root(jupiterChain, jupiterChain.radius2) < jupiterTrain.collar.outer + 0.2) {
+    throw new Error('Kjedehjulet på kragen ved Jupiter er for lite til kragen: øk jupiterMoons.collarSprocket.');
+  }
+}
 
 // Runder månen går rundt jorda per runde armen tar (månefaser per år).
 export const moonPerYear = (fixed.teeth / pinion.teeth) * (driveSprocket.teeth / moonSprocket.teeth);
@@ -339,9 +442,24 @@ function anglesWith(input, phases) {
   const parallelChainOffset = parallelChain.offsetFor(fixedAngle);
   const parallelAngle = parallelChain.angle2For(parallelChainOffset);
 
+  // Jupiters måner. Månerøret drives fra mellomakselen. Resten regnes i
+  // Jupiter-armens koordinatsystem: kjedet tar kjedehjulet på røret (sett fra
+  // armen) ut til kragen, kragen driver forlegsakselen, og hvert hjul på
+  // forlegsakselen (satt på i sin egen vinkel) driver røret til en måne.
+  const jupiterTubeAngle = meshAngle(driveAngle, J.driveTeeth, J.tubeTeeth, driveToCenter);
+  const jupiterChainOffset = jupiterChain.offsetFor(jupiterTubeAngle - planetAngles.jupiter);
+  const collarAngle = jupiterChain.angle2For(jupiterChainOffset);
+  const jupiterLayAngle = meshAngle(collarAngle, J.collarTeeth, J.collarPinion, Math.PI);
+  const jupiterMoonAngles = {};
+  for (const name of jupiterMoonNames) {
+    const [layTeeth, moonTeeth] = J.steps[name];
+    jupiterMoonAngles[name] = meshAngle(jupiterLayAngle + phases[name], layTeeth, moonTeeth, 0);
+  }
+
   return {
     driveAngle, driveChainOffset, idlerAngle, layChainOffset, layAngle, armAngle, planetAngles, fixedAngle, pinionAngle,
     moonDriveAngle, moonChainOffset, moonAngle, parallelChainOffset, parallelAngle,
+    jupiterTubeAngle, jupiterChainOffset, collarAngle, jupiterLayAngle, jupiterMoonAngles,
   };
 }
 
@@ -362,22 +480,26 @@ const parseStart = (value) => {
 export const startDate = parseStart(time.startDate);
 const equinox = degrees(tilt.equinoxDirection);
 
-// Vinkelen i verden hver del skal ha på startdatoen. Månen: fra jorda.
+// Vinkelen i verden hver del skal ha på startdatoen. Månene: fra planeten.
+// Jupiters måner stilles med hjulene på forlegsakselen ved Jupiter.
+const settable = [...Object.keys(planets), 'earth', 'moon', ...jupiterMoonNames];
 export const targets = {};
-for (const name of [...Object.keys(planets), 'earth', 'moon']) targets[name] = longitudeAt(name, startDate) + equinox;
+for (const name of settable) targets[name] = longitudeAt(name, startDate) + equinox;
 
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const angleOf = (name, a) => {
   if (name === 'earth') return a.armAngle;
   if (name === 'moon') return a.armAngle + a.moonAngle;
+  if (jupiterMoonNames.includes(name)) return a.planetAngles.jupiter + a.jupiterMoonAngles[name];
   return a.planetAngles[name];
 };
+export const worldAngleOf = angleOf;
 
 // Vinklene er lineære i fasene, så hver fase løses direkte: hvor mye delen
-// dreier per radian fasen settes på, og hvor mye som mangler. Jorda før
-// månen, fordi månen sitter på jordarmen.
-export const phases = { moon: 0, earth: 0, ...Object.fromEntries(Object.keys(planets).map((n) => [n, 0])) };
-for (const name of [...Object.keys(planets), 'earth', 'moon']) {
+// dreier per radian fasen settes på, og hvor mye som mangler. Planetene før
+// månene, fordi månene sitter på armene.
+export const phases = Object.fromEntries(settable.map((n) => [n, 0]));
+for (const name of settable) {
   const now = angleOf(name, anglesWith(0, phases));
   const perRadian = angleOf(name, anglesWith(0, { ...phases, [name]: phases[name] + 1 })) - now;
   phases[name] += wrap(targets[name] - now) / perRadian;
@@ -450,13 +572,33 @@ export const heights = (() => {
 
   let a = h.driveTop + gap;
   for (const t of [...tubes].reverse()) {
-    if (t.fixed) continue;
+    if (t.fixed || t.drive) continue;
     h.arm[t.name] = a;
     const armTop = a + arm.thickness;
     h.topArm = armTop + armStyle.hubRise; // toppen av navet på den øverste armen så langt
     const kind = mechanismOf(t.name);
     if (!kind) {
       a = armTop + 2 * armStyle.hubRise + gap; // plass til navet over og navet til neste arm
+      continue;
+    }
+    if (kind === 'moonDrive') {
+      // Kjedet over armen: platene går klar av navet ved sentrum, og kragen
+      // ved Jupiter står klar av den røde ringen rundt stolpen.
+      const s = {};
+      s.chain = armTop + Math.max(armStyle.hubRise + plateDepth, armStyle.collarHeight + accent.ringWidth) + gap;
+      s.tubeTop = s.chain + moonTrain.thickness;                           // toppen av månerøret
+      s.chainTop = s.chain + moonTrain.thickness + plateDepth;
+      // Hjulene ved Jupiter, nedenfra: kragen, så ett hjul per måne (Io først).
+      s.collarGear = s.chainTop + gap;
+      s.moonGear = {};
+      let g = s.collarGear + J.thickness + gap;
+      for (const name of jupiterMoonNames) {
+        s.moonGear[name] = g;
+        g += J.thickness + gap;
+      }
+      s.layTop = g - gap + 0.1;                                            // toppen av forlegsakselen
+      h.stack[t.name] = s;
+      a = s.chainTop + armStyle.hubRise + gap;
       continue;
     }
     const s = { level1: armTop + armStyle.hubRise + gap };                 // fast hjul og pinion, klar av navet
@@ -489,6 +631,21 @@ export const heights = (() => {
     const minHeight = bodies.height + neededSleeve - (h.sleeveTop - h.moonArm);
     throw new Error(`bodies.height må være minst ${minHeight.toFixed(1)} så månestaven får plass til å gå opp og ned (er ${bodies.height}).`);
   }
+
+  // Månearmene ved Jupiter, ovenfra: Io øverst, rett under Jupiter. Hver arm
+  // har et nav som stikker hubRise opp og ned, og ligger gap over navet under.
+  const js = h.stack.jupiter;
+  js.moonArm = {};
+  let top = bodies.height - planets.jupiter.radius - J.topGap;
+  for (const name of jupiterMoonNames) {
+    js.moonArm[name] = top - armStyle.hubRise - J.armThickness;
+    top = js.moonArm[name] - armStyle.hubRise - gap;
+  }
+  const lowest = js.moonArm[jupiterMoonNames.at(-1)] - armStyle.hubRise;
+  if (lowest < js.layTop + gap) {
+    const more = js.layTop + gap - lowest;
+    throw new Error(`Månearmene ved Jupiter når ned i hjulene: øk bodies.height med minst ${more.toFixed(1)} eller gjør jupiterMoons.topGap mindre.`);
+  }
   return h;
 })();
 
@@ -513,6 +670,7 @@ export const heights = (() => {
   };
   check('earth', smallGear.teeth, bigGear.teeth);
   for (const [name, p] of Object.entries(planets)) check(name, p.driveTeeth ?? p.layTeeth, p.tubeTeeth);
+  check('drive-jupiter', J.driveTeeth, J.tubeTeeth);
 
   // Kjedene til forlegsakselen ligger nederst, der bare sentralakselen står.
   const edge = (chain, r) => r + chain.rollerRadius * 1.3;   // kjedehjulet med kjedet rundt

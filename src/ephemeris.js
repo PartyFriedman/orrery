@@ -19,6 +19,22 @@ const meanLongitude = {
 };
 const moonNode = [125.0445479, -1934.1362891]; // månens oppstigende knute
 
+// Jupiters måner: Lieske (E2×3), via Meeus kap. 44. Middellengde sett fra
+// Jupiter ved JD 2443000,5 og grader per dag, mot vårjevndøgn B1950. Presesjonen
+// fram til J2000 (0,698°) legges til, så de måles som planetene. Konstantene
+// holder Laplace-forholdet: Io − 3 × Europa + 2 × Ganymedes = 180°.
+const jovianEpoch = 2443000.5 - 2451545.0; // dager fra J2000
+const toJ2000 = 1.3966626 * 0.5 + 0.0003088 * 0.25;
+const jovian = {
+  io:       [106.07719, 203.488955790],
+  europa:   [175.73161, 101.374724735],
+  ganymede: [120.55883, 50.317609207],
+  callisto: [84.44459, 21.571071177],
+};
+for (const [name, [l0, perDay]] of Object.entries(jovian)) {
+  meanLongitude[name] = [l0 - perDay * jovianEpoch + toJ2000, perDay * 36525];
+}
+
 const degrees = (d) => (d * Math.PI) / 180;
 const MS_PER_DAY = 86400000;
 const J2000 = Date.UTC(2000, 0, 1, 12); // JD 2451545,0

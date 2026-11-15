@@ -124,10 +124,11 @@ export const armStyle = {
 //                    × (smallGear.teeth / bigGear.teeth)
 // period er bare målet den sammenlignes med.
 // armLength: 'auto' gir den korteste armen som går klar av naboene, eller et tall.
-// moons og ring: plass som reserveres rundt planeten (bygges ikke ennå).
-// mechanism: plass som reserveres over armen til månehjulverk ved sentrum:
+// moons og ring: plass som reserveres rundt planeten (Jupiters måner er bygget).
+// mechanism: mekanikken over armen ved sentrum:
 //   'moons' = fast hjul, pinion og månekjede; 'moons+parallel' = også parallellkjede
-//   (for en akse eller ring som skal holde retningen i rommet).
+//   (for en akse eller ring som skal holde retningen i rommet). Disse er bare reservert.
+//   'moonDrive' = et månerør drevet fra mellomakselen og et kjede langs armen (se jupiterMoons).
 export const planets = {
   mercury: { period: 0.2408, driveTeeth: 29, tubeTeeth: 21, armLength: 'auto', radius: planetSize('mercury') },
   venus:   { period: 0.6152, driveTeeth: 19, tubeTeeth: 35, armLength: 'auto', radius: planetSize('venus') },
@@ -137,7 +138,7 @@ export const planets = {
   },
   jupiter: {
     period: 11.862, layTeeth: 14, tubeTeeth: 44, armLength: 'auto', radius: planetSize('jupiter'),
-    moons: ['io', 'europa', 'ganymede', 'callisto'], mechanism: 'moons',
+    moons: ['io', 'europa', 'ganymede', 'callisto'], mechanism: 'moonDrive',
   },
   saturn:  {
     period: 29.457, layTeeth: 10, tubeTeeth: 78, armLength: 'auto', radius: planetSize('saturn'),
@@ -167,6 +168,45 @@ export const moonTrain = {
   // Parallellføringen: to like store kjedehjul, ett fast i midten og ett under
   // jorda. Hullet i midten følger røret eller tappen hvert hjul sitter på.
   parallelSprocket: { teeth: 36, spokes: 4, spokeWidth: 1, hubWidth: 1.5, rimWidth: 1 },
+};
+
+// Jupiters fire måner. Månene går for fort til et fast hjul ved sentrum, så de
+// drives fra mellomakselen: et hjulpar i tårnet dreier et månerør (inni
+// Jupiter-røret), og et kjede over Jupiter-armen tar bevegelsen ut til en
+// krage som går løst på Jupiter-stolpen. Kragen driver en forlegsaksel på
+// armen, og forlegsakselen driver ett rør per måne rundt stolpen:
+//   Io, Europa og Ganymedes: 32→16, 24→24, 16→32. Sett fra armen går de
+//   nøyaktig 4 : 2 : 1, som i den ekte resonansen.
+//   Callisto: 10→47, det samme paret som kragen baklengs.
+// Rørene ligger med Io innerst, så Io har hjulet nederst og armen øverst.
+// Runder per runde månerøret tar, sett fra armen:
+//   (tubeSprocket / collarSprocket) × (collarTeeth / collarPinion) × (forlegg / måne)
+// periods er bare målet (sidereale omløpstider i dager).
+export const jupiterMoons = {
+  periods: { io: 1.769138, europa: 3.551181, ganymede: 7.154553, callisto: 16.689018 },
+  driveTeeth: 27,       // hjulet på mellomakselen
+  tubeTeeth: 20,        // hjulet nederst på månerøret
+  tubeSprocket: 66,     // kjedehjulet øverst på månerøret, over Jupiter-armen
+  collarSprocket: 12,   // kjedehjulet nederst på kragen ved Jupiter
+  chainPitch: 1.0,      // ledd-lengden i kjedet langs armen
+  collarTeeth: 47,      // tannhjulet på kragen
+  collarPinion: 10,     // hjulet på forlegsakselen som kragen driver
+  steps: {              // [hjulet på forlegsakselen, hjulet på månerøret]
+    io: [32, 16],
+    europa: [24, 24],
+    ganymede: [16, 32],
+    callisto: [10, 47],
+  },
+  layDistance: 6,       // fra Jupiter-stolpen inn til forlegsakselen (alle parene når over den)
+  shaftRadius: 0.5,     // forlegsakselen
+  tubeWall: 0.3,        // veggen i hvert månerør
+  thickness: 0.5,       // tykkelsen på hjulene ved Jupiter
+  chamfer: 0.1,
+  backlash: 0.05,
+  armThickness: 0.4,    // månearmene
+  armWidth: 0.9,        // bredden på månearmene ved røret
+  postRadius: 0.2,      // stolpene opp til månene
+  topGap: 1.0,          // fra undersiden av Jupiter ned til toppen av den øverste månearmen
 };
 
 // Hellingene som parallellføringen holder i samme retning i rommet.
@@ -209,6 +249,10 @@ export const panels = {
   mars:    { pattern: 'quads',     subdivisions: 3 },  // 54 firkanter
   moon:    { pattern: 'pentagons', subdivisions: 1 },  // 12 femkanter med en ring av trapeser rundt (72 paneler)
   jupiter: { pattern: 'bands',     subdivisions: 3 },  // 7 bånd à 16 firkanter, og en 16-kant over hver pol
+  io:       { pattern: 'quads', subdivisions: 1 },     // Jupiters måner: 6 firkanter hver
+  europa:   { pattern: 'quads', subdivisions: 1 },
+  ganymede: { pattern: 'quads', subdivisions: 1 },
+  callisto: { pattern: 'quads', subdivisions: 1 },
   saturn:  { pattern: 'hexagons',  subdivisions: 3 },  // 80 sekskanter og 12 femkanter
   // Sola: fire like paneler fra et tetraeder, der hver kant er en S-kurve (som
   // Trionda-ballen). amplitude er hvor langt S-en svinger ut (andel av

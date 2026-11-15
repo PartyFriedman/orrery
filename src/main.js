@@ -2,14 +2,16 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { drive, outerDrive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, panels, accent, look } from './config.js';
+import {
+  drive, outerDrive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, panels, accent, look, jupiterMoons,
+} from './config.js';
 import { createGearGeometry, createSprocketGeometry } from './gear.js';
 import { createArmGeometry } from './arm.js';
 import { createPanelGeometry } from './panels.js';
 import {
   layout, anglesAt, pairModule, tube, tubes, heights, reach as armReach, armParts, armLengths,
   moonChain, parallelChain, driveChain, driveFrame, layChain, layFrame, idlerHub, earthAxis, moonRing, moonLift,
-  phases, inputPerYear, dateAt,
+  phases, inputPerYear, dateAt, jupiterChain, jupiterLayout, jupiterTrain, moonSystems,
 } from './mechanism.js';
 import { daysPerYear } from './ephemeris.js';
 import { createTimeControl } from './timeControl.js';
@@ -182,19 +184,24 @@ function addBar(parent, length, width, y0, y1) {
 // En arm langs +x som smalner av mot enden, med myk overgang inn i navet og
 // en krage rundt stolpen ytterst. Navet stikker litt opp over og ned under
 // armen, så flatene ikke ligger i samme høyde. hub: false når navet er et rør
-// som tegnes for seg.
-function addArm(parent, { length, hubRadius, part, y, hub = true, ring = false }) {
+// som tegnes for seg. collar: false gir en arm uten krage (månearmene ved
+// Jupiter), og thickness og chamfer kan settes for tynnere armer.
+function addArm(parent, {
+  length, hubRadius, part, y, hub = true, ring = false, collar = true,
+  thickness = arm.thickness, chamfer = armStyle.chamfer,
+}) {
   const geometry = createArmGeometry({
     length, hubRadius, rootHalf: part.rootHalf, endRadius: part.endRadius,
-    fillet: armStyle.fillet, thickness: arm.thickness, chamfer: armStyle.chamfer,
+    fillet: armStyle.fillet, thickness, chamfer,
   });
   addMesh(parent, geometry).position.y = y;
-  if (hub) addShaft(parent, hubRadius, y - armStyle.hubRise, y + arm.thickness + armStyle.hubRise);
+  if (hub) addShaft(parent, hubRadius, y - armStyle.hubRise, y + thickness + armStyle.hubRise);
+  if (!collar) return;
   // Kragen smalner av oppover, så stolpen ikke går rett ned i armen.
-  const collar = addMesh(parent, new THREE.CylinderGeometry(
+  const collarMesh = addMesh(parent, new THREE.CylinderGeometry(
     part.postRadius + armStyle.collarWidth * 0.25, part.collarRadius, armStyle.collarHeight, 32
   ));
-  collar.position.set(length, y + arm.thickness + armStyle.collarHeight / 2, 0);
+  collarMesh.position.set(length, y + arm.thickness + armStyle.collarHeight / 2, 0);
   if (ring) {
     // En tynn rød ring rundt stolpen, oppå kragen.
     const red = new THREE.Mesh(
@@ -340,8 +347,8 @@ addShaft(scene, center.axleRadius, 0, bodies.height);
 addSun();
 
 // De faste rørene. Jordas faste rør har det faste hjulet og det faste
-// kjedehjulet øverst. Rørene for Mars, Jupiter og Saturn står klare til
-// månehjulverk senere, uten hjul ennå. Hvert rør holdes av en brakett nede i
+// kjedehjulet øverst. Rørene for Mars og Saturn står klare til månehjulverk
+// senere, uten hjul ennå. (Jupiter har et månerør som dreier, se under.) Hvert rør holdes av en brakett nede i
 // tårnet, og alle brakettene går bakover (bort fra mellomakselen) til den
 // samme stolpen ned til gulvet.
 addShaft(scene, tube.fixed.outer, heights.bottom.fixed, heights.fixedTop);
@@ -371,6 +378,8 @@ for (const [name, p] of Object.entries(planets)) {
     addGear(driveGroup, pairGear(p.driveTeeth, p.tubeTeeth, drive.shaftRadius), heights.bottom[name]).rotation.y = phases[name];
   }
 }
+// Hjulet som driver månerøret til Jupiters måner.
+addGear(driveGroup, pairGear(jupiterMoons.driveTeeth, jupiterMoons.tubeTeeth, drive.shaftRadius), heights.bottom['drive-jupiter']);
 const sprocketStyle = { spokes: 0, spokeWidth: 1, hubWidth: 1, rimWidth: 1 };
 addSprocket(driveGroup, { teeth: outerDrive.driveSprocket, holeRadius: drive.shaftRadius, ...sprocketStyle },
   driveChain.radius1, heights.driveChain, driveChain);
@@ -418,6 +427,67 @@ for (const [name, p] of Object.entries(planets)) {
   addShaft(group, armParts.planet.postRadius, y + arm.thickness, bodies.height).position.x = length;
   addPlanetSphere(group, p.radius, name).position.set(length, bodies.height, 0);
   planetGroups[name] = group;
+}
+
+// --- Jupiters måner ---
+// Månerøret går inni Jupiter-røret, fra hjulet i tårnet opp til kjedehjulet
+// rett over Jupiter-armen.
+const JM = jupiterMoons;
+const JS = heights.stack.jupiter;
+const driveTube = tube['drive-jupiter'];
+const jupiterTubeGroup = new THREE.Group();
+scene.add(jupiterTubeGroup);
+addShaft(jupiterTubeGroup, driveTube.outer, heights.bottom['drive-jupiter'], JS.tubeTop);
+addGear(jupiterTubeGroup, pairGear(JM.tubeTeeth, JM.driveTeeth, driveTube.outer), heights.bottom['drive-jupiter']);
+addSprocket(jupiterTubeGroup, { teeth: JM.tubeSprocket, holeRadius: driveTube.outer, ...sprocketStyle },
+  jupiterChain.radius1, JS.chain, jupiterChain);
+
+// Ved Jupiter: et hjul i et par mellom forlegsakselen og stolpen. Modulen
+// følger av paret, og store hjul får eiker.
+const jupiterGear = (teeth, otherTeeth, holeRadius) => {
+  const module = (2 * JM.layDistance) / (teeth + otherTeeth);
+  const hubWidth = 0.35, rimWidth = 0.35;
+  const rimRadius = (module * teeth) / 2 - 1.25 * module - rimWidth;
+  return {
+    ...gear, thickness: JM.thickness, chamfer: JM.chamfer, backlash: JM.backlash,
+    teeth, module, holeRadius, hubWidth, rimWidth, spokeWidth: 0.35,
+    spokes: rimRadius - holeRadius - hubWidth > 1.2 ? (teeth >= 40 ? 5 : 4) : 0,
+  };
+};
+const jupiterGroup = planetGroups.jupiter;
+const jupiterArmTop = heights.arm.jupiter + arm.thickness;
+const updateJupiterChain = addChain(jupiterGroup, jupiterChain, JS.chain);
+
+// Kragen går løst på stolpen: kjedehjulet nederst, tannhjulet over.
+const collarGroup = addGroupAt(jupiterGroup, jupiterLayout.post);
+addShaft(collarGroup, jupiterTrain.collar.outer, JS.chain, JS.collarGear + JM.thickness);
+addSprocket(collarGroup, { teeth: JM.collarSprocket, holeRadius: jupiterTrain.collar.outer, ...sprocketStyle },
+  jupiterChain.radius2, JS.chain, jupiterChain);
+addGear(collarGroup, jupiterGear(JM.collarTeeth, JM.collarPinion, jupiterTrain.collar.outer), JS.collarGear);
+
+// Forlegsakselen på armen. Hjulene som driver månene er satt på i sin egen
+// vinkel, så hver måne står riktig på startdatoen.
+const jupiterLayGroup = addGroupAt(jupiterGroup, jupiterLayout.lay);
+addShaft(jupiterLayGroup, JM.shaftRadius, jupiterArmTop, JS.layTop);
+addGear(jupiterLayGroup, jupiterGear(JM.collarPinion, JM.collarTeeth, JM.shaftRadius), JS.collarGear);
+
+// Ett rør per måne rundt stolpen, med hjulet nederst og armen øverst.
+const moonOrbits = Object.fromEntries(moonSystems.jupiter.orbits.map((o) => [o.name, o]));
+const jupiterMoonGroups = {};
+for (const [name, m] of Object.entries(jupiterTrain.moons)) {
+  addGear(jupiterLayGroup, jupiterGear(m.layTeeth, m.moonTeeth, JM.shaftRadius), JS.moonGear[name]).rotation.y = phases[name];
+  const group = addGroupAt(jupiterGroup, jupiterLayout.post);
+  const y = JS.moonArm[name];
+  const { orbit, radius } = moonOrbits[name];
+  addShaft(group, m.outer, JS.moonGear[name], y);
+  addGear(group, jupiterGear(m.moonTeeth, m.layTeeth, m.outer), JS.moonGear[name]);
+  addArm(group, {
+    length: orbit, hubRadius: m.outer + 0.25, part: armParts.jupiterMoon, y,
+    thickness: JM.armThickness, chamfer: JM.chamfer, collar: false,
+  });
+  addShaft(group, JM.postRadius, y + JM.armThickness, bodies.height).position.x = orbit;
+  addPlanetSphere(group, radius, name).position.set(orbit, bodies.height, 0);
+  jupiterMoonGroups[name] = group;
 }
 
 // --- Jordarmen: røret, det store hjulet nederst og stanga ut til jorda. ---
@@ -538,6 +608,11 @@ renderer.setAnimationLoop((time) => {
   layGroup.rotation.y = a.layAngle;
   armGroup.rotation.y = a.armAngle;
   for (const name in planetGroups) planetGroups[name].rotation.y = a.planetAngles[name];
+  jupiterTubeGroup.rotation.y = a.jupiterTubeAngle;
+  updateJupiterChain(a.jupiterChainOffset);
+  collarGroup.rotation.y = a.collarAngle;
+  jupiterLayGroup.rotation.y = a.jupiterLayAngle;
+  for (const name in jupiterMoonGroups) jupiterMoonGroups[name].rotation.y = a.jupiterMoonAngles[name];
   pinionGroup.rotation.y = a.pinionAngle;
   updateMoonChain(a.moonChainOffset);
   updateParallelChain(a.parallelChainOffset);

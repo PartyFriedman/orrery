@@ -12,7 +12,11 @@
 //      B: simulering i planet (sirkler og kapsler med høydebånd): hvert
 //         øyeblikk to armer står rett over hverandre innenfor et vindu, pluss
 //         tilfeldige tidspunkt. Kontroll av A med de faktiske formene.
+//      C: hjulverket ved Jupiter, med ringområder rundt Jupiter-stolpen: krage,
+//         forlegsaksel, månerør, hjul, månearmer, stolper og måner.
 //   Reservert plass (stabler over armene, måner og Saturns ring) er med.
+//   Jupiters måner: omløpstidene, at de tre innerste går 4 : 2 : 1 sett fra
+//   armen, og at Laplace-vinkelen (Io − 3 × Europa + 2 × Ganymedes) står stille.
 //
 // Bruk: node scripts/check.mjs [antall tilfeldige tidspunkt] [vindu for passeringer, i omdreininger]
 // Standard er 20 000 og 2 000. Avslutter med feilkode hvis noe er galt.
@@ -22,12 +26,17 @@ const RANDOM = Number(process.argv[2] ?? 20000);
 const WINDOW = Number(process.argv[3] ?? 2000);
 const C = await import(new URL('config.js', src).href);
 const M = await import(new URL('mechanism.js', src).href);
-const { drive, outerDrive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, tilt } = C;
+const { daysPerYear } = await import(new URL('ephemeris.js', src).href);
+const { drive, outerDrive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, tilt, accent } = C;
+const JM = C.jupiterMoons;
 const {
   tube, tubes, heights: h, layout, anglesAt, pairModule, moonChain, parallelChain,
   driveChain, driveFrame, layChain, layFrame, idlerHub,
   moonRing, moonLift, earthAxis, armParts: AP, armLengths, moonSystems, mechanismOf, order, reach,
+  jupiterChain, jupiterLayout, jupiterTrain: JT, worldAngleOf,
 } = M;
+const jMoons = planets.jupiter.moons;
+const wrapAngle = (x) => Math.atan2(Math.sin(x), Math.cos(x));
 let problems = 0;
 
 // ---------- 1: omløpstider ----------
@@ -45,6 +54,21 @@ let problems = 0;
   const moon = (a1.moonAngle - a0.moonAngle) / (a1.armAngle - a0.armAngle);
   console.log(`  månen    ${moon.toFixed(6)} runder per år (skal være ${M.moonPerYear.toFixed(6)})`);
   if (Math.abs(moon - M.moonPerYear) > 1e-6) problems++;
+
+  // Jupiters måner: sidereal omløpstid i dager, og forholdet sett fra armen.
+  const rel = {};
+  for (const n of jMoons) {
+    const rev = (worldAngleOf(n, a1) - worldAngleOf(n, a0)) / (2 * Math.PI);
+    rel[n] = (a1.jupiterMoonAngles[n] - a0.jupiterMoonAngles[n]) / (2 * Math.PI);
+    const P = (years * daysPerYear) / rev, err = (P / JM.periods[n] - 1) * 100;
+    const ok = Math.abs(err) <= 1 && rev > 0;
+    if (!ok) problems++;
+    console.log(`  ${n.padEnd(8)} ${P.toFixed(4)} dager (mål ${JM.periods[n]}, feil ${err.toFixed(3)} %)${rev > 0 ? '' : ' FEIL VEI'}${ok ? '' : '  <-- FEIL'}`);
+  }
+  const ioEu = rel.io / rel.europa, euGa = rel.europa / rel.ganymede;
+  const exact = Math.abs(ioEu - 2) < 1e-9 && Math.abs(euGa - 2) < 1e-9;
+  if (!exact) problems++;
+  console.log(`  Sett fra Jupiter-armen: Io/Europa ${ioEu.toFixed(9)}, Europa/Ganymedes ${euGa.toFixed(9)} (skal være 2 og 2)${exact ? '' : '  <-- FEIL'}`);
 }
 
 // ---------- 2: kjeder og parallellføring ----------
@@ -71,6 +95,7 @@ let problems = 0;
       seat(layChain, O0, { x: layFrame.span, y: 0 }, outerDrive.idlerSmall, outerDrive.laySprocket, a.idlerAngle - layFrame.angle, a.layAngle - layFrame.angle, a.layChainOffset),
       seat(moonChain, layout.pinion, layout.earth, moonTrain.driveSprocket.teeth, moonTrain.moonSprocket.teeth, a.moonDriveAngle, a.moonAngle, a.moonChainOffset),
       seat(parallelChain, layout.center, layout.earth, moonTrain.parallelSprocket.teeth, moonTrain.parallelSprocket.teeth, a.fixedAngle, a.parallelAngle, a.parallelChainOffset),
+      seat(jupiterChain, layout.center, jupiterLayout.post, JM.tubeSprocket, JM.collarSprocket, a.jupiterTubeAngle - a.planetAngles.jupiter, a.collarAngle, a.jupiterChainOffset),
     ]) { rollers += n; worst = Math.max(worst, w); }
   }
   let drift = 0;
@@ -95,6 +120,7 @@ let problems = 0;
     ...Object.keys(planets).map((n) => [n, a.planetAngles[n], M.targets[n]]),
     ['earth', a.armAngle, M.targets.earth],
     ['moon', a.armAngle + a.moonAngle, M.targets.moon],
+    ...jMoons.map((n) => [n, worldAngleOf(n, a), M.targets[n]]),
     ['jordakse', world + earthAxis.direction, eq + Math.PI / 2],
     ['knute', world + moonRing.node, moonRing.nodeWorld],
   ];
@@ -106,6 +132,18 @@ let problems = 0;
     console.log(`  ${n.padEnd(8)} ${deg(got - eq).toFixed(2).padStart(7)}°${err > 1e-9 ? `  <-- FEIL (${err.toExponential(1)} rad)` : ''}`);
   }
   if (worstStart > 1e-9) problems++;
+
+  // Laplace-vinkelen: 180° på startdatoen, og den skal stå stille.
+  const laplace = (x) => {
+    const [l1, l2, l3] = ['io', 'europa', 'ganymede'].map((n) => worldAngleOf(n, x));
+    return l1 - 3 * l2 + 2 * l3;
+  };
+  const start = laplace(a);
+  let drift = 0;
+  for (const t of [1, 77.7, 1234.5, 98765.4]) drift = Math.max(drift, Math.abs(wrapAngle(laplace(anglesAt(t)) - start)));
+  const off = Math.abs(wrapAngle(start - Math.PI));
+  if (off > 1e-3 || drift > 1e-6) problems++;
+  console.log(`  Laplace-vinkelen ${deg(start).toFixed(4)}° (skal være 180°), drift ${drift.toExponential(1)} rad${off > 1e-3 || drift > 1e-6 ? '  <-- FEIL' : ''}`);
 }
 
 // ---------- 3: kollisjoner ----------
@@ -196,9 +234,33 @@ for (const name of order) {
   const r = radiusOf(name);
   add(name, 'stolpe', ...around(L, part.postRadius), top, H);
   add(name, 'kule', ...around(L, r), H - r, H + r);
+  if (mechanismOf(name) === 'moonDrive') continue; // Jupiters hjulverk, under
   if (s) add(name, 'reservert stabel', t.outer + 1, L + endReach(name), s.level1, s.pinionTop, { id: `stack-${name}` });
   const env = moonSystems[name].envelope;
   if (env > 0) add(name, 'reservert plass til måner/ring', ...around(L, env), s ? s.moonArm : top, H + vReserve(name));
+}
+// Jupiters måner: månerøret i midten, og kjedet og hjulverket som går med
+// armen. Det som går rundt seg imellom ved Jupiter, sjekkes i C.
+const chainRange = (chain, c = { x: 0, y: 0 }) => {
+  let lo = Infinity, hi = 0;
+  for (let u = 0; u < chain.links * chain.pitch; u += 0.05) {
+    const p = chain.point(u), r = Math.hypot(p.x - c.x, p.y - c.y);
+    lo = Math.min(lo, r); hi = Math.max(hi, r);
+  }
+  return [lo - plateEnd(chain), hi + plateEnd(chain)];
+};
+const jS = h.stack.jupiter, jL = armLengths.jupiter, jDrive = tube['drive-jupiter'];
+const jDriveModule = pairModule(JM.driveTeeth, JM.tubeTeeth);
+const jLowest = jS.moonArm[jMoons.at(-1)] - rise;
+{
+  const y0 = h.bottom['drive-jupiter'];
+  add('drive', 'hjul for månerøret', ...around(d, tipOf(jDriveModule, JM.driveTeeth)), y0, y0 + gear.thickness, { mesh: ['tubegear-jupiterDrive'] });
+  add('jupiterDrive', 'månerør', jDrive.inner, jDrive.outer, y0, jS.tubeTop, { tube: true });
+  add('jupiterDrive', 'rørhjul', jDrive.outer, tipOf(jDriveModule, JM.tubeTeeth), y0, y0 + gear.thickness, { id: 'tubegear-jupiterDrive' });
+  add('jupiterDrive', 'kjedehjul på månerøret', jDrive.outer, sTip(jupiterChain.radius1, jupiterChain), jS.chain, jS.chain + mT, { mesh: ['jupiterkjede'] });
+  add('jupiter', 'kjede til månene', ...chainRange(jupiterChain), ...chainBand(jS.chain), { id: 'jupiterkjede' });
+  add('jupiter', 'krage og forlegsaksel med hjul', ...around(jL, JT.reach), jS.chain - 0.29, jS.layTop);
+  add('jupiter', 'månerør, månearmer og måner', ...around(jL, moonSystems.jupiter.envelope), jLowest, H + vReserve('jupiter'));
 }
 // Jordas hjulverk og det som står ved jorda
 {
@@ -250,7 +312,13 @@ const O = { x: 0, y: 0 };
 
 function shapesAt(input) {
   const a = anglesAt(input);
-  const S = { fixed: [], drive: [], lay: [], idler: [], driveChain: [], layChain: [] };
+  const S = { fixed: [], drive: [], lay: [], idler: [], driveChain: [], layChain: [], jupiterDrive: [] };
+  {
+    const y0 = h.bottom['drive-jupiter'];
+    S.drive.push(circ(layout.drive, tipOf(jDriveModule, JM.driveTeeth), y0, y0 + gear.thickness, 'hjul for jupiterDrive'));
+    S.jupiterDrive.push(circ(O, tipOf(jDriveModule, JM.tubeTeeth), y0, y0 + gear.thickness, 'rørhjul jupiterDrive'));
+    S.jupiterDrive.push(circ(O, sTip(jupiterChain.radius1, jupiterChain), jS.chain, jS.chain + mT, 'kjedehjul på månerøret'));
+  }
   S.fixed.push(circ(O, bodies.sunRadius, H - bodies.sunRadius, H + bodies.sunRadius, 'sola'));
   for (const t of tubes.filter((t) => t.fixed)) {
     const s = h.stack[t.owner];
@@ -301,6 +369,34 @@ function shapesAt(input) {
     list.push(circ(at(L), part.postRadius, top, H, 'stolpe'));
     list.push(circ(at(L), r, H - r, H + r, 'kule'));
     const s = h.stack[name];
+    if (mechanismOf(name) === 'moonDrive') {
+      // Kjedet, forlegsakselen med hjul, kragen og månene, med de faktiske formene.
+      const [y0, y1] = chainBand(s.chain);
+      let prev = rot(jupiterChain.point(a.jupiterChainOffset), ang);
+      for (let i = 1; i <= jupiterChain.links; i++) {
+        const p = rot(jupiterChain.point(a.jupiterChainOffset + i * jupiterChain.pitch), ang);
+        list.push(caps(prev, p, plateEnd(jupiterChain), y0, y1, 'jupiterkjede'));
+        prev = p;
+      }
+      const lay = at(jupiterLayout.lay.x), post = at(L);
+      list.push(circ(lay, JM.shaftRadius, top, s.layTop, 'forlegsaksel ved Jupiter'));
+      list.push(circ(post, sTip(jupiterChain.radius2, jupiterChain), s.chain, s.chain + mT, 'kjedehjul på kragen'));
+      list.push(circ(post, tipOf(JT.collar.module, JM.collarTeeth), s.collarGear, s.collarGear + JM.thickness, 'hjul på kragen'));
+      list.push(circ(lay, tipOf(JT.collar.module, JM.collarPinion), s.collarGear, s.collarGear + JM.thickness, 'hjul på forlegsakselen'));
+      const orbits = Object.fromEntries(moonSystems.jupiter.orbits.map((o) => [o.name, o]));
+      for (const n of jMoons) {
+        const m = JT.moons[n], g = s.moonGear[n], y = s.moonArm[n];
+        list.push(circ(post, tipOf(m.module, m.moonTeeth), g, g + JM.thickness, `hjul til ${n}`));
+        list.push(circ(lay, tipOf(m.module, m.layTeeth), g, g + JM.thickness, 'hjul på forlegsakselen'));
+        list.push(circ(post, m.outer + 0.25, g, y + JM.armThickness + rise, `rør til ${n}`));
+        const mAng = ang + a.jupiterMoonAngles[n], o = orbits[n];
+        const mp = { x: post.x + Math.cos(mAng) * o.orbit, y: post.y + Math.sin(mAng) * o.orbit };
+        list.push(caps(post, mp, AP.jupiterMoon.rootHalf, y, y + JM.armThickness, `månearm ${n}`));
+        list.push(circ(mp, JM.postRadius, y + JM.armThickness, H, `stolpe ${n}`));
+        list.push(circ(mp, o.radius, H - o.radius, H + o.radius, n));
+      }
+      continue;
+    }
     if (s) {
       list.push(caps(at(tube[name].outer + 1), at(L), laneReach(name), s.level1, s.pinionTop, `reservert stabel ${name}`));
       list.push(circ(at(layout.pinion.x), bigSprocketReach, s.level1, s.pinionTop, `reservert stabel ${name}`));
@@ -356,6 +452,7 @@ const allowedPair = (s, t) => {
   const tags = [s.tag, t.tag].sort().join('|');
   if (/^hjul for (\w+)\|rørhjul \1$/.test(tags)) return true;                         // hjulpar i inngrep
   if (tags === 'fast hjul earth|pinion' || tags === 'fast kjedehjul earth|parallellkjede') return true;
+  if (tags === 'jupiterkjede|kjedehjul på månerøret') return true;                    // kjedet ligger rundt kjedehjulet
   // Hvert kjede nederst ligger rundt sine egne kjedehjul og akslene de sitter på.
   const wraps = {
     'kjede til sentralakselen': ['mellomaksel', 'lite kjedehjul', 'stort løst kjedehjul'],
@@ -378,7 +475,7 @@ function check(S, A, B) {
 }
 
 const moving = order;
-const all = [...statics, ...moving];
+const all = [...statics, ...moving, 'jupiterDrive'];
 const ang = (n, x) => (n === 'earth' ? x.armAngle : x.planetAngles[n]);
 const rateOf = (n) => { const a0 = anglesAt(0), a1 = anglesAt(2 * Math.PI); return (ang(n, a1) - ang(n, a0)) / (2 * Math.PI); };
 let samples = 0;
@@ -405,5 +502,59 @@ for (let k = 0; k < RANDOM; k++) {
 console.log(`\nB: ${samples} tidspunkt (passeringer innen ${WINDOW} omdreininger + ${RANDOM} tilfeldige). Minste klaring i planet der delene overlapper i høyde:`);
 for (const [k, r] of Object.entries(minB).sort()) console.log(`  ${k.padEnd(20)} ${r.gap.toFixed(2).padStart(6)}  ${r.a} ↔ ${r.b}${r.gap < 0.3 ? '  <-- FOR TETT' : ''}`);
 problems += Object.values(minB).filter((r) => r.gap < 0.3).length;
+
+// ---------- C: hjulverket ved Jupiter ----------
+// Som A, men med avstander fra Jupiter-stolpen. Armen, stolpen, kula, kjedet og
+// forlegsakselen står stille sett fra armen (hjulene på forlegsakselen dreier
+// på stedet); kragen og de fire månerørene går rundt. Forlegsakselen står
+// layDistance fra stolpen, så hjulene der får ringen layDistance ± tuppradius.
+{
+  const cParts = [];
+  const addC = (body, name, r0, r1, y0, y1, extra = {}) => cParts.push({ body, name, r: [Math.max(0, r0), r1], y: [y0, y1], ...extra });
+  const s = jS, armTopJ = h.arm.jupiter + armT, ld = JM.layDistance, R = planets.jupiter.radius;
+  const jStatics = new Set(['arm', 'forlegg', 'kjede']);
+  addC('arm', 'arm', 0, Infinity, h.arm.jupiter, armTopJ);
+  addC('arm', 'krage og rød ring', 0, AP.planet.collarRadius, armTopJ, armTopJ + cH + accent.ringWidth);
+  addC('arm', 'stolpe', 0, AP.planet.postRadius, armTopJ, H, { tube: true });
+  addC('arm', 'Jupiter', 0, R, H - R, H + R);
+  addC('kjede', 'kjede', chainRange(jupiterChain, jupiterLayout.post)[0], Infinity, ...chainBand(s.chain), { id: 'kjede' });
+  addC('forlegg', 'forlegsaksel', ...around(ld, JM.shaftRadius), armTopJ, s.layTop);
+  addC('forlegg', 'hjul for kragen', ...around(ld, tipOf(JT.collar.module, JM.collarPinion)), s.collarGear, s.collarGear + JM.thickness, { id: 'lay-krage' });
+  addC('krage', 'krage', JT.collar.inner, JT.collar.outer, s.chain, s.collarGear + JM.thickness, { tube: true });
+  addC('krage', 'kjedehjul', JT.collar.outer, sTip(jupiterChain.radius2, jupiterChain), s.chain, s.chain + mT, { mesh: ['kjede'] });
+  addC('krage', 'hjul', JT.collar.outer, tipOf(JT.collar.module, JM.collarTeeth), s.collarGear, s.collarGear + JM.thickness, { mesh: ['lay-krage'] });
+  for (const o of moonSystems.jupiter.orbits) {
+    const n = o.name, m = JT.moons[n], g = s.moonGear[n], y = s.moonArm[n];
+    addC('forlegg', `hjul for ${n}`, ...around(ld, tipOf(m.module, m.layTeeth)), g, g + JM.thickness, { id: `lay-${n}` });
+    addC(n, 'rør', m.inner, m.outer, g, y, { tube: true });
+    addC(n, 'hjul', m.outer, tipOf(m.module, m.moonTeeth), g, g + JM.thickness, { mesh: [`lay-${n}`] });
+    addC(n, 'nav', m.outer, m.outer + 0.25, y - rise, y + JM.armThickness + rise, { tube: true });
+    addC(n, 'arm', m.outer, o.orbit + AP.jupiterMoon.endRadius, y, y + JM.armThickness);
+    addC(n, 'stolpe', ...around(o.orbit, JM.postRadius), y + JM.armThickness, H);
+    addC(n, 'månen', ...around(o.orbit, o.radius), H - o.radius, H + o.radius);
+  }
+  const minC = {};
+  let cFail = 0;
+  for (let i = 0; i < cParts.length; i++) for (let j = i + 1; j < cParts.length; j++) {
+    const a = cParts[i], b = cParts[j];
+    if (a.body === b.body || (jStatics.has(a.body) && jStatics.has(b.body)) || meshes(a, b)) continue;
+    const yGap = Math.max(a.y[0], b.y[0]) - Math.min(a.y[1], b.y[1]);
+    const rGap = Math.max(a.r[0], b.r[0]) - Math.min(a.r[1], b.r[1]);
+    const gap = Math.max(yGap, rGap);
+    const allowed = a.tube && b.tube ? -1e-9 : 0.3 - 1e-6;
+    const rec = { gap, a: `${a.body} ${a.name}`, b: `${b.body} ${b.name}`, by: yGap >= rGap ? 'høyde' : 'radius' };
+    if (gap < allowed) { cFail++; if (cFail <= 20) console.log('FOR TETT (C):', rec.a, '↔', rec.b, gap.toFixed(3), rec.by); }
+    const key = [a.body, b.body].sort().join('–');
+    if (!(a.tube && b.tube) && (!minC[key] || gap < minC[key].gap)) minC[key] = rec;
+  }
+  problems += cFail;
+  // Forlegsakselen står inne i kjedesløyfa: begge står stille sett fra armen.
+  const layOk = JT.layToChain >= 0.3;
+  if (!layOk) problems++;
+  console.log(`\nC: Jupiter, ${cParts.length} deler, ${cFail} par for tette. Minste klaring per par (fra Jupiter-stolpen):`);
+  for (const [k, r] of Object.entries(minC).sort()) console.log(`  ${k.padEnd(20)} ${r.gap.toFixed(2).padStart(6)} (${r.by})  ${r.a} ↔ ${r.b}`);
+  console.log(`  forlegsaksel – kjede ${JT.layToChain.toFixed(2).padStart(6)} (i planet)${layOk ? '' : '  <-- FOR TETT'}`);
+}
+
 console.log(problems ? `\n${problems} problem(er) funnet.` : '\nAlt i orden.');
 process.exitCode = problems ? 1 : 0;
