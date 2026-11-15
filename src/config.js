@@ -5,9 +5,51 @@
 // følger av tanntallene.
 export const drive = {
   speed: 1,           // omdreininger per minutt for mellomakselen
-  distance: 48,       // avstanden fra mellomakselen til sentrum; alle hjulpar må nå over den
+  distance: 40,       // avstanden fra mellomakselen (og forlegsakselen) til sentrum; alle hjulpar og begge kjedene nederst må nå over den
   shaftRadius: 2,     // tykkelsen på mellomakselen
 };
+
+// Jupiter og Saturn: omløpstidene er for lange for ett hjulpar. To kjeder
+// nederst i tårnet gir utvekslingen i to trinn, så ingen kjedehjul blir store:
+// det første går fra mellomakselen til et løst dobbelt kjedehjul på
+// sentralakselen, det andre derfra til forlegsakselen. Kjedene beholder
+// dreieretningen. Fra forlegsakselen går et hjulpar inn til hvert rør.
+// Forlegsakselen står like langt fra sentrum som mellomakselen, så hjulparene
+// når over samme avstand.
+export const outerDrive = {
+  driveSprocket: 12,  // kjedehjulet på mellomakselen (første kjede)
+  idlerLarge: 48,     // det løse hjulet på sentralakselen, nederst (første kjede)
+  idlerSmall: 12,     // det løse hjulet, ett plan over (andre kjede)
+  laySprocket: 34,    // kjedehjulet på forlegsakselen (andre kjede)
+  chainPitch: 1.5,    // ledd-lengden i begge kjedene
+  angle: 60,          // hvor forlegsakselen står: grader mot klokka fra mellomakselen, rundt sentrum
+};
+
+// Mellomrom. Mindre tall gir en mer kompakt modell.
+export const spacing = {
+  gap: 0.3,           // mellomrom i høyden mellom deler over hverandre
+  chainGap: 0.9,      // ekstra luft mellom to kjeder over hverandre (lenkeplatene stikker 0,3 ut)
+  reachGap: 0.8,      // minste avstand mellom det to naboarmer rekker over
+  moonGap: 0.3,       // minste avstand mellom månebaner (og fra planeten til den første)
+};
+
+// Størrelsene på planetene og månene, i komprimert skala:
+//   radius = earth × (ekte radius / jordas radius) ^ exponent
+// exponent 0 gjør alle like store, 1 gir ekte forhold. Måner får det samme,
+// ganget med moonScale, men aldri mindre enn minMoon. Sola har egen radius.
+export const sizes = {
+  earth: 2,           // jordas radius
+  exponent: 0.2,
+  moonScale: 0.5,
+  minMoon: 0.3,
+  km: {               // ekte radier i km
+    mercury: 2439.7, venus: 6051.8, earth: 6371.0, mars: 3389.5, jupiter: 69911, saturn: 58232,
+    moon: 1737.4, phobos: 11.3, deimos: 6.2,
+    io: 1821.6, europa: 1560.8, ganymede: 2634.1, callisto: 2410.3, titan: 2574.7,
+  },
+};
+export const planetSize = (name) => sizes.earth * (sizes.km[name] / sizes.km.earth) ** sizes.exponent;
+export const moonSize = (name) => Math.max(sizes.minMoon, sizes.moonScale * planetSize(name));
 
 // Sentralakselen og rørene rundt den. Rørene ligger innenfra og ut i den
 // rekkefølgen armene trenger (kortest arm innerst), og radiene følger av den.
@@ -20,7 +62,7 @@ export const center = {
 // par, så paret når nøyaktig fra mellomakselen til sentrum.
 export const gear = {
   pressureAngle: 20,  // trykkvinkel i grader (20 er standard; høyere = kraftigere, spissere tenner)
-  thickness: 1.5,     // tykkelse på hjulene
+  thickness: 1.0,     // tykkelse på hjulene
   chamfer: 0.3,       // avfasing: bredden på den skrå kanten rundt alle kanter (maks 40 % av tykkelsen)
   backlash: 0.2,      // litt klaring mellom tennene, så de ikke gnisser mot hverandre
 };
@@ -44,11 +86,12 @@ export const smallGear = {
   rimWidth: 2,
 };
 
-// Jordarmen, som går fra røret i midten ut til jorda.
+// Jordarmen, som går fra røret i midten ut til jorda. Bredden og tykkelsen
+// gjelder alle armene (planetarmene er 3/4 så brede).
 export const arm = {
-  length: 80,         // fra sentrum til jorda
+  length: 'auto',     // fra sentrum til jorda; 'auto' = så kort som mekanikken tillater
   width: 4,
-  thickness: 1,
+  thickness: 0.6,
 };
 
 // Formen på armene (planetarmene, jordarmen og månearmen): de smalner av fra
@@ -63,15 +106,35 @@ export const armStyle = {
   collarHeight: 0.65,  // høyden på kragen
 };
 
-// Merkur, Venus og Mars: hver har sitt eget rør med et hjul nederst, drevet fra
-// mellomakselen, og en arm øverst. Omløpstiden følger av tanntallene:
-// år per runde = (tubeTeeth / driveTeeth) × (smallGear.teeth / bigGear.teeth).
-// period er bare målet den sammenlignes med. radius er kulas størrelse
-// (jorda har bodies.earthRadius).
+// Planetene (unntatt jorda): hver har sitt eget rør med et hjul nederst og en
+// arm øverst. Omløpstiden følger av tanntallene:
+//   driveTeeth: hjulet sitter på mellomakselen.
+//     år per runde = (tubeTeeth / driveTeeth) × (smallGear.teeth / bigGear.teeth)
+//   layTeeth: hjulet sitter på forlegsakselen (se outerDrive).
+//     år per runde = (tubeTeeth / layTeeth) × (idlerLarge / driveSprocket) × (laySprocket / idlerSmall)
+//                    × (smallGear.teeth / bigGear.teeth)
+// period er bare målet den sammenlignes med.
+// armLength: 'auto' gir den korteste armen som går klar av naboene, eller et tall.
+// moons og ring: plass som reserveres rundt planeten (bygges ikke ennå).
+// mechanism: plass som reserveres over armen til månehjulverk ved sentrum:
+//   'moons' = fast hjul, pinion og månekjede; 'moons+parallel' = også parallellkjede
+//   (for en akse eller ring som skal holde retningen i rommet).
 export const planets = {
-  mercury: { period: 0.2408, driveTeeth: 29, tubeTeeth: 21, armLength: 30,  radius: 1.5 },
-  venus:   { period: 0.6152, driveTeeth: 19, tubeTeeth: 35, armLength: 52,  radius: 3.8 },
-  mars:    { period: 1.8809, driveTeeth: 11, tubeTeeth: 62, armLength: 108, radius: 2.1 },
+  mercury: { period: 0.2408, driveTeeth: 29, tubeTeeth: 21, armLength: 'auto', radius: planetSize('mercury') },
+  venus:   { period: 0.6152, driveTeeth: 19, tubeTeeth: 35, armLength: 'auto', radius: planetSize('venus') },
+  mars:    {
+    period: 1.8809, driveTeeth: 11, tubeTeeth: 62, armLength: 'auto', radius: planetSize('mars'),
+    moons: ['phobos', 'deimos'], mechanism: 'moons+parallel',   // Mars heller 25°
+  },
+  jupiter: {
+    period: 11.862, layTeeth: 14, tubeTeeth: 44, armLength: 'auto', radius: planetSize('jupiter'),
+    moons: ['io', 'europa', 'ganymede', 'callisto'], mechanism: 'moons',
+  },
+  saturn:  {
+    period: 29.457, layTeeth: 10, tubeTeeth: 78, armLength: 'auto', radius: planetSize('saturn'),
+    ring: { inner: 1.2, outer: 2.27, tilt: 26.7 },  // ringen i ganger planetens radius, og hellingen
+    moons: ['titan'], mechanism: 'moons+parallel',
+  },
 };
 
 // Månehjulverket på jordarmen. Et fast hjul driver en pinion på armen. Det
@@ -79,21 +142,22 @@ export const planets = {
 // (sentralakselen er dekket av Merkur- og Venus-rørene der). På samme aksel sitter et kjedehjul, og et kjede overfører
 // bevegelsen til kjedehjulet under jorda, som bærer månearmen.
 // Månen går (fixed/pinion) × (driveSprocket/moonSprocket) runder rundt jorda per runde armen tar.
+// Pinionens plass og kjedehjulenes størrelse bestemmer den korteste jordarmen.
 export const moonTrain = {
-  module: 0.7,          // tannstørrelse på fixed og pinion
-  thickness: 1,
-  chamfer: 0.2,
+  module: 0.35,          // tannstørrelse på fixed og pinion
+  thickness: 0.6,
+  chamfer: 0.15,
   backlash: 0.1,
   // Avstanden mellom leddene i kjedet. Kjedehjulenes størrelse følger av den
   // og tanntallet. Den justeres litt automatisk så kjedet går opp i hele ledd.
-  chainPitch: 1.5,
+  chainPitch: 1.0,
   fixed:         { teeth: 60,                  spokes: 5, spokeWidth: 2,   hubWidth: 3, rimWidth: 2 },   // fast på det faste røret
   pinion:        { teeth: 12, holeRadius: 1,   spokes: 0, spokeWidth: 1,   hubWidth: 1, rimWidth: 1 },   // på armen, går rundt det faste hjulet
   driveSprocket: { teeth: 47, holeRadius: 1,   spokes: 4, spokeWidth: 1.5, hubWidth: 2, rimWidth: 1.5 }, // samme aksel som pinion
   moonSprocket:  { teeth: 19, holeRadius: 1.5, spokes: 0, spokeWidth: 1,   hubWidth: 1, rimWidth: 1 },   // under jorda, bærer månearmen
   // Parallellføringen: to like store kjedehjul, ett fast i midten og ett under
   // jorda. Hullet i midten følger røret eller tappen hvert hjul sitter på.
-  parallelSprocket: { teeth: 32, spokes: 4, spokeWidth: 1, hubWidth: 1.5, rimWidth: 1 },
+  parallelSprocket: { teeth: 36, spokes: 4, spokeWidth: 1, hubWidth: 1.5, rimWidth: 1 },
 };
 
 // Hellingene som parallellføringen holder i samme retning i rommet.
@@ -108,18 +172,19 @@ export const tilt = {
 // Kulene og hvor de sitter. Sola og planetene står i samme høyde, så linjen
 // mellom jorda og sola er vannrett og månen går over og under den.
 export const bodies = {
-  sunRadius: 10,
-  earthRadius: 4,
-  height: 34,         // høyden på sentrum av sola og alle planetene
-  moonRadius: 1.1,    // 27 % av jorda, som i virkeligheten
-  moonOrbit: 15,      // avstanden fra jorda til månen
+  sunRadius: 6,
+  earthRadius: planetSize('earth'),
+  height: 43,         // høyden på sentrum av sola og alle planetene (feilmelding hvis den er for lav)
+  moonRadius: moonSize('moon'),
+  moonOrbit: 4,       // avstanden fra jorda til månen (lavere gir for liten føringsring under jorda)
 };
 
 // Planetene og månen er kuler av paneler med smale, mørke fuger imellom, og
 // hver har sitt eget mønster. Sola beholder sin glatte form foreløpig.
 // Mønstre: 'triangles' (geodesiske trekanter), 'quads' (firkanter fra en kube),
-// 'kites' (drager), 'rhombi' (ruter), 'pentagons' (femkanter med ringer rundt).
-// Sekskanter er spart til Saturn.
+// 'kites' (drager), 'rhombi' (ruter), 'pentagons' (femkanter med ringer rundt),
+// 'bands' (breddebånd, med en mangekant over hver pol) og 'hexagons'
+// (sekskanter, med de 12 femkantene en kule må ha; spart til Saturn).
 // subdivisions: hvor mange biter hver grunnflate deles i langs kanten.
 export const panels = {
   shape: 'curved',    // 'curved' = panelene følger kula (rund silhuett), 'flat' = flate plater
@@ -132,11 +197,14 @@ export const panels = {
   earth:   { pattern: 'triangles', subdivisions: 2 },  // 80 trekanter
   mars:    { pattern: 'quads',     subdivisions: 3 },  // 54 firkanter
   moon:    { pattern: 'pentagons', subdivisions: 1 },  // 12 femkanter med en ring av trapeser rundt (72 paneler)
+  jupiter: { pattern: 'bands',     subdivisions: 3 },  // 7 bånd à 16 firkanter, og en 16-kant over hver pol
+  saturn:  { pattern: 'hexagons',  subdivisions: 3 },  // 80 sekskanter og 12 femkanter
   // Sola: fire like paneler fra et tetraeder, der hver kant er en S-kurve (som
   // Trionda-ballen). amplitude er hvor langt S-en svinger ut (andel av
   // kantlengden). bulge gjør hver bue bredere ytterst: 0 gir rolige bølger,
   // rundt 1 gir tydelige armer. For store verdier gir en feilmelding.
-  sun:     { pattern: 'trionda', amplitude: 0.32, bulge: 0.2, seamWidth: 0.1 },  // sola er stor: bredere fuger
+  // Fugebredden på sola følger solradiusen (0,1 ved radius 10).
+  sun:     { pattern: 'trionda', amplitude: 0.32, bulge: 0.2, seamWidth: 0.01 * bodies.sunRadius },
 };
 
 // Rødt brukes sparsomt: sola, og en tynn ring der hver planetstolpe møter armen.

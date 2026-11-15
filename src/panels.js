@@ -7,6 +7,8 @@ import * as THREE from 'three';
 //   'kites'      drager (deltoid-heksekontaeder: 60 drager rundt ikosaederets hjørner)
 //   'rhombi'     ruter (rombisk triakontaeder: 30 ruter, én per ikosaederkant)
 //   'pentagons'  femkanter med ringer rundt (dodekaeder)
+//   'bands'      breddebånd av firkanter, med en mangekant over hver pol
+//   'hexagons'   sekskanter, med de 12 femkantene en kule må ha
 //   'trionda'    fire like paneler fra et tetraeder, med S-formede kanter
 //                (styres med amplitude og bulge i stedet for subdivisions)
 //
@@ -146,6 +148,59 @@ const patterns = {
         }
       }
     });
+    return out;
+  },
+
+  bands(n) {
+    // Breddebånd som skybåndene på Jupiter: 2n + 1 bånd, annenhvert bredt og
+    // smalt (det midterste er bredt), delt i like mange firkanter rundt, og en
+    // mangekant over hver pol. Alle båndene har hjørnene sine på de samme
+    // lengdegradene, så kantene møtes nøyaktig.
+    const rows = 2 * n + 1;
+    const around = 4 * (n + 1);
+    const capLatitude = (Math.PI / 2) * (1 - 1 / (n + 2));
+    const weights = Array.from({ length: rows }, (_, i) => ((i - n) % 2 === 0 ? 1 : 0.6));
+    const total = weights.reduce((s, w) => s + w, 0);
+    const latitudes = [-capLatitude];
+    for (const w of weights) latitudes.push(latitudes.at(-1) + (2 * capLatitude * w) / total);
+    const point = (lat, lon) => new THREE.Vector3(Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon));
+    const lon = (j) => (j / around) * Math.PI * 2;
+    const out = [];
+    for (let r = 0; r < rows; r++) {
+      for (let j = 0; j < around; j++) {
+        out.push([
+          point(latitudes[r], lon(j)), point(latitudes[r], lon(j + 1)),
+          point(latitudes[r + 1], lon(j + 1)), point(latitudes[r + 1], lon(j)),
+        ]);
+      }
+    }
+    out.push(Array.from({ length: around }, (_, j) => point(capLatitude, lon(j))));   // nordpolen
+    out.push(Array.from({ length: around }, (_, j) => point(-capLatitude, lon(j))));  // sørpolen
+    return out;
+  },
+
+  hexagons(n) {
+    // Sekskanter: det motsatte av den geodesiske kula. Hvert hjørne på den
+    // geodesiske kula blir et panel, med midtpunktene i trekantene rundt
+    // hjørnet som sine hjørner. Der fem trekanter møtes (de tolv hjørnene på
+    // ikosaederet) blir det femkanter; en kule kan ikke dekkes av bare sekskanter.
+    const key = (v) => `${Math.round(v.x * 1e5)},${Math.round(v.y * 1e5)},${Math.round(v.z * 1e5)}`;
+    const corners = new Map();
+    for (const t of patterns.triangles(n)) {
+      const middle = t[0].clone().add(t[1]).add(t[2]).normalize();
+      for (const v of t) {
+        const k = key(v);
+        if (!corners.has(k)) corners.set(k, { v, around: [] });
+        corners.get(k).around.push(middle);
+      }
+    }
+    const out = [];
+    for (const { v, around } of corners.values()) {
+      const e1 = around[0].clone().sub(v).normalize();
+      const e2 = v.clone().cross(e1);
+      const angle = (p) => { const d = p.clone().sub(v); return Math.atan2(d.dot(e2), d.dot(e1)); };
+      out.push(around.sort((p, q) => angle(p) - angle(q)));
+    }
     return out;
   },
 };
