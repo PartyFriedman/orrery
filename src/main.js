@@ -748,23 +748,16 @@ const marsArmTop = heights.arm.mars + arm.thickness;
 const updateMarsChain = addChain(marsGroup, marsChain, MS.chain);
 const updateMarsParChain = addChain(marsGroup, marsParallelChain, MS.parallel);
 
-// Driveakselen midt i stolpen: kjedehjulet nederst og klokka øverst (en plate,
-// en kort vegg og ringhjulet med innvendige tenner).
+// Driveakselen midt i stolpen: kjedehjulet nederst, opp til kryssleddet K på toppen.
 const plateT = MTr.plateThickness;
 const marsShaftGroup = addGroupAt(marsGroup, marsLayout.post);
 addShaft(marsShaftGroup, MMc.driveShaftRadius, marsArmTop, MS.shaftTop);
 addSprocket(marsShaftGroup, { teeth: MMc.shaftSprocket, holeRadius: MMc.driveShaftRadius, ...sprocketStyle },
   marsChain.radius2, MS.chain, marsChain);
-addShaft(marsShaftGroup, MTr.bell.outer, MS.bellPlate - plateT / 2, MS.bellPlate + plateT / 2);
-addMesh(marsShaftGroup, createAnnulus(MTr.bell.outer - 0.2, MTr.bell.outer, MS.bellGear - MS.bellPlate, 0.02))
-  .position.y = (MS.bellPlate + MS.bellGear) / 2;
-addMesh(marsShaftGroup, createRingGearGeometry({
-  teeth: MMc.bell.ringTeeth, module: MTr.bell.module, outerRadius: MTr.bell.outer, thickness: MMc.thickness, chamfer: 0.02,
-})).position.y = MS.bellGear - MMc.thickness / 2;
 
 // Stolpen (står stille i rommet): kjedehjulet nederst og røret rundt
-// driveakselen, og på den retningen aksen heller mot (marsMount): braketten,
-// sideakselen med kryssleddet, og alt rundt Mars' skrå akse.
+// driveakselen, og på den retningen aksen heller mot (marsMount): den knekte
+// braketten, kryssleddet og alt rundt Mars' skrå akse.
 const marsFrameGroup = addGroupAt(marsGroup, marsLayout.post);
 const marsFrameOuter = MMc.driveShaftRadius + MMc.frameWall;
 addSprocket(marsFrameGroup, { teeth: MMc.parallel.postSprocket, holeRadius: marsFrameOuter, ...sprocketStyle },
@@ -773,21 +766,25 @@ addShaft(marsFrameGroup, marsFrameOuter, MS.parallel + moonTrain.thickness, MS.f
 const marsMount = new THREE.Group();
 marsMount.rotation.y = marsAxis.direction;
 marsFrameGroup.add(marsMount);
+// Den knekte braketten: runde knekker, og myke overganger (en kjegle som vider
+// seg ut) der den møter stolperøret og ringhjulet.
 const mbp = marsBracket.points;
 for (let i = 0; i < mbp.length - 1; i++) addRod(marsMount, mbp[i], mbp[i + 1], marsBracket.radius);
 for (const p of mbp.slice(1, -1)) addSphere(marsMount, marsBracket.radius).position.set(p.x, p.y, p.z);
+const addFlare = (at, toward) => {
+  const A = new THREE.Vector3(at.x, at.y, at.z), dir = new THREE.Vector3(toward.x, toward.y, toward.z).sub(A).normalize();
+  const r = marsBracket.radius, L = marsBracket.fillet;
+  const flare = addMesh(marsMount, new THREE.CylinderGeometry(r, r * 2, L, 24));
+  flare.position.copy(A).addScaledVector(dir, L / 2);
+  flare.quaternion.setFromUnitVectors(upAxis, dir);
+};
+addFlare(mbp[0], mbp[1]);
+addFlare(mbp[mbp.length - 1], mbp[mbp.length - 2]);
 
-// Sideakselen: hjulet inni klokka nederst, opp til kryssleddet K.
-const marsSideGroup = new THREE.Group();
-marsSideGroup.position.x = -MTr.sideOffset;
-marsMount.add(marsSideGroup);
-addShaft(marsSideGroup, MMc.sideShaftRadius, MS.sideBottom, MS.joint);
-addGear(marsSideGroup, marsGear(MMc.bell.pinionTeeth, MMc.sideShaftRadius, MTr.bell.module), MS.bellGear - MMc.thickness / 2);
-
-// Kryssleddet: midt mellom sideakselen og akselen inn i bæreren (begge dreier
-// like fort). Korset ligger på tvers av halveringslinja og dreier med akslene.
+// Kryssleddet K på toppen av stolpen: driveakselen (loddrett) og den skrå
+// drivakselen møtes, og korset dreier med dem.
 const marsJoint = new THREE.Group();
-marsJoint.position.set(-MTr.sideOffset, MS.joint, 0);
+marsJoint.position.set(0, MS.joint, 0);
 const bisector = new THREE.Vector3(0, 1, 0).add(new THREE.Vector3(Math.sin(marsAxis.tilt), Math.cos(marsAxis.tilt), 0)).normalize();
 marsJoint.quaternion.setFromUnitVectors(upAxis, bisector);
 marsMount.add(marsJoint);
@@ -809,24 +806,42 @@ addShaft(marsTilted, MMc.axleRadius, ...MTr.axleSpan);
 addMesh(marsTilted, createRingGearGeometry({
   teeth: PGm.ring, module: MTr.module, outerRadius: MTr.ring.outer, thickness: MMc.thickness, chamfer: 0.02,
 })).position.y = MTr.level.ringLayer - MMc.thickness / 2;
-// Gaffelen: to bein fra kanten av ringhjulet, opp utenfor banene og inn til akselen over nordpolen.
-for (const side of [1, -1]) {
-  const pts = [
-    { x: 0, y: MTr.yoke.bottom, z: side * MTr.ring.outer },
-    { x: 0, y: MTr.yoke.bottom, z: side * MTr.yoke.rho },
-    { x: 0, y: MTr.yoke.top, z: side * MTr.yoke.rho },
-    { x: 0, y: MTr.yoke.top, z: 0 },
-  ];
-  for (let i = 0; i < pts.length - 1; i++) addRod(marsTilted, pts[i], pts[i + 1], MMc.yokeRadius);
-  for (const p of pts.slice(1, -1)) addSphere(marsTilted, MMc.yokeRadius).position.set(p.x, p.y, p.z);
+// Skåla under bæreren: bunnen rundt akselen og en vegg opp til ringhjulet, så
+// aksel, skål, ringhjul og Mars er én stiv enhet.
+{
+  const bt = MMc.bowlThickness, bottom = MTr.level.bowl, wallTop = MTr.level.ringLayer - MMc.thickness / 2;
+  addShaft(marsTilted, MTr.ring.outer, bottom - bt / 2, bottom + bt / 2);
+  addMesh(marsTilted, createAnnulus(MTr.ring.outer - 0.2, MTr.ring.outer, wallTop - (bottom + bt / 2), 0.02))
+    .position.y = (wallTop + bottom + bt / 2) / 2;
 }
-addSphere(marsTilted, MMc.yokeRadius * 1.6).position.y = MTr.yoke.top; // navet over nordpolen
+// Tappen mellomhjulet står på, på en knast ytterst på ringhjulet.
+const MDr = MTr.drive;
+{
+  const lug = new THREE.Group();
+  lug.rotation.y = MDr.idlerPhi;
+  marsTilted.add(lug);
+  addFlatBar(lug, MTr.ring.outer - 0.3, MDr.idlerRho, MTr.level.ringLayer - MMc.thickness / 2,
+    MTr.level.ringLayer + MMc.thickness / 2, MMc.pinRadius * 4);
+  addShaft(lug, MMc.pinRadius, ...MTr.pinSpan).position.x = MDr.idlerRho;
+}
+// Den skrå drivakselen fra kryssleddet, med det store hjulet øverst.
+const marsDriveGroup = new THREE.Group();
+marsDriveGroup.position.x = MDr.distance;
+marsTilted.add(marsDriveGroup);
+addShaft(marsDriveGroup, MMc.tiltShaftRadius, ...MTr.driveShaftSpan);
+addGear(marsDriveGroup, smallTrainGear(MMc, MMc.drive.bigTeeth, 0, MMc.tiltShaftRadius, MDr.module), MTr.level.drive - MMc.thickness / 2);
+// Mellomhjulet.
+const marsIdlerGroup = new THREE.Group();
+marsIdlerGroup.position.set(MDr.idler.x, 0, -MDr.idler.z);
+marsTilted.add(marsIdlerGroup);
+addGear(marsIdlerGroup, smallTrainGear(MMc, MMc.drive.idlerTeeth, 0, MMc.pinRadius, MDr.module), MTr.level.drive - MMc.thickness / 2);
 
-// Bæreren (Deimos): akselen fra kryssleddet, to plater, pinnene med
-// planethjulene, røret opp og armen til Deimos.
+// Bæreren (Deimos): to plater, pinnene med planethjulene, det lille hjulet i
+// hjulparet, røret opp og armen til Deimos.
 const marsCarrierGroup = new THREE.Group();
 marsTilted.add(marsCarrierGroup);
-addShaft(marsCarrierGroup, MMc.sideShaftRadius, ...MTr.inputSpan);
+const marsSmallGear = addGear(marsCarrierGroup, smallTrainGear(MMc, MMc.drive.smallTeeth, 0, MTr.carrierTube.outer, MDr.module),
+  MTr.level.drive - MMc.thickness / 2);
 // Platene er edderkopper med én arm per planethjul, så solsystemet synes ovenfra.
 const pinRadius = 0.1, spiderWidth = 0.35;
 const spiderMeshes = [];
@@ -840,7 +855,7 @@ for (const [y, inner] of [[MTr.level.carrierBottom, 0], [MTr.level.carrierTop, M
     spiderMeshes.push(...spoke.children);
   }
 }
-fastParts.push({ group: marsCarrierGroup, fan: spiderMeshes });
+fastParts.push({ group: marsCarrierGroup, fan: spiderMeshes, gears: [marsSmallGear] });
 addShaft(marsCarrierGroup, MTr.carrierTube.outer, ...MTr.carrierTubeSpan);
 const marsPlanets = [];
 const startMars = anglesAt(0);
@@ -984,7 +999,8 @@ fastParts.push({ group: collarGroup, gears: gearsOf(collarGroup) });
 fastParts.push({ group: jupiterLayGroup, gears: gearsOf(jupiterLayGroup) });
 fastParts.push({ group: saturnLayGroup, gears: gearsOf(saturnLayGroup) });
 fastParts.push({ group: saturnSleeveGroup, gears: gearsOf(saturnSleeveGroup) });
-fastParts.push({ group: marsSideGroup, gears: gearsOf(marsSideGroup) });
+fastParts.push({ group: marsDriveGroup, gears: gearsOf(marsDriveGroup) });
+fastParts.push({ group: marsIdlerGroup, gears: marsIdlerGroup.children.filter((c) => c.isMesh) });
 // Månen: sporet i høyden der banen ligger i snitt (den går litt opp og ned).
 fastParts.push({ group: moonGroup, trail: { radius: bodies.moonOrbit, y: bodies.height, tube: bodies.moonRadius * 0.35 } });
 scene.updateMatrixWorld(true);
@@ -1056,8 +1072,9 @@ renderer.setAnimationLoop((time) => {
   updateMarsParChain(a.marsParChainOffset);
   marsShaftGroup.rotation.y = a.marsShaftAngle;
   marsFrameGroup.rotation.y = a.marsFrameAngle;
-  marsSideGroup.rotation.y = a.marsSideAngle;
-  marsCross.rotation.y = a.marsSideAngle;
+  marsDriveGroup.rotation.y = a.marsDriveAngle;
+  marsIdlerGroup.rotation.y = a.marsIdlerAngle;
+  marsCross.rotation.y = a.marsDriveAngle;
   marsCarrierGroup.rotation.y = a.marsCarrier;
   marsPlanets.forEach((spin, k) => { spin.rotation.y = a.marsPlanetSpins[k]; });
   marsSunGroup.rotation.y = a.marsSun;

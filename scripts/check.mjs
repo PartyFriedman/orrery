@@ -148,14 +148,15 @@ let problems = 0;
   }
   if (worst > 1e-6 || drift > 1e-9 || saturnDrift > 1e-9 || marsDrift > 1e-9) problems++;
   console.log(`\nKjeder: ${rollers} ruller sjekket, største avvik fra setet ${worst.toExponential(1)}. Drift i rommet: parallellhjulet ved jorda ${drift.toExponential(1)} rad, Saturn-stolpen ${saturnDrift.toExponential(1)} rad, Mars-stolpen ${marsDrift.toExponential(1)} rad.`);
-  // Kryssleddet ved Mars: K skal ligge både på sideakselen og på Mars' akse, og
-  // de to leddene skal ha like vinkler (da går bæreren like jevnt som sideakselen).
+  // Kryssleddet ved Mars: K (toppen av stolpen) skal ligge både på loddlinjen
+  // gjennom stolpen og på den skrå drivakselen; de to leddene har like vinkler,
+  // så drivakselen går like jevnt som driveakselen.
   {
-    const K = marsToPost(0, MT.level.joint);
-    const offLine = Math.abs(K.x + MT.sideOffset);
-    const ok = offLine < 1e-9;
+    const K = marsToPost(MT.drive.distance, MT.drive.jointS);
+    const off = Math.hypot(K.x, K.y - h.stack.mars.joint);
+    const ok = off < 1e-9;
     if (!ok) problems++;
-    console.log(`Kryssleddet ved Mars: ${(MT.sideOffset).toFixed(3)} til siden for stolpen, avvik fra sideakselen ${offLine.toExponential(1)}, to ledd à ${(marsAxis.tilt * 90 / Math.PI).toFixed(2)}°${ok ? '' : '  <-- FEIL'}`);
+    console.log(`Kryssleddet ved Mars: på toppen av stolpen (høyde ${h.stack.mars.joint.toFixed(2)}), avvik fra drivakselen ${off.toExponential(1)}, to ledd à ${(marsAxis.tilt * 90 / Math.PI).toFixed(2)}°${ok ? '' : '  <-- FEIL'}`);
   }
 }
 
@@ -238,6 +239,7 @@ console.log('');
 const H = bodies.height, d = drive.distance, armT = arm.thickness, mT = moonTrain.thickness;
 const rise = armStyle.hubRise, cH = armStyle.collarHeight;
 const tipOf = (m, n) => (m * n) / 2 + m;
+const rootOf = (m, n) => (m * n) / 2 - 1.25 * m;
 const sTip = (r, chain) => r + chain.rollerRadius * 1.3;
 const plateEnd = (chain) => chain.rollerRadius * 1.25;
 const chainBand = (y) => [y - 0.29, y + mT + 0.29];
@@ -383,9 +385,9 @@ const mDrive = tube['drive-mars'], mPar = tube['par-mars'];
 const mDriveModule = pairModule(MMc.driveTeeth, MMc.tubeTeeth);
 const mParModule = pairModule(MMc.parallel.driveTeeth, MMc.parallel.tubeTeeth);
 const marsEnvelope = mL - reach.mars.inner;
-const marsTopV = Math.max(MT.yoke.top * Math.cos(marsAxis.tilt) + MT.yoke.rho * Math.sin(marsAxis.tilt) + MMc.yokeRadius,
+const marsTopV = Math.max(MT.axleSpan[1], MT.radius,
   ...Object.values(MT.arms).map((m) => m.orbit * Math.sin(marsAxis.tilt) + m.radius)) + 0.3;
-const marsLow = mS.bracket - marsBracket.radius - 0.1;  // det laveste ved Mars over kjedene (braketten)
+const marsLow = mS.bracket - 2 * marsBracket.radius - 0.1;  // det laveste ved Mars over kjedene (braketten)
 {
   const yD = h.bottom['drive-mars'], yP = h.bottom['par-mars'];
   add('drive', 'hjul for månerøret til Mars', ...around(d, tipOf(mDriveModule, MMc.driveTeeth)), yD, yD + gear.thickness, { mesh: ['tubegear-marsDrive'] });
@@ -768,7 +770,10 @@ const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
 const cross = (a, b) => v(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
 const len = (a) => Math.sqrt(dot(a, a));
 const unit = (a) => mul(a, 1 / len(a));
-const makeAxis = (o, d) => { const e1 = unit(cross(d, v(0, 0, 1))); return { o, d, e1, e2: cross(d, e1) }; };
+const makeAxis = (o, d) => {
+  const c = cross(d, v(0, 0, 1)), e1 = unit(len(c) > 1e-6 ? c : cross(d, v(1, 0, 0)));
+  return { o, d, e1, e2: cross(d, e1) };
+};
 const rect = (s0, s1, r0, r1) => ({ kind: 'rect', s0, s1, r0: Math.max(0, r0), r1 });
 const line = (s0, r0, s1, r1, w) => ({ kind: 'seg', a: { s: s0, r: r0 }, b: { s: s1, r: r1 }, w });
 const toMer = (ax, p) => { const q = sub(p, ax.o), s = dot(q, ax.d); return { s, r: len(sub(q, mul(ax.d, s))) }; };
@@ -976,17 +981,20 @@ function run3D(letter, title, parts, skip = () => false) {
 }
 
 // ---------- E: alt ved Mars, i 3D ----------
-// Som D: sett fra Mars-stolpen dreier armen, kjedene, driveakselen og klokka om
-// loddlinjen, sideakselen om sin egen loddlinje, og bæreren (med planethjulene
-// som en ring rundt aksen) og solhjulet om Mars' akse. Ringhjulet, gaffelen,
-// braketten, akselen og Mars står stille.
+// Som D: sett fra Mars-stolpen dreier armen, kjedene og driveakselen om
+// loddlinjen, den skrå drivakselen og mellomhjulet om hver sin akse parallelt
+// med Mars' akse, og bæreren (med planethjulene som en ring rundt aksen) og
+// solhjulet om Mars' akse. Ringhjulet, skåla, tappen, braketten, akselen og
+// Mars står stille.
 {
   const tl = marsAxis.tilt, u = v(Math.sin(tl), Math.cos(tl), 0);
   const P = (x, s, z = 0) => marsToPost(x, s, z);
   const T = MMc.thickness, half = MMc.armThickness / 2, pl = MT.plateThickness, PG = MMc.planetary, mm = MT.module;
+  const MD = MT.drive, dm = MD.module;
   const Vax = makeAxis(v(0, 0, 0), v(0, 1, 0));            // loddlinjen gjennom stolpen
-  const Sax = makeAxis(v(-MT.sideOffset, 0, 0), v(0, 1, 0)); // sideakselen
   const Uax = makeAxis(P(0, 0), u);                          // Mars' akse
+  const Dax = makeAxis(P(MD.distance, 0), u);                // den skrå drivakselen
+  const Iax = makeAxis(P(MD.idler.x, 0, -MD.idler.z), u);    // mellomhjulet og tappen
   const eParts = [];
   const addE = (body, name, ax, shape, extra = {}) => eParts.push({ body, name, ax, shape, ...extra });
 
@@ -996,39 +1004,51 @@ function run3D(letter, title, parts, skip = () => false) {
   addE('arm', 'krage og rød ring', Vax, rect(armTopM, armTopM + cH + accent.ringWidth, postR, AP.planet.collarRadius), { tube: true });
   addE('arm', 'månekjede', Vax, rect(...chainBand(mS.chain), marsChain.radius2 - plateEnd(marsChain), 1e3), { id: 'kjede1' });
   addE('arm', 'parallellkjede', Vax, rect(...chainBand(mS.parallel), marsParallelChain.radius2 - plateEnd(marsParallelChain), 1e3), { id: 'kjede2' });
-  // Driveakselen med klokka.
-  const bellTip = MT.bell.pitch - MT.bell.module;
-  addE('driveaksel', 'driveaksel', Vax, rect(armTopM, mS.shaftTop, 0, MMc.driveShaftRadius), { tube: true });
+  // Driveakselen opp til kryssleddet på toppen av stolpen.
+  addE('driveaksel', 'driveaksel', Vax, rect(armTopM, mS.shaftTop, 0, MMc.driveShaftRadius), { tube: true, id: 'loddrett' });
   addE('driveaksel', 'kjedehjul', Vax, rect(mS.chain, mS.chain + mT, MMc.driveShaftRadius, sTip(marsChain.radius2, marsChain)), { mesh: ['kjede1'] });
-  addE('driveaksel', 'plate i klokka', Vax, rect(mS.bellPlate - pl / 2, mS.bellPlate + pl / 2, 0, MT.bell.outer));
-  addE('driveaksel', 'vegg i klokka', Vax, rect(mS.bellPlate + pl / 2, mS.bellGear - T / 2, MT.bell.outer - 0.2, MT.bell.outer));
-  addE('driveaksel', 'ringhjul i klokka', Vax, rect(mS.bellGear - T / 2, mS.bellGear + T / 2, bellTip, MT.bell.outer), { id: 'klokke' });
-  // Stolpen med braketten, ringhjulet, gaffelen, akselen og Mars (står stille).
+  addE('driveaksel', 'kryssledd', Vax, line(mS.joint, 0, mS.joint, 0, MMc.jointRadius), { id: 'kardang' });
+  // Stolpen med braketten, ringhjulet, skåla, tappen, akselen og Mars (står stille).
   const frameOuter = MMc.driveShaftRadius + MMc.frameWall;
   addE('stolpe', 'kjedehjul', Vax, rect(mS.parallel, mS.parallel + mT, frameOuter, sTip(marsParallelChain.radius2, marsParallelChain)), { mesh: ['kjede2'] });
   addE('stolpe', 'stolperør', Vax, rect(mS.parallel, mS.frameTop, MMc.driveShaftRadius, frameOuter), { tube: true });
-  const bp = marsBracket.points;
-  for (let i = 0; i < bp.length - 1; i++) addE('stolpe', `brakett ${i + 1}`, null, { kind: 'cap', a: bp[i], b: bp[i + 1], w: marsBracket.radius });
+  // Braketten starter på overflaten av stolperøret og slutter på utsiden av
+  // ringhjulet. Stavene kortes inn med radiusen i endene, så den runde enden
+  // ikke stikker inn i røret og ringhjulet (det som er inni dem, er dem).
+  const bp = marsBracket.points.map((p) => v(p.x, p.y, p.z)), br = marsBracket.radius, last = bp.length - 1;
+  const trimmed = bp.map((p, i) => (i === 0 ? plus(p, mul(unit(sub(bp[1], p)), br))
+    : i === last ? plus(p, mul(unit(sub(bp[last - 1], p)), br)) : p));
+  for (let i = 0; i < last; i++) addE('stolpe', `brakett ${i + 1}`, null, { kind: 'cap', a: trimmed[i], b: trimmed[i + 1], w: br });
+  // De myke overgangene i endene: en kjegle fra 2 × radius ned til radius,
+  // her som en sylinder med 2 × radius, fra overflaten og ut.
+  for (const [a0, a1] of [[bp[0], bp[1]], [bp[last], bp[last - 1]]]) {
+    addE('stolpe', 'myk overgang', makeAxis(a0, unit(sub(a1, a0))), rect(0, marsBracket.fillet, 0, 2 * br));
+  }
   addE('stolpe', 'ringhjul', Uax, rect(MT.level.ringLayer - T / 2, MT.level.ringLayer + T / 2, MT.ring.tip, MT.ring.outer), { id: 'ring' });
-  for (const side of [1, -1]) {
-    const pts = [
-      P(0, MT.yoke.bottom, side * MT.ring.outer), P(0, MT.yoke.bottom, side * MT.yoke.rho),
-      P(0, MT.yoke.top, side * MT.yoke.rho), P(0, MT.yoke.top, 0),
-    ];
-    for (let i = 0; i < pts.length - 1; i++) addE('stolpe', 'gaffel', null, { kind: 'cap', a: pts[i], b: pts[i + 1], w: MMc.yokeRadius });
+  const bt = MMc.bowlThickness, wallTop = MT.level.ringLayer - T / 2;
+  addE('stolpe', 'bunnen i skåla', Uax, rect(MT.level.bowl - bt / 2, MT.level.bowl + bt / 2, 0, MT.ring.outer));
+  addE('stolpe', 'veggen i skåla', Uax, rect(MT.level.bowl + bt / 2, wallTop, MT.ring.outer - 0.2, MT.ring.outer));
+  // Knasten ut fra ringhjulet (en flat stang i ringhjulets plan) og tappen opp til mellomhjulet.
+  {
+    // Knasten (tykkelse T, bredde 4 × tapp) som en sylinder rundt den, fra kanten av ringhjulet og ut.
+    const ang = MD.idlerPhi, at = (r) => P(r * Math.cos(ang), MT.level.ringLayer, -r * Math.sin(ang));
+    const lugR = Math.hypot(T / 2, 2 * MMc.pinRadius);
+    addE('stolpe', 'knast', makeAxis(at(MT.ring.outer), unit(sub(at(MD.idlerRho), at(MT.ring.outer)))), rect(0, MD.idlerRho - MT.ring.outer + 2 * MMc.pinRadius, 0, lugR));
+    addE('stolpe', 'tapp', Iax, rect(...MT.pinSpan, 0, MMc.pinRadius), { tube: true });
   }
   addE('stolpe', 'aksel', Uax, rect(...MT.axleSpan, 0, MMc.axleRadius), { tube: true });
   addE('stolpe', 'Mars', Uax, line(0, 0, 0, 0, MT.radius));
-  // Sideakselen med hjulet inni klokka og kryssleddet.
-  addE('sideaksel', 'sideaksel', Sax, rect(mS.sideBottom, mS.joint, 0, MMc.sideShaftRadius), { id: 'sideaksel', mesh: ['kardang'] });
-  addE('sideaksel', 'hjul i klokka', Sax, rect(mS.bellGear - T / 2, mS.bellGear + T / 2, MMc.sideShaftRadius, tipOf(MT.bell.module, MMc.bell.pinionTeeth)), { mesh: ['klokke'] });
-  addE('sideaksel', 'kryssledd', Sax, line(mS.joint, 0, mS.joint, 0, MMc.jointRadius), { id: 'kardang' });
-  // Bæreren: akselen fra kryssleddet, platene, pinnene og planethjulene (som en
-  // ring rundt aksen), røret og Deimos.
+  // Den skrå drivakselen med det store hjulet (møter driveakselen i kryssleddet).
+  addE('drivaksel', 'drivaksel', Dax, rect(...MT.driveShaftSpan, 0, MMc.tiltShaftRadius), { mesh: ['kardang', 'loddrett'] });
+  addE('drivaksel', 'stort hjul', Dax, rect(MT.level.drive - T / 2, MT.level.drive + T / 2, MMc.tiltShaftRadius, tipOf(dm, MMc.drive.bigTeeth)), { id: 'stort' });
+  // Mellomhjulet på tappen.
+  addE('mellomhjul', 'mellomhjul', Iax, rect(MT.level.drive - T / 2, MT.level.drive + T / 2, MMc.pinRadius, tipOf(dm, MMc.drive.idlerTeeth)),
+    { tube: true, mesh: ['stort', 'lite'] });
+  // Bæreren: platene, pinnene og planethjulene (som en ring rundt aksen), det
+  // lille hjulet, røret og Deimos.
   const c = MT.carrierRadius, spider = 0.35 / 2;
-  // Akselen inn i bæreren og sideakselen møtes i kryssleddet (ett ledd).
-  addE('bærer', 'aksel fra kryssleddet', Uax, rect(...MT.inputSpan, 0, MMc.sideShaftRadius), { mesh: ['kardang', 'sideaksel'] });
-  addE('bærer', 'nedre plate', Uax, rect(MT.level.carrierBottom - pl / 2, MT.level.carrierBottom + pl / 2, 0, c + spider));
+  addE('bærer', 'lite hjul', Uax, rect(MT.level.drive - T / 2, MT.level.drive + T / 2, MT.carrierTube.outer, tipOf(dm, MMc.drive.smallTeeth)), { id: 'lite' });
+  addE('bærer', 'nedre plate', Uax, rect(MT.level.carrierBottom - pl / 2, MT.level.carrierBottom + pl / 2, MMc.axleRadius, c + spider), { tube: true });
   addE('bærer', 'øvre plate', Uax, rect(MT.level.carrierTop - pl / 2, MT.level.carrierTop + pl / 2, MT.carrierTube.inner, c + spider), { tube: true });
   addE('bærer', 'planethjul (sol)', Uax, rect(MT.level.sunLayer - T / 2, MT.level.sunLayer + T / 2, c - tipOf(mm, PG.planet1), c + tipOf(mm, PG.planet1)), { id: 'planet1' });
   addE('bærer', 'planethjul (ring)', Uax, rect(MT.level.ringLayer - T / 2, MT.level.ringLayer + T / 2, c - tipOf(mm, PG.planet2), c + tipOf(mm, PG.planet2)), { mesh: ['ring'] });
@@ -1043,7 +1063,18 @@ function run3D(letter, title, parts, skip = () => false) {
     addE(body, `stolpe til ${name}`, Uax, rect(m.s + half, 0, m.orbit - MMc.postRadius, m.orbit + MMc.postRadius));
     addE(body, name, Uax, line(0, m.orbit, 0, m.orbit, m.radius));
   }
-  problems += run3D('E', 'Mars i 3D', eParts);
+  // Mellomhjulet griper i det lille hjulet på bærerrøret, og tuppene går like
+  // ved røret over og under det lille hjulet: klaringen der er den vanlige
+  // mellom tuppene og foten på det lille hjulet, pluss foten minus røret.
+  const idlerToTube = [];
+  problems += run3D('E', 'Mars i 3D', eParts, (a, b) => {
+    const names = [`${a.body} ${a.name}`, `${b.body} ${b.name}`].sort().join('|');
+    if (names !== 'bærer bærerrør|mellomhjul mellomhjul') return false;
+    idlerToTube.push(distance(a, b));
+    return true;
+  });
+  const idlerRoom = rootOf(MT.drive.module, MMc.drive.smallTeeth) - MT.carrierTube.outer;
+  console.log(`  Mellomhjulet mot bærerrøret ved siden av det lille hjulet: ${idlerToTube.map((d) => d.toFixed(2)).join(', ')} (foten på det lille hjulet står ${idlerRoom.toFixed(2)} utenfor røret)`);
 }
 
 // ---------- Raske deler ----------
@@ -1061,7 +1092,9 @@ function run3D(letter, title, parts, skip = () => false) {
     ['Saturn: forlegsaksel', (x) => x.saturnLayAngle],
     ...mMoons.map((n) => [`${n} (arm)`, (x) => x.marsMoonAngles[n]]),
     ['Mars: planethjul', (x) => x.marsPlanetSpins[0]],
-    ['Mars: sideaksel', (x) => x.marsSideAngle],
+    ['Mars: drivaksel og stort hjul', (x) => x.marsDriveAngle],
+    ['Mars: mellomhjul', (x) => x.marsIdlerAngle],
+    ['Mars: lite hjul og bærer', (x) => x.marsCarrier],
     ['månen (arm)', (x) => x.moonAngle],
     ['kjede til Jupiters måner', (x) => x.jupiterChainOffset / jupiterChain.radius2],
     ['kjede til Saturns måner', (x) => x.saturnChainOffset / saturnChain.radius2],

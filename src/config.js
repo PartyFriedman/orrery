@@ -269,14 +269,16 @@ export const saturnMoons = {
 // Fobos og Deimos, med planetgir. Månene går i Mars' ekvatorplan (tilt), som
 // holder retningen i rommet. Drivet:
 //   månerøret i tårnet (drive-mars) → kjede langs Mars-armen → driveakselen
-//   midt i Mars-stolpen → et hjulpar med innvendige tenner øverst («klokka»,
-//   bell) → en loddrett sideaksel → et dobbelt kryssledd (kardang) der
-//   sideakselen møter Mars' skrå akse under Mars → bæreren i planetgiret.
+//   midt i Mars-stolpen → et dobbelt kryssledd (kardang) på toppen av stolpen
+//   → en skrå drivaksel, parallell med Mars' akse, drive.distance ved siden av
+//   den → et stort hjul, et mellomhjul (så dreieretningen blir riktig) og et
+//   lite hjul på bæreren i planetgiret.
 // Planetgiret rett under Mars: ringhjulet står fast, bæreren med planethjulene
 // går med Deimos, og solhjulet med Fobos, (1 + ring × planet1 / (sun × planet2))
 // ganger så fort. Planethjulene er trinnet: planet1 griper i solhjulet,
-// planet2 i ringhjulet. Mars står stille på en aksel som holdes av en gaffel
-// over nordpolen, som på en globus.
+// planet2 i ringhjulet. Mars sitter rett over giret på en fast aksel som går
+// ned gjennom giret til en skål under bæreren; skåla holder ringhjulet. En
+// knekt brakett fra toppen av stolperøret holder ringhjulet i siden.
 // Mars-stolpen holdes i samme retning i rommet av par-mars og parallellkjedet,
 // og det regnes eksakt (feilmelding hvis tanntallene ikke går opp):
 //   (parallel.driveTeeth/parallel.tubeTeeth − mars.driveTeeth/mars.tubeTeeth)
@@ -288,8 +290,8 @@ export const marsMoons = {
   size: { phobos: 0.16, deimos: 0.12 },  // radiusen på månene (Mars er ca. 1,76)
   driveTeeth: 39,       // hjulet på mellomakselen som driver månerøret
   tubeTeeth: 13,        // hjulet nederst på månerøret
-  tubeSprocket: 84,     // kjedehjulet på månerøret, over Mars-armen
-  shaftSprocket: 9,     // kjedehjulet nederst på driveakselen ved Mars
+  tubeSprocket: 96,     // kjedehjulet på månerøret, over Mars-armen
+  shaftSprocket: 8,     // kjedehjulet nederst på driveakselen ved Mars
   chainPitch: 1.0,      // ledd-lengden i begge kjedene langs Mars-armen
   parallel: {
     driveTeeth: 9,      // hjulet på mellomakselen som driver par-mars
@@ -297,9 +299,15 @@ export const marsMoons = {
     centerSprocket: 66, // kjedehjulet på par-mars
     postSprocket: 12,   // kjedehjulet nederst på Mars-stolpen
   },
-  bell: { ringTeeth: 40, pinionTeeth: 11 },  // klokka: innvendige tenner på driveakselen, og hjulet på sideakselen
+  drive: {              // fra den skrå drivakselen til bæreren
+    distance: 4.4,      // fra Mars' akse til den skrå drivakselen (bestemmer også høyden på kryssleddet)
+    bigTeeth: 34,       // det store hjulet på drivakselen
+    idlerTeeth: 37,     // mellomhjulet (står på en tapp ute ved ringhjulet)
+    smallTeeth: 12,     // det lille hjulet på bærerrøret
+    module: 0.16,
+  },
   planetary: {          // planetgiret under Mars
-    sun: 12, planet1: 16, planet2: 23, ring: 51,  // ring = sun + planet1 + planet2
+    sun: 23, planet1: 16, planet2: 12, ring: 51,  // ring = sun + planet1 + planet2 (planet2 lite, så akselen får plass mellom planethjulene)
     count: 3,           // antall planethjul
     module: 0.12,
   },
@@ -307,15 +315,17 @@ export const marsMoons = {
   tubeWall: 0.2,        // veggen i sol- og bærerrøret
   driveShaftRadius: 0.5, // driveakselen midt i stolpen
   frameWall: 0.3,       // veggen i stolperøret rundt driveakselen
-  sideShaftRadius: 0.25, // den loddrette sideakselen og akselen inn i bæreren
+  tiltShaftRadius: 0.25, // den skrå drivakselen
+  pinRadius: 0.12,      // tappen mellomhjulet står på
+  bowlThickness: 0.2,   // skåla under bæreren
   thickness: 0.35,      // tykkelsen på hjulene ved Mars
   chamfer: 0.06,
   backlash: 0.04,
   armThickness: 0.2,    // månearmene
   armWidth: 0.3,
   postRadius: 0.06,     // stolpene opp til månene
-  yokeRadius: 0.12,     // gaffelen over Mars
   jointRadius: 0.3,     // kryssleddet
+  bracket: { radius: 0.2, fillet: 0.35 },  // den knekte braketten, og hvor langt de myke overgangene går
   armMaterial: { color: '#f4f6f7', metalness: 0, roughness: 0.4, gloss: 0.7 },  // månearmer og stolper
 };
 

@@ -72,10 +72,10 @@
   - Saturn-armen er 78,3 (Iapetus går 11,3 ut).
 - **Mars** (`marsMoons` i config, `marsTrain`, `marsAxis`, `marsBracket` i `mechanism.js`, mekanismetypen `'epicyclic'`): Fobos og Deimos med planetgir, den fjerde måten å lage månemekanikk på.
   - Stolpen står stille i rommet som hos Saturn: `par-mars` (mellomakselen 9→62, Mars-røret 11→62) og kjede 66→12, sjekket eksakt med heltall.
-  - Drivet: månerøret `drive-mars` (mellomakselen 39→13), kjede 84→9 til driveakselen midt i stolpen. Øverst på den sitter «klokka»: et ringhjul med innvendige tenner (`createRingGearGeometry` i `gear.js`) som driver en loddrett sideaksel (40→11, samme vei).
-  - Sideakselen står så langt til siden (2,44) at den treffer Mars' skrå akse (25,19°) i K under Mars. Der sitter et dobbelt kryssledd med to ledd à 12,6°, så farten blir jevn. (Med begge leddene i hver sin ende av en mellomaksel under Mars går det ikke: loddlinjen og Mars' akse møtes bare midt i Mars.)
-  - Planetgiret rett under Mars, i ekvatorplanet: ringhjulet står fast, bæreren (tre trinnede planethjul, edderkopp-plater) går med Deimos, og solhjulet med Fobos (1 + 51·16/(12·23) = 3,9565). Fobos +0,05 %, Deimos eksakt.
-  - Mars står stille på en aksel som holdes av en gaffel (to bein fra kanten av ringhjulet, opp utenfor banene og inn over nordpolen). Braketten går fra toppen av stolperøret ut til siden og opp til kanten av ringhjulet.
+  - Drivet: månerøret `drive-mars` (mellomakselen 39→13), kjede 96→8 til driveakselen midt i stolpen. Den går opp til K på toppen av stolpen, der et dobbelt kryssledd (to ledd à 12,6°, jevn fart) knekker den over i en skrå drivaksel, parallell med Mars' akse og 4,4 fra den (`marsMoons.drive.distance`; den bestemmer også høyden på K).
+  - Øverst på drivakselen: et stort hjul (34) → mellomhjul (37) → lite hjul (12) på bærerrøret, rett over planetgiret. Mellomhjulet trengs fordi et hjulpar snur retningen; det står på en tapp på en knast ytterst på ringhjulet.
+  - Planetgiret rett under Mars, i ekvatorplanet: ringhjulet står fast, bæreren (tre trinnede planethjul, edderkopp-plater) går med Deimos, og solhjulet med Fobos (sol 23, planet 16/12, ring 51: 1 + 51·16/(23·12) = 3,9565). Planet2 er det lille, så den faste akselen får plass mellom planethjulene. Fobos +0,02 %, Deimos −0,03 %.
+  - Den faste, skrå akselen går gjennom Mars og ned i en lukket skål under bæreren. Skåla holder ringhjulet, så aksel, skål, ringhjul og Mars er én stiv enhet. Den knekte braketten (`marsBracket`, `marsMoons.bracket`) går fra toppen av stolperøret vannrett ut, rett opp, og vannrett inn midt på ytterveggen (skål og ringhjul), med myke overganger (kjegler) i begge ender. Ingen gaffel eller ramme rundt Mars lenger.
   - Ekvatorplanet stilles etter Mars' pol (IAU, regnet om til ekliptikken: lengde ca. 352,9°). Månene er bittesmå (`marsMoons.size`: Fobos 0,16, Deimos 0,12) og stilles etter JPL-middelelementer.
   - Planet1 på hvert planethjul er satt på så det griper i solhjulet (fast vinkel mot planet2).
 - `bodies.height` er 45,5 (brukeren valgte det; minst 44,7 for sola og 45,42 for vinkelgiren ved Saturn, siden tårnet fikk ett hjulplan til for Mars).
@@ -130,8 +130,8 @@
   - startposisjonene, og at Laplace-vinkelen er 180° og står stille
   - kollisjoner, med reservert plass: A gjelder for alle vinkler; B er en simulering med stikkprøver; C er som A, men regnet fra Jupiter-stolpen, for alt som går rundt ved Jupiter. Forlegsakselen mot kjedet sjekkes i planet (1,94).
   - D: alt ved Saturn i 3D, sett fra stolpen. Hver del er et omdreiningslegeme om sin akse (loddlinjen, Saturns akse eller den skrå forlegsakselen), braketten og platen er staver. Unntak: hjul i inngrep, lager (rør i rør), og glipen mellom glassbåndene (fugen C–B 0,04 og Cassinidelingen B–A 0,24).
-  - E: alt ved Mars i 3D, med de samme verktøyene (`run3D`): loddlinjen, sideakselen og Mars' akse; planethjulene som en ring rundt aksen; braketten og gaffelen som staver. Unntak som D, og kryssleddet. To deler regnes ikke mot hverandre når en del fra en av dem ligger mellom (`shielded`, for eksempel et hjul på et rør mot akselen inni).
-  - Mars: omløpstidene, planetgirets forhold, driften til stolpen, at K ligger på sideakselen, og ekvatorplanet (−3,7° ved vårjevndøgn 12.11.2024, 25,1° ved sommersolverv 12.07.2023).
+  - E: alt ved Mars i 3D, med de samme verktøyene (`run3D`): loddlinjen, den skrå drivakselen, mellomhjulet og Mars' akse; planethjulene som en ring rundt aksen; braketten og knasten som staver/sylindre fra overflaten de sitter på. Unntak som D, og kryssleddet. To deler regnes ikke mot hverandre når en del fra en av dem ligger mellom (`shielded`, for eksempel et hjul på et rør mot akselen inni). Mellomhjulet mot bærerrøret ved siden av det lille hjulet (0,20) skrives ut i stedet for å telle: det er den vanlige klaringen ved foten av et hjul i inngrep.
+  - Mars: omløpstidene, planetgirets forhold, driften til stolpen, at K ligger på både loddlinjen og drivakselen, og ekvatorplanet (−3,7° ved vårjevndøgn 12.11.2024, 25,1° ved sommersolverv 12.07.2023).
   - En tabell over raske deler (grader per bilde ved startfarten og 60 bilder/s).
   - Saturns omløpstider (Enceladus, Titan, Iapetus), driften til Saturn-stolpen, og ringens retning: ca. −3,8° åpen mot sola ved ringplanpasseringen 23.03.2025 (middellengder, toleranse 5°) og nordsiden opplyst 24.05.2017.
   - B tegner alt som massive sirkler, så rør må ikke legges inn der (de sjekkes i A). Saturn er ett område der (ring, måner og hjulkasse).
@@ -159,7 +159,7 @@
 
 ## Mulige neste steg
 - **Saturn:** se over om Saturn-hjulkassen ser bra ut fra alle kanter, og vurder kortere forlegsaksel (den går ca. 13 fra vinkelgiren opp til hjulene).
-- **Mars:** se på planetgiret, kardangen og gaffelen fra alle kanter; sideakselen er ca. 8 lang fra klokka opp til K.
+- **Mars:** se på planetgiret, braketten og kryssleddet på toppen av stolpen fra alle kanter; drivakselen er ca. 10 lang fra K opp til det store hjulet.
 - **Velge nye mønstre for planetene,** med `facets` eller plexus som utgangspunkt (se Utseende).
 - **Lysspor:** finjuster tallene i `blur` etter å ha sett det i nettleseren (grensen, sporlengden og vifta).
 - Rørstabelen rundt Jupiter-stolpen er ca. 14 høy og 1,7 i radius. Den kan gjøres kortere ved å senke månearmene (lengre månestolper).
