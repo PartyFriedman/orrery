@@ -35,6 +35,23 @@ for (const [name, [l0, perDay]] of Object.entries(jovian)) {
   meanLongitude[name] = [l0 - perDay * jovianEpoch + toJ2000, perDay * 36525];
 }
 
+// Saturns måner: middelelementer fra JPL (SAT441, epoke J2000, i Laplace-planet).
+// Middellengden er node + perisentrumsargument + middelanomali, og den går en
+// runde per omløpstid (dager). Lavpresisjon: nok til å vise omtrent hvor månene
+// står, ikke til å regne ut ekte posisjoner.
+const saturnian = {
+  enceladus: [0.0 + 119.5 + 57.0, 1.370218],
+  titan:     [78.6 + 78.3 + 11.7, 15.945448],
+  iapetus:   [86.5 + 254.5 + 74.8, 79.331002],
+};
+for (const [name, [l0, period]] of Object.entries(saturnian)) {
+  meanLongitude[name] = [l0, (360 / period) * 36525];
+}
+
+// Saturns ring: den oppstigende knuten til ringplanet på ekliptikken (Meeus kap. 45).
+// Saturns nordpol heller mot lengde knute − 90°.
+const saturnRingNode = [169.508470, 1.394681];
+
 const degrees = (d) => (d * Math.PI) / 180;
 const MS_PER_DAY = 86400000;
 const J2000 = Date.UTC(2000, 0, 1, 12); // JD 2451545,0
@@ -46,7 +63,7 @@ export const centuriesSinceJ2000 = (date) => (date.getTime() - J2000) / MS_PER_D
 
 // Middellengden i radianer (ikke begrenset til én runde).
 export function longitudeAt(name, date) {
-  const [l0, rate] = name === 'moonNode' ? moonNode : meanLongitude[name];
+  const [l0, rate] = name === 'moonNode' ? moonNode : name === 'saturnRingNode' ? saturnRingNode : meanLongitude[name];
   return degrees(l0 + rate * centuriesSinceJ2000(date));
 }
 
