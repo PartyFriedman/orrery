@@ -283,9 +283,9 @@ export const look = {
 
   // Kjedene (ruller og lenkeplater). Standard er det samme som hjulene.
   // Mørkt metall som i fugene: '#303538', metalness 0.6, roughness 0.45.
-  chainColor: '#960820',
-  chainMetalness: 0,      // 0 = lakk, 1 = metall
-  chainRoughness: 0.4,    // 0 = speil, 1 = helt matt
+  chainColor: '#3d3946',
+  chainMetalness: 1,      // 0 = lakk, 1 = metall
+  chainRoughness: 0.2,    // 0 = speil, 1 = helt matt
   chainGloss: 0.70,       // klarlakk-glans oppå (0 = ingen)
 
   // Mørkt metall i fugene mellom panelene.
