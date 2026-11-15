@@ -291,6 +291,14 @@ function pairGear(teeth, otherTeeth, holeRadius, style = null) {
 // lenkeplater over og under. Annenhver lenke har platene ytterst, som på et
 // ekte kjede, så platene ikke kolliderer. Gir tilbake en funksjon som flytter
 // leddene til en ny posisjon langs banen.
+// Kjedene har sitt eget materiale, styrt av chain* i look i config.
+const chainMaterial = new THREE.MeshPhysicalMaterial({
+  color: look.chainColor,
+  metalness: look.chainMetalness,
+  roughness: look.chainRoughness,
+  clearcoat: look.chainGloss,
+  clearcoatRoughness: look.glossRoughness,
+});
 const plateThickness = 0.12;
 const plateGap = 0.05;
 const placer = new THREE.Object3D();
@@ -298,7 +306,7 @@ function addChain(parent, chain, y) {
   const rollerHeight = moonTrain.thickness + plateGap * 2;
   const rollers = new THREE.InstancedMesh(
     new THREE.CylinderGeometry(chain.rollerRadius, chain.rollerRadius, rollerHeight, 16),
-    material,
+    chainMaterial,
     chain.links
   );
   const plateShape = new THREE.Shape();
@@ -307,7 +315,7 @@ function addChain(parent, chain, y) {
   plateShape.absarc(-chain.pitch / 2, 0, plateEnd, Math.PI / 2, (Math.PI * 3) / 2, false);
   const plateGeometry = new THREE.ExtrudeGeometry(plateShape, { depth: plateThickness, bevelEnabled: false, curveSegments: 12 });
   plateGeometry.rotateX(-Math.PI / 2);
-  const plates = new THREE.InstancedMesh(plateGeometry, material, chain.links * 2);
+  const plates = new THREE.InstancedMesh(plateGeometry, chainMaterial, chain.links * 2);
   for (const part of [rollers, plates]) {
     part.castShadow = true;
     part.receiveShadow = true;

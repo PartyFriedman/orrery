@@ -281,6 +281,13 @@ export const look = {
   gloss: 0.70,            // klarlakk-glans oppå (0 = ingen, 1 = full)
   glossRoughness: 0.3,    // hvor myk glansen er (lav = skarpere refleksjoner)
 
+  // Kjedene (ruller og lenkeplater). Standard er det samme som hjulene.
+  // Mørkt metall som i fugene: '#303538', metalness 0.6, roughness 0.45.
+  chainColor: '#960820',
+  chainMetalness: 0,      // 0 = lakk, 1 = metall
+  chainRoughness: 0.4,    // 0 = speil, 1 = helt matt
+  chainGloss: 0.70,       // klarlakk-glans oppå (0 = ingen)
+
   // Mørkt metall i fugene mellom panelene.
   seamColor: '#303538',
   seamMetalness: 0.6,
