@@ -2,8 +2,10 @@
 
 ## Prosjekt og status
 - Mappe: `c:\Users\oyvin\Desktop\Projects\Vibekoding\claudecode_VScode\orrery` (Vite + three.js, `npm run dev` / `npm run build`). Repo: PartyFriedman/orrery, publiseres til GitHub Pages fra `main` via `.github/workflows/deploy.yml` (base `/orrery/` i `vite.config.js`).
-- Gren: `Speed-Control`, laget fra `Outer-Planets`. Der er de to kjedene via et løst hjul på sentralakselen committet («Changes large cog»).
-- Siste steg (ferdig, ikke committet): glidebryter for tid, med planetene stilt inn etter ekte dato (se Tid og dato). Bygget går gjennom, og `npm run check` sier «Alt i orden».
+- Gren: `main`, ren. Alt er merget:
+  - PR #6 (`Outer-Planets`): Jupiter og Saturn, med to kjeder via et løst hjul på sentralakselen («Changes large cog»).
+  - PR #7 (`Speed-Control`, commit «Add Time Control»): glidebryter for tid, med planetene stilt inn etter ekte dato (se Tid og dato). Bygget går gjennom, og `npm run check` sier «Alt i orden».
+- Neste steg: lag en ny gren fra `main`.
 
 ## Arbeidsregler (fra brukeren)
 - Svar på norsk. Forklar kort hva som endret seg.
