@@ -181,6 +181,33 @@ export function createBevelGeometry(settings, apexDistance) {
   return geometry;
 }
 
+// Ringhjul med innvendige tenner (til planetgir): en flat ring der tennene
+// peker innover, fra rotsirkelen (r + 1,25 m) inn til tuppen (r − m). Tennene
+// er trapeser, bredest ute. Ligger flatt med undersiden på y = 0, som de
+// andre hjulene; outerRadius er ytterkanten av ringen.
+export function createRingGearGeometry({ teeth, module, outerRadius, thickness, chamfer = 0 }) {
+  const pitch = (module * teeth) / 2;
+  const tip = pitch - module, root = pitch + 1.25 * module;
+  const step = (Math.PI * 2) / teeth;
+  const shape = new THREE.Shape();
+  shape.absarc(0, 0, outerRadius, 0, Math.PI * 2, false);
+  const hole = new THREE.Path();
+  const points = [];
+  for (let i = 0; i < teeth; i++) {
+    const c = i * step;
+    // Tannen: bred ved roten, smal ved tuppen.
+    points.push([c - step * 0.32, root], [c - step * 0.18, tip], [c + step * 0.18, tip], [c + step * 0.32, root]);
+  }
+  // Hull i en Shape må gå motsatt vei av omrisset.
+  points.reverse().forEach(([a, r], i) => {
+    if (i === 0) hole.moveTo(r * Math.cos(a), r * Math.sin(a));
+    else hole.lineTo(r * Math.cos(a), r * Math.sin(a));
+  });
+  hole.closePath();
+  shape.holes.push(hole);
+  return extrudeFlat(shape, thickness, chamfer);
+}
+
 // Kjedehjul som 3D-geometri.
 export function createSprocketGeometry(settings) {
   return extrudeFlat(createSprocketShape(settings), settings.thickness, settings.chamfer);

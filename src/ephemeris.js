@@ -48,6 +48,21 @@ for (const [name, [l0, period]] of Object.entries(saturnian)) {
   meanLongitude[name] = [l0, (360 / period) * 36525];
 }
 
+// Mars' måner: middelelementer fra JPL (epoke J2000, i Laplace-planet), som for Saturn.
+const martian = {
+  phobos: [169.2 + 216.3 + 189.7, 0.31891023],
+  deimos: [54.3 + 0.0 + 205.0, 1.2624407],
+};
+for (const [name, [l0, period]] of Object.entries(martian)) {
+  meanLongitude[name] = [l0, (360 / period) * 36525];
+}
+
+// Mars' nordpol (IAU 2015: rektascensjon og deklinasjon ved J2000, med
+// endring per århundre), regnet om til lengde på ekliptikken. Mars' ekvator
+// har sin oppstigende knute på ekliptikken 90° forbi.
+const marsPoleEquatorial = { ra: [317.68143, -0.1061], dec: [52.88650, -0.0609] };
+const obliquity = 23.4392911;
+
 // Saturns ring: den oppstigende knuten til ringplanet på ekliptikken (Meeus kap. 45).
 // Saturns nordpol heller mot lengde knute − 90°.
 const saturnRingNode = [169.508470, 1.394681];
@@ -67,4 +82,13 @@ export function longitudeAt(name, date) {
   return degrees(l0 + rate * centuriesSinceJ2000(date));
 }
 
-export const addYears = (date, years) => new Date(date.getTime() + years * daysPerYear * MS_PER_DAY);
+// Lengden på ekliptikken som Mars' nordpol heller mot, i radianer.
+export function marsPoleLongitude(date) {
+  const T = centuriesSinceJ2000(date);
+  const ra = degrees(marsPoleEquatorial.ra[0] + marsPoleEquatorial.ra[1] * T);
+  const dec = degrees(marsPoleEquatorial.dec[0] + marsPoleEquatorial.dec[1] * T);
+  const e = degrees(obliquity);
+  return Math.atan2(Math.sin(ra) * Math.cos(e) + Math.tan(dec) * Math.sin(e), Math.cos(ra));
+}
+
+export const addYears =(date, years) => new Date(date.getTime() + years * daysPerYear * MS_PER_DAY);

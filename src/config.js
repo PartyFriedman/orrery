@@ -266,6 +266,59 @@ export const saturnMoons = {
   armMaterial: { color: '#f4f6f7', metalness: 0, roughness: 0.4, gloss: 0.7 },
 };
 
+// Fobos og Deimos, med planetgir. Månene går i Mars' ekvatorplan (tilt), som
+// holder retningen i rommet. Drivet:
+//   månerøret i tårnet (drive-mars) → kjede langs Mars-armen → driveakselen
+//   midt i Mars-stolpen → et hjulpar med innvendige tenner øverst («klokka»,
+//   bell) → en loddrett sideaksel → et dobbelt kryssledd (kardang) der
+//   sideakselen møter Mars' skrå akse under Mars → bæreren i planetgiret.
+// Planetgiret rett under Mars: ringhjulet står fast, bæreren med planethjulene
+// går med Deimos, og solhjulet med Fobos, (1 + ring × planet1 / (sun × planet2))
+// ganger så fort. Planethjulene er trinnet: planet1 griper i solhjulet,
+// planet2 i ringhjulet. Mars står stille på en aksel som holdes av en gaffel
+// over nordpolen, som på en globus.
+// Mars-stolpen holdes i samme retning i rommet av par-mars og parallellkjedet,
+// og det regnes eksakt (feilmelding hvis tanntallene ikke går opp):
+//   (parallel.driveTeeth/parallel.tubeTeeth − mars.driveTeeth/mars.tubeTeeth)
+//   × (parallel.centerSprocket/parallel.postSprocket) = −mars.driveTeeth/mars.tubeTeeth
+// periods er bare målet (sidereale omløpstider i dager).
+export const marsMoons = {
+  periods: { phobos: 0.31891023, deimos: 1.2624407 },
+  tilt: 25.19,          // Mars' akse mot banen, i grader
+  size: { phobos: 0.16, deimos: 0.12 },  // radiusen på månene (Mars er ca. 1,76)
+  driveTeeth: 39,       // hjulet på mellomakselen som driver månerøret
+  tubeTeeth: 13,        // hjulet nederst på månerøret
+  tubeSprocket: 84,     // kjedehjulet på månerøret, over Mars-armen
+  shaftSprocket: 9,     // kjedehjulet nederst på driveakselen ved Mars
+  chainPitch: 1.0,      // ledd-lengden i begge kjedene langs Mars-armen
+  parallel: {
+    driveTeeth: 9,      // hjulet på mellomakselen som driver par-mars
+    tubeTeeth: 62,      // hjulet nederst på par-mars
+    centerSprocket: 66, // kjedehjulet på par-mars
+    postSprocket: 12,   // kjedehjulet nederst på Mars-stolpen
+  },
+  bell: { ringTeeth: 40, pinionTeeth: 11 },  // klokka: innvendige tenner på driveakselen, og hjulet på sideakselen
+  planetary: {          // planetgiret under Mars
+    sun: 12, planet1: 16, planet2: 23, ring: 51,  // ring = sun + planet1 + planet2
+    count: 3,           // antall planethjul
+    module: 0.12,
+  },
+  axleRadius: 0.2,      // den faste akselen gjennom Mars
+  tubeWall: 0.2,        // veggen i sol- og bærerrøret
+  driveShaftRadius: 0.5, // driveakselen midt i stolpen
+  frameWall: 0.3,       // veggen i stolperøret rundt driveakselen
+  sideShaftRadius: 0.25, // den loddrette sideakselen og akselen inn i bæreren
+  thickness: 0.35,      // tykkelsen på hjulene ved Mars
+  chamfer: 0.06,
+  backlash: 0.04,
+  armThickness: 0.2,    // månearmene
+  armWidth: 0.3,
+  postRadius: 0.06,     // stolpene opp til månene
+  yokeRadius: 0.12,     // gaffelen over Mars
+  jointRadius: 0.3,     // kryssleddet
+  armMaterial: { color: '#f4f6f7', metalness: 0, roughness: 0.4, gloss: 0.7 },  // månearmer og stolper
+};
+
 // Planetene (unntatt jorda): hver har sitt eget rør med et hjul nederst og en
 // arm øverst. Omløpstiden følger av tanntallene:
 //   driveTeeth: hjulet sitter på mellomakselen.
@@ -281,12 +334,13 @@ export const saturnMoons = {
 //   (for en akse eller ring som skal holde retningen i rommet). Disse er bare reservert.
 //   'moonDrive' = et månerør drevet fra mellomakselen og et kjede langs armen (se jupiterMoons).
 //   'ringMoons' = Saturns dreiende ringbånd med månene, og stolpen som holder retningen (se saturnMoons).
+//   'epicyclic' = Mars' planetgir med kardang og gaffel (se marsMoons).
 export const planets = {
   mercury: { period: 0.2408, driveTeeth: 29, tubeTeeth: 21, armLength: 'auto', radius: planetSize('mercury') },
   venus:   { period: 0.6152, driveTeeth: 19, tubeTeeth: 35, armLength: 'auto', radius: planetSize('venus') },
   mars:    {
     period: 1.8809, driveTeeth: 11, tubeTeeth: 62, armLength: 'auto', radius: planetSize('mars'),
-    moons: ['phobos', 'deimos'], mechanism: 'moons+parallel',   // Mars heller 25°
+    moons: ['phobos', 'deimos'], mechanism: 'epicyclic',   // planetgir, se marsMoons
   },
   jupiter: {
     period: 11.862, layTeeth: 14, tubeTeeth: 44, armLength: 'auto', radius: planetSize('jupiter'),
@@ -377,7 +431,7 @@ export const tilt = {
 export const bodies = {
   sunRadius: 6,
   earthRadius: planetSize('earth'),
-  height: 44,         // høyden på sentrum av sola og alle planetene (feilmelding hvis den er for lav)
+  height: 45.5,       // høyden på sentrum av sola og alle planetene (feilmelding hvis den er for lav)
   moonRadius: moonSize('moon'),
   moonOrbit: 4,       // avstanden fra jorda til månen (lavere gir for liten føringsring under jorda)
 };
@@ -409,6 +463,8 @@ export const panels = {
   europa:   { pattern: 'quads', subdivisions: 1 },
   ganymede: { pattern: 'quads', subdivisions: 1 },
   callisto: { pattern: 'quads', subdivisions: 1 },
+  phobos:   { pattern: 'quads', subdivisions: 1 },     // Mars' måner
+  deimos:   { pattern: 'quads', subdivisions: 1 },
   saturn:  { pattern: 'hexagons',  subdivisions: 3 },  // 80 sekskanter og 12 femkanter
   enceladus: { pattern: 'quads', subdivisions: 1 },    // Saturns måner
   titan:     { pattern: 'quads', subdivisions: 1 },
@@ -421,6 +477,24 @@ export const panels = {
   // rundt 1 gir tydelige armer. For store verdier gir en feilmelding.
   // Fugebredden på sola følger solradiusen (0,1 ved radius 10).
   sun:     { pattern: 'trionda', amplitude: 0.32, bulge: 0.2, seamWidth: 0.01 * bodies.sunRadius },
+};
+
+// Raske deler (månene, Saturns bånd og stag, hjulene og kjedene ved månene)
+// flimrer når de flytter seg langt mellom to bilder. Over en grense får de i
+// stedet et lysende spor (månene), en svak vifte bak seg (stag og armer) eller
+// en glatt form (tannhjul og kjeder). Grensen er hvor mange grader en del dreier
+// per bilde, så den gjelder alle deler, uansett fart og bildefrekvens.
+export const blur = {
+  threshold: 4,       // grader per bilde: under dette vises delen som den er
+  fade: 8,            // over så mange grader til (fra threshold) er sporet, vifta eller den glatte formen helt inne
+  trailLength: 1.5,   // sporet bak en måne: buen siden forrige bilde, ganget med dette
+  trailColor: '#ffffff',
+  trailOpacity: 0.6,  // hvor sterkt sporet lyser der det starter (ved månen)
+  ringAbove: 90,      // grader per bilde: over dette blir sporet en hel, svak ring
+  ringOpacity: 0.25,  // hvor sterk ringen er
+  fanCopies: 6,       // antall gjennomsiktige kopier i vifta bak stag og armer
+  fanOpacity: 0.25,   // hvor tydelig den nærmeste kopien er
+  fanMaxAngle: 45,    // grader: vifta blir aldri bredere enn dette
 };
 
 // Rødt brukes sparsomt: sola, og en tynn ring der hver planetstolpe møter armen.
