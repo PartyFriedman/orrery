@@ -8,7 +8,7 @@ import { createArmGeometry } from './arm.js';
 import { createPanelGeometry } from './panels.js';
 import {
   layout, anglesAt, pairModule, tube, tubes, heights, reach as armReach, armParts, armLengths,
-  moonChain, parallelChain, outerChain, outerFrame, earthAxis, moonRing, moonLift,
+  moonChain, parallelChain, driveChain, driveFrame, layChain, layFrame, idlerHub, earthAxis, moonRing, moonLift,
 } from './mechanism.js';
 
 // Hvor langt ut og opp modellen rekker, så kamera og lys kan tilpasses.
@@ -356,7 +356,7 @@ for (const t of tubes.filter((t) => t.fixed)) {
 addShaft(bracket, arm.width * 0.3, 0, bracketTop).position.x = drive.distance;
 
 // --- Mellomakselen, der inngangen kommer inn. Den har et hjul for hver planet
-// den driver direkte, og nederst et kjedehjul for kjedet til forlegsakselen. ---
+// den driver direkte, og nederst et kjedehjul for det første kjedet. ---
 const driveGroup = addGroupAt(scene, layout.drive);
 addShaft(driveGroup, drive.shaftRadius, 0, heights.driveTop);
 addGear(driveGroup, pairGear(smallGear.teeth, bigGear.teeth, drive.shaftRadius, smallGear), heights.bottom.earth);
@@ -365,20 +365,35 @@ for (const [name, p] of Object.entries(planets)) {
 }
 const sprocketStyle = { spokes: 0, spokeWidth: 1, hubWidth: 1, rimWidth: 1 };
 addSprocket(driveGroup, { teeth: outerDrive.driveSprocket, holeRadius: drive.shaftRadius, ...sprocketStyle },
-  outerChain.radius1, heights.outerChain, outerChain);
+  driveChain.radius1, heights.driveChain, driveChain);
 
-// --- Forlegsakselen: drives av kjedet nederst, og driver Jupiter og Saturn. ---
+// --- Det løse hjulet på sentralakselen: det store kjedehjulet nederst tar
+// imot det første kjedet, og det lille over driver det andre. ---
+const idlerGroup = addGroupAt(scene, layout.center);
+addSprocket(idlerGroup, {
+  teeth: outerDrive.idlerLarge, holeRadius: center.axleRadius, spokes: 5, spokeWidth: 1.5, hubWidth: 1.2, rimWidth: 1.5,
+}, driveChain.radius2, heights.driveChain, driveChain);
+addSprocket(idlerGroup, { teeth: outerDrive.idlerSmall, holeRadius: center.axleRadius, ...sprocketStyle },
+  layChain.radius1, heights.layChain, layChain);
+addShaft(idlerGroup, idlerHub, heights.driveChain + moonTrain.thickness, heights.layChain);
+
+// --- Forlegsakselen: drives av det andre kjedet, og driver Jupiter og Saturn. ---
 const layGroup = addGroupAt(scene, layout.lay);
 addShaft(layGroup, drive.shaftRadius, 0, heights.driveTop);
 addSprocket(layGroup, {
-  teeth: outerDrive.laySprocket, holeRadius: drive.shaftRadius, spokes: 6, spokeWidth: 2, hubWidth: 2.5, rimWidth: 2,
-}, outerChain.radius2, heights.outerChain, outerChain);
+  teeth: outerDrive.laySprocket, holeRadius: drive.shaftRadius, spokes: 4, spokeWidth: 1.5, hubWidth: 1.2, rimWidth: 1.5,
+}, layChain.radius2, heights.layChain, layChain);
 for (const [name, p] of Object.entries(planets)) {
   if (p.layTeeth) addGear(layGroup, pairGear(p.layTeeth, p.tubeTeeth, drive.shaftRadius), heights.bottom[name]);
 }
-// Kjedet, regnet ut langs +x fra mellomakselen og dreid mot forlegsakselen.
-const outerChainGroup = addGroupAt(scene, outerFrame.origin);
-outerChainGroup.rotation.y = outerFrame.angle;
+// Kjedene, regnet ut langs +x fra sitt første kjedehjul og dreid på plass.
+const chainGroupAt = (frame) => {
+  const group = addGroupAt(scene, frame.origin);
+  group.rotation.y = frame.angle;
+  return group;
+};
+const driveChainGroup = chainGroupAt(driveFrame);
+const layChainGroup = chainGroupAt(layFrame);
 
 // --- Planetene utenom jorda: rør med hjul nederst, arm øverst, stolpe og kule. ---
 const planetGroups = {};
@@ -410,7 +425,8 @@ addSprocket(pinionGroup, moonTrain.driveSprocket, moonChain.radius1, moonChainLe
 
 const updateMoonChain = addChain(armGroup, moonChain, moonChainLevel);
 const updateParallelChain = addChain(armGroup, parallelChain, parallelLevel);
-const updateOuterChain = addChain(outerChainGroup, outerChain, heights.outerChain);
+const updateDriveChain = addChain(driveChainGroup, driveChain, heights.driveChain);
+const updateLayChain = addChain(layChainGroup, layChain, heights.layChain);
 
 // --- Ytterst på armen: en tapp som parallellhjulet går på. ---
 const earthGroup = addGroupAt(armGroup, layout.earth);
@@ -502,8 +518,10 @@ renderer.setAnimationLoop((time) => {
 
   const a = anglesAt(input);
   driveGroup.rotation.y = a.driveAngle;
+  updateDriveChain(a.driveChainOffset);
+  idlerGroup.rotation.y = a.idlerAngle;
+  updateLayChain(a.layChainOffset);
   layGroup.rotation.y = a.layAngle;
-  updateOuterChain(a.outerChainOffset);
   armGroup.rotation.y = a.armAngle;
   for (const name in planetGroups) planetGroups[name].rotation.y = a.planetAngles[name];
   pinionGroup.rotation.y = a.pinionAngle;

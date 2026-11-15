@@ -5,18 +5,23 @@
 // følger av tanntallene.
 export const drive = {
   speed: 1,           // omdreininger per minutt for mellomakselen
-  distance: 40,       // avstanden fra mellomakselen til sentrum; alle hjulpar må nå over den (minst ca. 38,5 for kjedet til forlegsakselen)
+  distance: 40,       // avstanden fra mellomakselen (og forlegsakselen) til sentrum; alle hjulpar og begge kjedene nederst må nå over den
   shaftRadius: 2,     // tykkelsen på mellomakselen
 };
 
-// Jupiter og Saturn: omløpstidene er for lange for ett hjulpar. Et kjede fra
-// mellomakselen går til en forlegsaksel (kjedet beholder dreieretningen), og
-// derfra går et hjulpar inn til hvert rør. Forlegsakselen står like langt fra
-// sentrum som mellomakselen, så hjulparene når over samme avstand.
+// Jupiter og Saturn: omløpstidene er for lange for ett hjulpar. To kjeder
+// nederst i tårnet gir utvekslingen i to trinn, så ingen kjedehjul blir store:
+// det første går fra mellomakselen til et løst dobbelt kjedehjul på
+// sentralakselen, det andre derfra til forlegsakselen. Kjedene beholder
+// dreieretningen. Fra forlegsakselen går et hjulpar inn til hvert rør.
+// Forlegsakselen står like langt fra sentrum som mellomakselen, så hjulparene
+// når over samme avstand.
 export const outerDrive = {
-  driveSprocket: 12,  // kjedehjulet på mellomakselen
-  laySprocket: 136,   // kjedehjulet på forlegsakselen
-  chainPitch: 1.5,    // ledd-lengden i dette kjedet
+  driveSprocket: 12,  // kjedehjulet på mellomakselen (første kjede)
+  idlerLarge: 48,     // det løse hjulet på sentralakselen, nederst (første kjede)
+  idlerSmall: 12,     // det løse hjulet, ett plan over (andre kjede)
+  laySprocket: 34,    // kjedehjulet på forlegsakselen (andre kjede)
+  chainPitch: 1.5,    // ledd-lengden i begge kjedene
   angle: 60,          // hvor forlegsakselen står: grader mot klokka fra mellomakselen, rundt sentrum
 };
 
@@ -106,7 +111,8 @@ export const armStyle = {
 //   driveTeeth: hjulet sitter på mellomakselen.
 //     år per runde = (tubeTeeth / driveTeeth) × (smallGear.teeth / bigGear.teeth)
 //   layTeeth: hjulet sitter på forlegsakselen (se outerDrive).
-//     år per runde = (tubeTeeth / layTeeth) × (laySprocket / driveSprocket) × (smallGear.teeth / bigGear.teeth)
+//     år per runde = (tubeTeeth / layTeeth) × (idlerLarge / driveSprocket) × (laySprocket / idlerSmall)
+//                    × (smallGear.teeth / bigGear.teeth)
 // period er bare målet den sammenlignes med.
 // armLength: 'auto' gir den korteste armen som går klar av naboene, eller et tall.
 // moons og ring: plass som reserveres rundt planeten (bygges ikke ennå).
@@ -138,7 +144,7 @@ export const planets = {
 // Månen går (fixed/pinion) × (driveSprocket/moonSprocket) runder rundt jorda per runde armen tar.
 // Pinionens plass og kjedehjulenes størrelse bestemmer den korteste jordarmen.
 export const moonTrain = {
-  module: 0.5,          // tannstørrelse på fixed og pinion
+  module: 0.35,          // tannstørrelse på fixed og pinion
   thickness: 0.6,
   chamfer: 0.15,
   backlash: 0.1,
@@ -168,7 +174,7 @@ export const tilt = {
 export const bodies = {
   sunRadius: 6,
   earthRadius: planetSize('earth'),
-  height: 41.5,       // høyden på sentrum av sola og alle planetene (feilmelding hvis den er for lav)
+  height: 43,         // høyden på sentrum av sola og alle planetene (feilmelding hvis den er for lav)
   moonRadius: moonSize('moon'),
   moonOrbit: 4,       // avstanden fra jorda til månen (lavere gir for liten føringsring under jorda)
 };

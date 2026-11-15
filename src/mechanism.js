@@ -255,17 +255,25 @@ export const layout = {
   earth: { x: armLengths.earth, y: 0 },
 };
 
-// Kjedet fra mellomakselen til forlegsakselen. Det regnes ut langs +x fra
-// mellomakselen og dreies på plass med outerFrame.
-export const outerFrame = {
-  origin: layout.drive,
-  angle: Math.atan2(layout.lay.y - layout.drive.y, layout.lay.x - layout.drive.x),
-};
-const layDistance = Math.hypot(layout.lay.x - layout.drive.x, layout.lay.y - layout.drive.y);
-export const outerChain = makeChain(
-  'Kjedet til forlegsakselen', { x: 0, y: 0 }, { x: layDistance, y: 0 },
-  outerDrive.driveSprocket, outerDrive.laySprocket, outerDrive.chainPitch
+// Kjedene nederst i tårnet går mellom to punkter i planet. Hvert regnes ut
+// langs +x fra det første punktet og dreies på plass med sin ramme.
+const frameBetween = (from, to) => ({
+  origin: from,
+  angle: Math.atan2(to.y - from.y, to.x - from.x),
+  span: Math.hypot(to.x - from.x, to.y - from.y),
+});
+const chainAlong = (name, frame, teeth1, teeth2) => makeChain(
+  name, { x: 0, y: 0 }, { x: frame.span, y: 0 }, teeth1, teeth2, outerDrive.chainPitch
 );
+
+// Første kjede: fra mellomakselen til det løse hjulet på sentralakselen.
+export const driveFrame = frameBetween(layout.drive, layout.center);
+export const driveChain = chainAlong('Kjedet til sentralakselen', driveFrame, outerDrive.driveSprocket, outerDrive.idlerLarge);
+// Andre kjede: fra det løse hjulet til forlegsakselen.
+export const layFrame = frameBetween(layout.center, layout.lay);
+export const layChain = chainAlong('Kjedet til forlegsakselen', layFrame, outerDrive.idlerSmall, outerDrive.laySprocket);
+// De to kjedehjulene på det løse hjulet holdes sammen av et nav rundt sentralakselen.
+export const idlerHub = center.axleRadius + 0.3;
 
 // Månekjedet: fra kjedehjulet på pinion-akselen til kjedehjulet under jorda.
 export const moonChain = makeChain('Månekjedet', layout.pinion, layout.earth, driveSprocket.teeth, moonSprocket.teeth);
@@ -281,7 +289,7 @@ export const moonPerYear = (fixed.teeth / pinion.teeth) * (driveSprocket.teeth /
 
 // Hvor mange ganger røret går rundt per omdreining av mellomakselen.
 const tubeRate = (p) => (p.layTeeth
-  ? (outerDrive.driveSprocket / outerDrive.laySprocket) * (p.layTeeth / p.tubeTeeth)
+  ? (outerDrive.driveSprocket / outerDrive.idlerLarge) * (outerDrive.idlerSmall / outerDrive.laySprocket) * (p.layTeeth / p.tubeTeeth)
   : p.driveTeeth / p.tubeTeeth);
 
 // Omløpstiden i år for en planet, slik tanntallene gir den. Mellomakselen går
@@ -299,10 +307,12 @@ export function anglesAt(input) {
   // Inngangen dreier mellomakselen med klokka, så armene går mot klokka (som planetene).
   const driveAngle = -input;
 
-  // Kjedet til forlegsakselen (i kjedets eget koordinatsystem), som beholder
-  // dreieretningen.
-  const outerChainOffset = outerChain.offsetFor(driveAngle - outerFrame.angle);
-  const layAngle = outerChain.angle2For(outerChainOffset) + outerFrame.angle;
+  // De to kjedene nederst (hvert i sitt eget koordinatsystem), som beholder
+  // dreieretningen: mellomakselen → det løse hjulet → forlegsakselen.
+  const driveChainOffset = driveChain.offsetFor(driveAngle - driveFrame.angle);
+  const idlerAngle = driveChain.angle2For(driveChainOffset) + driveFrame.angle;
+  const layChainOffset = layChain.offsetFor(idlerAngle - layFrame.angle);
+  const layAngle = layChain.angle2For(layChainOffset) + layFrame.angle;
 
   // Hjulparene nederst: hvert rør får sin vinkel fra sitt hjul på mellomakselen
   // eller forlegsakselen.
@@ -326,7 +336,7 @@ export function anglesAt(input) {
   const parallelAngle = parallelChain.angle2For(parallelChainOffset);
 
   return {
-    driveAngle, outerChainOffset, layAngle, armAngle, planetAngles, fixedAngle, pinionAngle,
+    driveAngle, driveChainOffset, idlerAngle, layChainOffset, layAngle, armAngle, planetAngles, fixedAngle, pinionAngle,
     moonChainOffset, moonAngle, parallelChainOffset, parallelAngle,
   };
 }
@@ -366,8 +376,8 @@ export function moonLift(angles) {
 }
 
 // --- Høyder ---
-// Nederst i tårnet ligger kjedet til forlegsakselen (der står bare
-// sentralakselen, så det store kjedehjulet får plass), og over det ett hjulpar
+// Nederst i tårnet ligger de to kjedene til forlegsakselen, over hverandre (der
+// står bare sentralakselen, så det løse hjulet får plass), og over dem ett hjulpar
 // per rør innenfra og ut (de faste rørene har en brakett i stedet). Over
 // tårnet ligger armene, utenfra og inn, så den lengste armen er nederst. Over
 // en arm med månehjulverk ligger en stabel (fast hjul og pinion, eventuelt
@@ -376,8 +386,9 @@ const plateDepth = 0.3; // så langt stikker lenkeplatene under og over kjedehju
 export const heights = (() => {
   const h = { gap, chainGap, bottom: {}, arm: {}, stack: {} };
 
-  h.outerChain = plateDepth + gap;
-  let y = h.outerChain + moonTrain.thickness + plateDepth + gap;
+  h.driveChain = plateDepth + gap;                                // første kjede
+  h.layChain = h.driveChain + moonTrain.thickness + chainGap;     // andre kjede
+  let y = h.layChain + moonTrain.thickness + plateDepth + gap;
   for (const t of tubes) {
     h.bottom[t.name] = y;
     y += (t.fixed ? arm.thickness : gear.thickness) + gap;
@@ -450,12 +461,19 @@ export const heights = (() => {
   check('earth', smallGear.teeth, bigGear.teeth);
   for (const [name, p] of Object.entries(planets)) check(name, p.driveTeeth ?? p.layTeeth, p.tubeTeeth);
 
-  // Kjedet til forlegsakselen ligger nederst, der bare sentralakselen står.
-  const big = outerChain.radius2 + outerChain.rollerRadius * 1.3;
-  if (drive.distance - big < center.axleRadius + clear) {
-    throw new Error('Det store kjedehjulet på forlegsakselen går inn i sentralakselen: øk drive.distance eller gjør outerDrive.laySprocket mindre.');
+  // Kjedene til forlegsakselen ligger nederst, der bare sentralakselen står.
+  const edge = (chain, r) => r + chain.rollerRadius * 1.3;   // kjedehjulet med kjedet rundt
+  const root = (chain, r) => r - chain.rollerRadius * 1.1;   // bunnen mellom tennene
+  if (drive.distance - edge(driveChain, driveChain.radius2) < drive.shaftRadius + clear) {
+    throw new Error('Det store løse kjedehjulet på sentralakselen går inn i mellomakselen eller forlegsakselen: gjør outerDrive.idlerLarge mindre.');
   }
-  if (outerChain.radius1 - outerChain.rollerRadius * 1.1 < drive.shaftRadius + 0.2) {
+  if (drive.distance - edge(layChain, layChain.radius2) < center.axleRadius + clear) {
+    throw new Error('Kjedehjulet på forlegsakselen går inn i sentralakselen: gjør outerDrive.laySprocket mindre.');
+  }
+  if (root(driveChain, driveChain.radius1) < drive.shaftRadius + 0.2) {
     throw new Error('Det lille kjedehjulet på mellomakselen er for lite til akselen: øk outerDrive.driveSprocket.');
+  }
+  if (root(layChain, layChain.radius1) < idlerHub + 0.2) {
+    throw new Error('Det lille løse kjedehjulet er for lite til navet på sentralakselen: øk outerDrive.idlerSmall.');
   }
 }

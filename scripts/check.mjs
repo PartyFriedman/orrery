@@ -24,7 +24,8 @@ const C = await import(new URL('config.js', src).href);
 const M = await import(new URL('mechanism.js', src).href);
 const { drive, outerDrive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, tilt } = C;
 const {
-  tube, tubes, heights: h, layout, anglesAt, pairModule, moonChain, parallelChain, outerChain, outerFrame,
+  tube, tubes, heights: h, layout, anglesAt, pairModule, moonChain, parallelChain,
+  driveChain, driveFrame, layChain, layFrame, idlerHub,
   moonRing, moonLift, earthAxis, armParts: AP, armLengths, moonSystems, mechanismOf, order, reach,
 } = M;
 let problems = 0;
@@ -62,11 +63,12 @@ let problems = 0;
     return [n, worst];
   };
   let rollers = 0, worst = 0;
-  const layDist = Math.hypot(layout.lay.x - layout.drive.x, layout.lay.y - layout.drive.y);
+  const O0 = { x: 0, y: 0 };
   for (const t of [0, 0.7, 3.1, 11.9, 1234.5]) {
     const a = anglesAt(t);
     for (const [n, w] of [
-      seat(outerChain, { x: 0, y: 0 }, { x: layDist, y: 0 }, outerDrive.driveSprocket, outerDrive.laySprocket, a.driveAngle - outerFrame.angle, a.layAngle - outerFrame.angle, a.outerChainOffset),
+      seat(driveChain, O0, { x: driveFrame.span, y: 0 }, outerDrive.driveSprocket, outerDrive.idlerLarge, a.driveAngle - driveFrame.angle, a.idlerAngle - driveFrame.angle, a.driveChainOffset),
+      seat(layChain, O0, { x: layFrame.span, y: 0 }, outerDrive.idlerSmall, outerDrive.laySprocket, a.idlerAngle - layFrame.angle, a.layAngle - layFrame.angle, a.layChainOffset),
       seat(moonChain, layout.pinion, layout.earth, moonTrain.driveSprocket.teeth, moonTrain.moonSprocket.teeth, a.pinionAngle, a.moonAngle, a.moonChainOffset),
       seat(parallelChain, layout.center, layout.earth, moonTrain.parallelSprocket.teeth, moonTrain.parallelSprocket.teeth, a.fixedAngle, a.parallelAngle, a.parallelChainOffset),
     ]) { rollers += n; worst = Math.max(worst, w); }
@@ -133,17 +135,24 @@ for (const name of order) {
   const body = name !== 'earth' && planets[name].layTeeth ? 'lay' : 'drive';
   add(body, `hjul for ${name}`, ...around(d, tipOf(m, c)), h.bottom[name], h.bottom[name] + gear.thickness, { mesh: [`tubegear-${name}`] });
 }
-add('drive', 'lite kjedehjul', ...around(d, sTip(outerChain.radius1, outerChain)), h.outerChain, h.outerChain + mT, { mesh: ['outerChain'] });
-add('lay', 'stort kjedehjul', ...around(d, sTip(outerChain.radius2, outerChain)), h.outerChain, h.outerChain + mT, { mesh: ['outerChain'] });
-{
+// De to kjedene nederst og det løse hjulet på sentralakselen
+add('drive', 'lite kjedehjul', ...around(d, sTip(driveChain.radius1, driveChain)), h.driveChain, h.driveChain + mT);
+add('idler', 'stort løst kjedehjul', center.axleRadius, sTip(driveChain.radius2, driveChain), h.driveChain, h.driveChain + mT);
+add('idler', 'nav på løst hjul', center.axleRadius, idlerHub, h.driveChain + mT, h.layChain);
+add('idler', 'lite løst kjedehjul', center.axleRadius, sTip(layChain.radius1, layChain), h.layChain, h.layChain + mT);
+add('lay', 'kjedehjul på forlegsakselen', ...around(d, sTip(layChain.radius2, layChain)), h.layChain, h.layChain + mT);
+for (const [body, chain, frame, y, name] of [
+  ['driveChain', driveChain, driveFrame, h.driveChain, 'kjede til sentralakselen'],
+  ['layChain', layChain, layFrame, h.layChain, 'kjede til forlegsakselen'],
+]) {
   let lo = Infinity, hi = 0;
-  const L = outerChain.links * outerChain.pitch;
+  const L = chain.links * chain.pitch, a = frame.angle;
   for (let u = 0; u < L; u += 0.05) {
-    const p = outerChain.point(u), a = outerFrame.angle;
-    const x = outerFrame.origin.x + p.x * Math.cos(a) - p.y * Math.sin(a), y = outerFrame.origin.y + p.x * Math.sin(a) + p.y * Math.cos(a);
-    const r = Math.hypot(x, y); lo = Math.min(lo, r); hi = Math.max(hi, r);
+    const p = chain.point(u);
+    const x = frame.origin.x + p.x * Math.cos(a) - p.y * Math.sin(a), yy = frame.origin.y + p.x * Math.sin(a) + p.y * Math.cos(a);
+    const r = Math.hypot(x, yy); lo = Math.min(lo, r); hi = Math.max(hi, r);
   }
-  add('outerChain', 'kjede til forlegsakselen', lo - plateEnd(outerChain), hi + plateEnd(outerChain), ...chainBand(h.outerChain), { id: 'outerChain' });
+  add(body, name, lo - plateEnd(chain), hi + plateEnd(chain), ...chainBand(y));
 }
 
 // Planetene (og jorda)
@@ -188,7 +197,7 @@ for (const name of order) {
   add('earth', 'månen', ...around(E, bodies.moonOrbit + bodies.moonRadius), H - moonRing.maxLift - bodies.moonRadius, H + moonRing.maxLift + bodies.moonRadius);
 }
 
-const statics = new Set(['fixed', 'drive', 'lay', 'outerChain']);
+const statics = new Set(['fixed', 'drive', 'lay', 'idler', 'driveChain', 'layChain']);
 const meshes = (a, b) => (a.mesh ?? []).includes(b.id) || (b.mesh ?? []).includes(a.id);
 const minA = {};
 let failures = 0;
@@ -216,7 +225,7 @@ const O = { x: 0, y: 0 };
 
 function shapesAt(input) {
   const a = anglesAt(input);
-  const S = { fixed: [], drive: [], lay: [], outerChain: [] };
+  const S = { fixed: [], drive: [], lay: [], idler: [], driveChain: [], layChain: [] };
   S.fixed.push(circ(O, bodies.sunRadius, H - bodies.sunRadius, H + bodies.sunRadius, 'sola'));
   for (const t of tubes.filter((t) => t.fixed)) {
     const s = h.stack[t.owner];
@@ -233,15 +242,21 @@ function shapesAt(input) {
     const lay = name !== 'earth' && planets[name].layTeeth;
     (lay ? S.lay : S.drive).push(circ(lay ? layout.lay : layout.drive, tipOf(m, c), h.bottom[name], h.bottom[name] + gear.thickness, `hjul for ${name}`));
   }
-  S.drive.push(circ(layout.drive, sTip(outerChain.radius1, outerChain), h.outerChain, h.outerChain + mT, 'lite kjedehjul'));
-  S.lay.push(circ(layout.lay, sTip(outerChain.radius2, outerChain), h.outerChain, h.outerChain + mT, 'stort kjedehjul'));
-  {
-    const [y0, y1] = chainBand(h.outerChain);
-    const w = (p) => { const q = rot(p, outerFrame.angle); return { x: q.x + outerFrame.origin.x, y: q.y + outerFrame.origin.y }; };
-    let prev = w(outerChain.point(a.outerChainOffset));
-    for (let i = 1; i <= outerChain.links; i++) {
-      const p = w(outerChain.point(a.outerChainOffset + i * outerChain.pitch));
-      S.outerChain.push(caps(prev, p, plateEnd(outerChain), y0, y1, 'kjede til forlegsakselen'));
+  S.drive.push(circ(layout.drive, sTip(driveChain.radius1, driveChain), h.driveChain, h.driveChain + mT, 'lite kjedehjul'));
+  S.idler.push(circ(O, sTip(driveChain.radius2, driveChain), h.driveChain, h.driveChain + mT, 'stort løst kjedehjul'));
+  S.idler.push(circ(O, idlerHub, h.driveChain + mT, h.layChain, 'nav på løst hjul'));
+  S.idler.push(circ(O, sTip(layChain.radius1, layChain), h.layChain, h.layChain + mT, 'lite løst kjedehjul'));
+  S.lay.push(circ(layout.lay, sTip(layChain.radius2, layChain), h.layChain, h.layChain + mT, 'kjedehjul på forlegsakselen'));
+  for (const [key, chain, frame, y, off, tag] of [
+    ['driveChain', driveChain, driveFrame, h.driveChain, a.driveChainOffset, 'kjede til sentralakselen'],
+    ['layChain', layChain, layFrame, h.layChain, a.layChainOffset, 'kjede til forlegsakselen'],
+  ]) {
+    const [y0, y1] = chainBand(y);
+    const w = (p) => { const q = rot(p, frame.angle); return { x: q.x + frame.origin.x, y: q.y + frame.origin.y }; };
+    let prev = w(chain.point(off));
+    for (let i = 1; i <= chain.links; i++) {
+      const p = w(chain.point(off + i * chain.pitch));
+      S[key].push(caps(prev, p, plateEnd(chain), y0, y1, tag));
       prev = p;
     }
   }
@@ -316,8 +331,12 @@ const allowedPair = (s, t) => {
   const tags = [s.tag, t.tag].sort().join('|');
   if (/^hjul for (\w+)\|rørhjul \1$/.test(tags)) return true;                         // hjulpar i inngrep
   if (tags === 'fast hjul earth|pinion' || tags === 'fast kjedehjul earth|parallellkjede') return true;
-  if (tags === 'kjede til forlegsakselen|mellomaksel' || tags === 'forlegsaksel|kjede til forlegsakselen') return true; // kjedet rundt sitt eget kjedehjul på akselen
-  if (/kjede til forlegsakselen/.test(tags) && /kjedehjul/.test(tags) && !/fast/.test(tags)) return true;
+  // Hvert kjede nederst ligger rundt sine egne kjedehjul og akslene de sitter på.
+  const wraps = {
+    'kjede til sentralakselen': ['mellomaksel', 'lite kjedehjul', 'stort løst kjedehjul'],
+    'kjede til forlegsakselen': ['lite løst kjedehjul', 'forlegsaksel', 'kjedehjul på forlegsakselen'],
+  };
+  for (const [chain, list] of Object.entries(wraps)) for (const other of list) if (tags === [chain, other].sort().join('|')) return true;
   for (const n of order) if (new RegExp(`^fast (hjul|kjedehjul) ${n}\\|reservert stabel ${n}$`).test(tags)) return true;
   return false;
 };
