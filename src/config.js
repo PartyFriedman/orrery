@@ -236,6 +236,10 @@ export const bodies = {
 // 'kites' (drager), 'rhombi' (ruter), 'pentagons' (femkanter med ringer rundt),
 // 'bands' (breddebånd, med en mangekant over hver pol) og 'hexagons'
 // (sekskanter, med de 12 femkantene en kule må ha; spart til Saturn).
+// Nyere (se panels.js og testsiden panels.html): 'facets' (uregelmessige
+// trekanter; subdivisions = antall hjørner, f.eks. 30 for få og store),
+// 'boats', 'spiral', 'caps', 'volleyball', 'woven' og 'seam'.
+// Plexus-kuler i stedet for paneler: 'plexusA', 'plexusB' og 'plexusC' (se plexus under).
 // subdivisions: hvor mange biter hver grunnflate deles i langs kanten.
 export const panels = {
   shape: 'curved',    // 'curved' = panelene følger kula (rund silhuett), 'flat' = flate plater
@@ -283,9 +287,9 @@ export const look = {
 
   // Kjedene (ruller og lenkeplater). Standard er det samme som hjulene.
   // Mørkt metall som i fugene: '#303538', metalness 0.6, roughness 0.45.
-  chainColor: '#3d3946',
+  chainColor: '#303538',
   chainMetalness: 1,      // 0 = lakk, 1 = metall
-  chainRoughness: 0.2,    // 0 = speil, 1 = helt matt
+  chainRoughness: 0.5,    // 0 = speil, 1 = helt matt
   chainGloss: 0.70,       // klarlakk-glans oppå (0 = ingen)
 
   // Mørkt metall i fugene mellom panelene.
@@ -302,4 +306,48 @@ export const look = {
   lightSpread: 1.1,           // hvor bred lyskjeglen er (lavere = mer dramatisk fall mot kantene)
   shadowStrength: 0.55,       // hvor mørk skyggen på gulvet er (0–1)
   shadowSoftness: 6,          // hvor myk skyggekanten er
+};
+
+// Plexus-kuler. Vises på testsiden plexus.html, og på en kule i modellen når den
+// har pattern 'plexusA', 'plexusB' eller 'plexusC' i panels over. Tallene her
+// gjelder en kule med radius plexus.radius; på andre kuler skaleres nodene og
+// stengene med radiusen. Tall i panels erstatter dem her for den ene kula, for
+// eksempel jupiter: { pattern: 'plexusB', nodes: 50 }.
+// A og B: noder spredt uregelmessig på kula og bundet sammen i trekanter. Nodene
+// er små kuler i hvit lakk, kantene tynne stenger i mørkt metall. Noen fasetter
+// er fylt, resten åpne, og inni ligger en fasettert kjerne. Nodene driver sakte
+// rundt hvert sitt hvilepunkt langs kula, og kantene følger etter.
+// C: den typiske «motion graphics»-plexusen, til sammenligning: lysende punkter
+// som vandrer over kula, og tynne linjer mellom alle som er nær hverandre. Linjene
+// tones ut med avstanden, og kommer og går mens punktene flytter seg.
+export const plexus = {
+  radius: 3,              // kulenes radius på testsiden
+  A: {                    // tett og fin
+    nodes: 280,           // tettheten: antall noder
+    nodeSize: 0.045,      // radius på nodekulene
+    edgeWidth: 0.012,     // radius på stengene
+    fill: 0.3,            // andel fasetter som er fylt (0–1)
+    speed: 0.05,          // hvor fort nodene driver (svingninger per sekund)
+    drift: 0.3,           // hvor langt de driver, som andel av avstanden mellom noder
+    core: 0.55,           // kjernens radius, som andel av kula (0 = ingen kjerne)
+    seed: 1,              // et annet tall gir en annen tilfeldig fordeling
+  },
+  B: {                    // grov, med få og store fasetter
+    nodes: 34,
+    nodeSize: 0.13,
+    edgeWidth: 0.035,
+    fill: 0.45,
+    speed: 0.04,
+    drift: 0.22,
+    core: 0.6,
+    seed: 7,
+  },
+  C: {                    // typisk motion graphics
+    nodes: 170,
+    nodeSize: 0.8,        // størrelsen på de lysende punktene (med glorie)
+    linkDistance: 0.55,   // linjer mellom punkter nærmere enn dette (andel av radius)
+    speed: 0.08,          // hvor fort punktene vandrer (radianer per sekund)
+    depth: 0.08,          // hvor mye punktene ligger over og under kula (andel av radius)
+    seed: 3,
+  },
 };

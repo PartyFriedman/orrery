@@ -8,6 +8,7 @@ import {
 import { createGearGeometry, createSprocketGeometry } from './gear.js';
 import { createArmGeometry } from './arm.js';
 import { createPanelGeometry } from './panels.js';
+import { createPlexus, plexusPatterns } from './plexus.js';
 import {
   layout, anglesAt, pairModule, tube, tubes, heights, reach as armReach, armParts, armLengths,
   moonChain, parallelChain, driveChain, driveFrame, layChain, layFrame, idlerHub, earthAxis, moonRing, moonLift,
@@ -159,9 +160,17 @@ const redLacquer = new THREE.MeshPhysicalMaterial({
 // En planet som kule av paneler (mønsteret står i panels i config): hvite
 // topper, mørke sider og en mørk kjerne under, som synes i fugene. Sola
 // bruker den samme kula med andre materialer.
+// Med mønsteret 'plexusA', 'plexusB' eller 'plexusC' blir kula en plexus-kule
+// (plexus.js) i stedet. Andre tall i panels[name] erstatter dem i plexus i config.
+const plexusUpdates = []; // flytter nodene i plexus-kulene, se animasjonen nederst
 function addPlanetSphere(parent, radius, name, topMaterial = material, coreMaterial = seamMaterial) {
   const group = new THREE.Group();
   parent.add(group);
+  const { pattern, ...overrides } = panels[name] ?? {};
+  if (plexusPatterns[pattern]) {
+    plexusUpdates.push(createPlexus(group, pattern, radius, { white: topMaterial, metal: seamMaterial }, overrides));
+    return group;
+  }
   const { geometry, coreRadius } = createPanelGeometry({
     radius, shape: panels.shape, seamWidth: panels.seamWidth, seamDepth: panels.seamDepth, ...panels[name],
   });
@@ -627,6 +636,8 @@ renderer.setAnimationLoop((time) => {
   parallelGroup.rotation.y = a.parallelAngle;
   moonGroup.rotation.y = a.moonAngle;
   moonPin.position.y = moonLift(a);
+  // Plexus-kulene driver i vanlig tid, uansett hvor fort modellen går.
+  for (const update of plexusUpdates) update(time / 1000);
 
   controls.update();
   renderer.render(scene, camera);
