@@ -124,10 +124,11 @@ export const armStyle = {
 //                    × (smallGear.teeth / bigGear.teeth)
 // period er bare målet den sammenlignes med.
 // armLength: 'auto' gir den korteste armen som går klar av naboene, eller et tall.
-// moons og ring: plass som reserveres rundt planeten (bygges ikke ennå).
-// mechanism: plass som reserveres over armen til månehjulverk ved sentrum:
+// moons og ring: plass som reserveres rundt planeten (Jupiters måner er bygget).
+// mechanism: mekanikken over armen ved sentrum:
 //   'moons' = fast hjul, pinion og månekjede; 'moons+parallel' = også parallellkjede
-//   (for en akse eller ring som skal holde retningen i rommet).
+//   (for en akse eller ring som skal holde retningen i rommet). Disse er bare reservert.
+//   'moonDrive' = et månerør drevet fra mellomakselen og et kjede langs armen (se jupiterMoons).
 export const planets = {
   mercury: { period: 0.2408, driveTeeth: 29, tubeTeeth: 21, armLength: 'auto', radius: planetSize('mercury') },
   venus:   { period: 0.6152, driveTeeth: 19, tubeTeeth: 35, armLength: 'auto', radius: planetSize('venus') },
@@ -137,7 +138,7 @@ export const planets = {
   },
   jupiter: {
     period: 11.862, layTeeth: 14, tubeTeeth: 44, armLength: 'auto', radius: planetSize('jupiter'),
-    moons: ['io', 'europa', 'ganymede', 'callisto'], mechanism: 'moons',
+    moons: ['io', 'europa', 'ganymede', 'callisto'], mechanism: 'moonDrive',
   },
   saturn:  {
     period: 29.457, layTeeth: 10, tubeTeeth: 78, armLength: 'auto', radius: planetSize('saturn'),
@@ -169,6 +170,45 @@ export const moonTrain = {
   parallelSprocket: { teeth: 36, spokes: 4, spokeWidth: 1, hubWidth: 1.5, rimWidth: 1 },
 };
 
+// Jupiters fire måner. Månene går for fort til et fast hjul ved sentrum, så de
+// drives fra mellomakselen: et hjulpar i tårnet dreier et månerør (inni
+// Jupiter-røret), og et kjede over Jupiter-armen tar bevegelsen ut til en
+// krage som går løst på Jupiter-stolpen. Kragen driver en forlegsaksel på
+// armen, og forlegsakselen driver ett rør per måne rundt stolpen:
+//   Io, Europa og Ganymedes: 32→16, 24→24, 16→32. Sett fra armen går de
+//   nøyaktig 4 : 2 : 1, som i den ekte resonansen.
+//   Callisto: 10→47, det samme paret som kragen baklengs.
+// Rørene ligger med Io innerst, så Io har hjulet nederst og armen øverst.
+// Runder per runde månerøret tar, sett fra armen:
+//   (tubeSprocket / collarSprocket) × (collarTeeth / collarPinion) × (forlegg / måne)
+// periods er bare målet (sidereale omløpstider i dager).
+export const jupiterMoons = {
+  periods: { io: 1.769138, europa: 3.551181, ganymede: 7.154553, callisto: 16.689018 },
+  driveTeeth: 27,       // hjulet på mellomakselen
+  tubeTeeth: 20,        // hjulet nederst på månerøret
+  tubeSprocket: 66,     // kjedehjulet øverst på månerøret, over Jupiter-armen
+  collarSprocket: 12,   // kjedehjulet nederst på kragen ved Jupiter
+  chainPitch: 1.0,      // ledd-lengden i kjedet langs armen
+  collarTeeth: 47,      // tannhjulet på kragen
+  collarPinion: 10,     // hjulet på forlegsakselen som kragen driver
+  steps: {              // [hjulet på forlegsakselen, hjulet på månerøret]
+    io: [32, 16],
+    europa: [24, 24],
+    ganymede: [16, 32],
+    callisto: [10, 47],
+  },
+  layDistance: 6,       // fra Jupiter-stolpen inn til forlegsakselen (alle parene når over den)
+  shaftRadius: 0.5,     // forlegsakselen
+  tubeWall: 0.3,        // veggen i hvert månerør
+  thickness: 0.5,       // tykkelsen på hjulene ved Jupiter
+  chamfer: 0.1,
+  backlash: 0.05,
+  armThickness: 0.4,    // månearmene
+  armWidth: 0.9,        // bredden på månearmene ved røret
+  postRadius: 0.2,      // stolpene opp til månene
+  topGap: 1.0,          // fra undersiden av Jupiter ned til toppen av den øverste månearmen
+};
+
 // Hellingene som parallellføringen holder i samme retning i rommet.
 // Retninger er grader rundt, sett ovenfra: 0 = mot høyre (+x), 90 = bakover.
 // equinoxDirection er retningen fra sola mot vårjevndøgnspunktet (lengde 0°),
@@ -196,6 +236,10 @@ export const bodies = {
 // 'kites' (drager), 'rhombi' (ruter), 'pentagons' (femkanter med ringer rundt),
 // 'bands' (breddebånd, med en mangekant over hver pol) og 'hexagons'
 // (sekskanter, med de 12 femkantene en kule må ha; spart til Saturn).
+// Nyere (se panels.js og testsiden panels.html): 'facets' (uregelmessige
+// trekanter; subdivisions = antall hjørner, f.eks. 30 for få og store),
+// 'boats', 'spiral', 'caps', 'volleyball', 'woven' og 'seam'.
+// Plexus-kuler i stedet for paneler: 'plexusA', 'plexusB' og 'plexusC' (se plexus under).
 // subdivisions: hvor mange biter hver grunnflate deles i langs kanten.
 export const panels = {
   shape: 'curved',    // 'curved' = panelene følger kula (rund silhuett), 'flat' = flate plater
@@ -209,6 +253,10 @@ export const panels = {
   mars:    { pattern: 'quads',     subdivisions: 3 },  // 54 firkanter
   moon:    { pattern: 'pentagons', subdivisions: 1 },  // 12 femkanter med en ring av trapeser rundt (72 paneler)
   jupiter: { pattern: 'bands',     subdivisions: 3 },  // 7 bånd à 16 firkanter, og en 16-kant over hver pol
+  io:       { pattern: 'quads', subdivisions: 1 },     // Jupiters måner: 6 firkanter hver
+  europa:   { pattern: 'quads', subdivisions: 1 },
+  ganymede: { pattern: 'quads', subdivisions: 1 },
+  callisto: { pattern: 'quads', subdivisions: 1 },
   saturn:  { pattern: 'hexagons',  subdivisions: 3 },  // 80 sekskanter og 12 femkanter
   // Sola: fire like paneler fra et tetraeder, der hver kant er en S-kurve (som
   // Trionda-ballen). amplitude er hvor langt S-en svinger ut (andel av
@@ -237,6 +285,13 @@ export const look = {
   gloss: 0.70,            // klarlakk-glans oppå (0 = ingen, 1 = full)
   glossRoughness: 0.3,    // hvor myk glansen er (lav = skarpere refleksjoner)
 
+  // Kjedene (ruller og lenkeplater). Standard er det samme som hjulene.
+  // Mørkt metall som i fugene: '#303538', metalness 0.6, roughness 0.45.
+  chainColor: '#303538',
+  chainMetalness: 1,      // 0 = lakk, 1 = metall
+  chainRoughness: 0.5,    // 0 = speil, 1 = helt matt
+  chainGloss: 0.70,       // klarlakk-glans oppå (0 = ingen)
+
   // Mørkt metall i fugene mellom panelene.
   seamColor: '#303538',
   seamMetalness: 0.6,
@@ -251,4 +306,48 @@ export const look = {
   lightSpread: 1.1,           // hvor bred lyskjeglen er (lavere = mer dramatisk fall mot kantene)
   shadowStrength: 0.55,       // hvor mørk skyggen på gulvet er (0–1)
   shadowSoftness: 6,          // hvor myk skyggekanten er
+};
+
+// Plexus-kuler. Vises på testsiden plexus.html, og på en kule i modellen når den
+// har pattern 'plexusA', 'plexusB' eller 'plexusC' i panels over. Tallene her
+// gjelder en kule med radius plexus.radius; på andre kuler skaleres nodene og
+// stengene med radiusen. Tall i panels erstatter dem her for den ene kula, for
+// eksempel jupiter: { pattern: 'plexusB', nodes: 50 }.
+// A og B: noder spredt uregelmessig på kula og bundet sammen i trekanter. Nodene
+// er små kuler i hvit lakk, kantene tynne stenger i mørkt metall. Noen fasetter
+// er fylt, resten åpne, og inni ligger en fasettert kjerne. Nodene driver sakte
+// rundt hvert sitt hvilepunkt langs kula, og kantene følger etter.
+// C: den typiske «motion graphics»-plexusen, til sammenligning: lysende punkter
+// som vandrer over kula, og tynne linjer mellom alle som er nær hverandre. Linjene
+// tones ut med avstanden, og kommer og går mens punktene flytter seg.
+export const plexus = {
+  radius: 3,              // kulenes radius på testsiden
+  A: {                    // tett og fin
+    nodes: 280,           // tettheten: antall noder
+    nodeSize: 0.045,      // radius på nodekulene
+    edgeWidth: 0.012,     // radius på stengene
+    fill: 0.3,            // andel fasetter som er fylt (0–1)
+    speed: 0.05,          // hvor fort nodene driver (svingninger per sekund)
+    drift: 0.3,           // hvor langt de driver, som andel av avstanden mellom noder
+    core: 0.55,           // kjernens radius, som andel av kula (0 = ingen kjerne)
+    seed: 1,              // et annet tall gir en annen tilfeldig fordeling
+  },
+  B: {                    // grov, med få og store fasetter
+    nodes: 34,
+    nodeSize: 0.13,
+    edgeWidth: 0.035,
+    fill: 0.45,
+    speed: 0.04,
+    drift: 0.22,
+    core: 0.6,
+    seed: 7,
+  },
+  C: {                    // typisk motion graphics
+    nodes: 170,
+    nodeSize: 0.8,        // størrelsen på de lysende punktene (med glorie)
+    linkDistance: 0.55,   // linjer mellom punkter nærmere enn dette (andel av radius)
+    speed: 0.08,          // hvor fort punktene vandrer (radianer per sekund)
+    depth: 0.08,          // hvor mye punktene ligger over og under kula (andel av radius)
+    seed: 3,
+  },
 };

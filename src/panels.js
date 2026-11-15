@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { random, spread, triangulate } from './scatter.js';
 
 // Kuler av paneler med fuger imellom. Hver kule kan ha sitt eget mønster:
 //
@@ -11,8 +12,22 @@ import * as THREE from 'three';
 //   'hexagons'   sekskanter, med de 12 femkantene en kule må ha
 //   'trionda'    fire like paneler fra et tetraeder, med S-formede kanter
 //                (styres med amplitude og bulge i stedet for subdivisions)
+//   'volleyball' tre striper per kubeside, på tvers av stripene på nabosidene
+//   'woven'      flettet: hver kubeside i 2 × 2 ruter, hver med subdivisions
+//                striper, annenhver rute på tvers
+//   'caps'       to store polarhetter og et belte rundt ekvator i subdivisions biter
+//   'boats'      subdivisions båtformede paneler fra pol til pol, som båtene i en appelsin
+//   'spiral'     subdivisions båter som vrir seg en kvart runde fra ekvator til hver pol
+//   'seam'       nesten glatt: to paneler med én bølgende fuge, som en tennisball
+//   'facets'     uregelmessige trekanter (ikke geodesisk), som plexus A og B, men
+//                som paneler med fuger. subdivisions er antall hjørner: rundt 30
+//                gir få, store fasetter, et par hundre gir tette og fine
 //
-// subdivisions sier hvor mange biter hver grunnflate deles i langs kanten.
+// subdivisions sier hvor mange biter hver grunnflate deles i langs kanten
+// (for boats, spiral og caps: hvor mange paneler; for facets: hvor mange hjørner).
+//
+// Plexus-kulene ('plexusA', 'plexusB', 'plexusC') er ikke paneler, og lages i
+// plexus.js. De kan likevel settes som pattern i panels i config.js.
 //
 // Hvert panel er en mangekant krympet like mye inn fra alle kantene, så fugene
 // blir like brede overalt. Panelene er enten buet etter kula eller flate plater
@@ -203,8 +218,120 @@ const patterns = {
     }
     return out;
   },
+
+  volleyball(n) {
+    // Hver kubeside deles i n striper. På siden mot x går stripene langs y, mot
+    // y langs z og mot z langs x, så stripene på to nabosider står på tvers.
+    const out = [];
+    const axes = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
+    for (let k = 0; k < 3; k++) for (const sign of [1, -1]) {
+      const at = cubeFace(axes, k, sign);
+      for (let j = 0; j < n; j++) out.push([at(0, j / n), at(1, j / n), at(1, (j + 1) / n), at(0, (j + 1) / n)]);
+    }
+    return out;
+  },
+
+  woven(n) {
+    // Hver kubeside i 2 × 2 ruter, hver med n striper. Annenhver rute har
+    // stripene på tvers, som en kurv.
+    const out = [];
+    const axes = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
+    for (let k = 0; k < 3; k++) for (const sign of [1, -1]) {
+      const at = cubeFace(axes, k, sign);
+      for (let ci = 0; ci < 2; ci++) for (let cj = 0; cj < 2; cj++) {
+        const s0 = ci / 2, t0 = cj / 2;
+        for (let j = 0; j < n; j++) {
+          const a = j / (2 * n), b = (j + 1) / (2 * n);
+          out.push((ci + cj) % 2 === 0
+            ? [at(s0, t0 + a), at(s0 + 0.5, t0 + a), at(s0 + 0.5, t0 + b), at(s0, t0 + b)]
+            : [at(s0 + a, t0), at(s0 + b, t0), at(s0 + b, t0 + 0.5), at(s0 + a, t0 + 0.5)]);
+        }
+      }
+    }
+    return out;
+  },
+
+  facets(n) {
+    // n hjørner spredt uregelmessig, men jevnt, og trekantene mellom dem. Samme
+    // antall gir alltid samme mønster.
+    const points = spread(Math.max(6, n), random(n));
+    return triangulate(points).map((f) => f.map((i) => points[i]));
+  },
 };
-export const panelPatterns = [...Object.keys(patterns), 'trionda'];
+
+// Punktet (s, t) på en kubeside, der s og t går fra 0 til 1, blåst opp til kula
+// med tangens så rutene blir omtrent like store (som i quads).
+function cubeFace(axes, k, sign) {
+  const normal = axes[k].clone().multiplyScalar(sign);
+  const u = axes[(k + 1) % 3];
+  const w = axes[(k + 2) % 3].clone().multiplyScalar(sign);
+  return (s, t) => normal.clone()
+    .addScaledVector(u, Math.tan((Math.PI / 4) * (2 * s - 1)))
+    .addScaledVector(w, Math.tan((Math.PI / 4) * (2 * t - 1)))
+    .normalize();
+}
+
+// --- Store paneler med buede kanter ---
+// Disse panelene er for store eller for buede til å være mangekanter. Hvert er
+// et tett omriss på kula og et punkt midt i panelet; de fylles som trionda.
+const curveSamples = 160; // punkter langs hver kant fra pol til pol
+const lonLat = (lon, lat) => new THREE.Vector3(Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon));
+function gores(n, twist) {
+  // n båter fra pol til pol. twist: hvor mye kanten dreier fra ekvator til polen.
+  const edge = (lon0) => Array.from({ length: curveSamples + 1 }, (_, i) => {
+    const lat = -Math.PI / 2 + (Math.PI * i) / curveSamples;
+    return lonLat(lon0 + twist * (lat / (Math.PI / 2)), lat);
+  });
+  const width = (Math.PI * 2) / n;
+  return Array.from({ length: n }, (_, k) => {
+    const left = edge(k * width), right = edge((k + 1) * width);
+    // Opp langs den ene kanten og ned langs den andre; polene tas med én gang.
+    return {
+      center: lonLat((k + 0.5) * width, 0),
+      outline: [...left.slice(0, -1), ...right.reverse().slice(0, -1)],
+    };
+  });
+}
+const regionPatterns = {
+  boats: (n) => gores(Math.max(3, n), 0),
+  spiral: (n) => gores(Math.max(3, n), Math.PI / 2),
+  caps(n) {
+    // To store polarhetter over 45° bredde, og et belte rundt ekvator i n biter.
+    const capLatitude = Math.PI / 4;
+    const steps = 48; // punkter per bit langs breddesirkelen
+    const around = n * steps;
+    const lon = (j) => (j / around) * Math.PI * 2;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const top = [], bottom = [], up = [], down = [];
+      for (let j = i * steps; j <= (i + 1) * steps; j++) {
+        top.push(lonLat(lon(j), capLatitude));
+        bottom.push(lonLat(lon(j), -capLatitude));
+      }
+      // Sidekantene langs lengdegradene, fint oppdelt.
+      for (let k = 1; k < 16; k++) {
+        const lat = -capLatitude + (2 * capLatitude * k) / 16;
+        up.push(lonLat(lon((i + 1) * steps), lat));
+        down.unshift(lonLat(lon(i * steps), lat));
+      }
+      out.push({ center: lonLat(lon((i + 0.5) * steps), 0), outline: [...bottom, ...up, ...top.reverse(), ...down] });
+    }
+    const cap = (lat) => Array.from({ length: around }, (_, j) => lonLat(lon(j), lat));
+    out.push({ center: new THREE.Vector3(0, 1, 0), outline: cap(capLatitude) });    // nordpolen
+    out.push({ center: new THREE.Vector3(0, -1, 0), outline: cap(-capLatitude) });  // sørpolen
+    return out;
+  },
+  seam() {
+    // Tennisballkurven: a + b = 1 holder den på kula, og b sier hvor mye den bølger.
+    const a = 0.8, b = 0.2;
+    const outline = Array.from({ length: 480 }, (_, i) => {
+      const t = (i / 480) * Math.PI * 2;
+      return new THREE.Vector3(a * Math.cos(t) + b * Math.cos(3 * t), 2 * Math.sqrt(a * b) * Math.sin(2 * t), -(a * Math.sin(t) - b * Math.sin(3 * t)));
+    });
+    return [{ center: new THREE.Vector3(0, 1, 0), outline }, { center: new THREE.Vector3(0, -1, 0), outline }];
+  },
+};
+export const panelPatterns = [...Object.keys(patterns), ...Object.keys(regionPatterns), 'trionda'];
 
 // --- Trionda: fire like paneler fra et tetraeder, med S-formede kanter ---
 // Tetraederets fire hjørner på kula. Hver kant byttes ut med en S-kurve.
@@ -362,6 +489,32 @@ function triondaOutlines(amplitude, bulge, inset) {
   });
 }
 
+// Krymper et stort panel med buede kanter, så det blir fuger. Omrisset legges
+// flatt med stereografisk projeksjon rundt midten, og hvert punkt flyttes
+// innover langs halveringslinjen mellom de to kantbitene ved punktet. Projeksjonen
+// forstørrer med 1 / (1 + p · c), så flyttet skaleres med det og fugen blir like
+// bred på kula overalt. Spisse hjørner (som båtene ved polene) blir riktige.
+function insetRegion({ center, outline }, inset) {
+  const proj = stereographic(center);
+  let points = outline.map(proj.to);
+  let source = outline;
+  let area = 0;
+  points.forEach((p, i) => { const q = points[(i + 1) % points.length]; area += p.x * q.y - q.x * p.y; });
+  if (area < 0) { points = [...points].reverse(); source = [...outline].reverse(); }
+  const n = points.length;
+  const moved = points.map((p, i) => {
+    const d1 = p.clone().sub(points[(i - 1 + n) % n]).normalize();
+    const d2 = points[(i + 1) % n].clone().sub(p).normalize();
+    const n1 = new THREE.Vector2(-d1.y, d1.x), n2 = new THREE.Vector2(-d2.y, d2.x); // innover (til venstre)
+    const bisector = n1.clone().add(n2);
+    if (bisector.lengthSq() < 1e-12) bisector.copy(n1);
+    bisector.normalize();
+    const shift = inset / (1 + source[i].dot(center)) / Math.max(0.2, bisector.dot(n1));
+    return p.clone().addScaledVector(bisector, shift);
+  });
+  return { center, outline: moved.map(proj.from) };
+}
+
 // Krymper en flat, konveks mangekant (2D, mot klokka) så hver kant flytter seg
 // `inset` innover. Hvert nytt hjørne er der to forskjøvne kanter krysser.
 function insetPolygon(points, inset) {
@@ -393,8 +546,11 @@ export function createPanelGeometry({
   radius, pattern, subdivisions, seamWidth, seamDepth, shape = 'curved', amplitude = 0, bulge = 0,
 }) {
   if (shape !== 'curved' && shape !== 'flat') throw new Error(`Ukjent panelform '${shape}'. Velg 'curved' eller 'flat'.`);
+  if (pattern.startsWith('plexus')) throw new Error(`'${pattern}' er en plexus-kule og lages med createPlexus i plexus.js, ikke som paneler.`);
   if (!panelPatterns.includes(pattern)) throw new Error(`Ukjent panelmønster '${pattern}'. Velg mellom: ${panelPatterns.join(', ')}.`);
-  const polygons = pattern === 'trionda' ? [] : patterns[pattern](Math.max(1, Math.round(subdivisions)));
+  const count = Math.max(1, Math.round(subdivisions));
+  const polygons = patterns[pattern] ? patterns[pattern](count) : [];
+  const regions = regionPatterns[pattern] ? regionPatterns[pattern](count) : [];
 
   const tops = [];      // toppen av panelene
   const topNormals = [];
@@ -477,13 +633,16 @@ export function createPanelGeometry({
     }
   }
 
-  // Trionda: fire store paneler med S-kanter. Hvert panel fylles med punkter på
-  // kula (kanten og et rutenett innenfor), som deles i trekanter. Alle punktene
-  // ligger på kula, så panelene er alltid buet, også når shape er 'flat'.
-  if (pattern === 'trionda') {
+  // Store paneler (trionda, og båter, spiral og tennisball): hvert panel fylles
+  // med punkter på kula (kanten og et rutenett innenfor), som deles i trekanter.
+  // Alle punktene ligger på kula, så panelene er alltid buet, også når shape er 'flat'.
+  const large = pattern === 'trionda'
+    ? triondaOutlines(amplitude, bulge, seamWidth / 2 / radius)
+    : regions.map((r) => insetRegion(r, seamWidth / 2 / radius));
+  if (large.length) {
     const down = 1 - (seamDepth * 2) / radius;
     const spacing = curveStep / 2; // i projeksjonen er avstandene omtrent halvparten av vinkelen
-    for (const { center, outline } of triondaOutlines(amplitude, bulge, seamWidth / 2 / radius)) {
+    for (const { center, outline } of large) {
       const proj = stereographic(center);
       const edge2 = outline.map(proj.to);
       // Rutenett innenfor kanten, med litt avstand til den.
@@ -541,6 +700,6 @@ export function createPanelGeometry({
 
   // Kjernen ligger seamDepth under det laveste punktet på panelene, så fugene
   // går ned til den overalt.
-  return { geometry, coreRadius: lowest - seamDepth, count: pattern === 'trionda' ? 4 : polygons.length };
+  return { geometry, coreRadius: lowest - seamDepth, count: polygons.length + large.length };
 }
 
