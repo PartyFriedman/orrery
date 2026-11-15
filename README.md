@@ -27,6 +27,9 @@ Open the address Vite prints (usually http://localhost:5173). Drag with the mous
 | `npm run dev`     | Starts a dev server with live reload         |
 | `npm run build`   | Builds a production version into `dist/`     |
 | `npm run preview` | Serves the production build locally          |
+| `npm run check`   | Checks periods, chains and collisions (about 1.5 min) |
+
+Run `npm run check` after changing numbers in the config. It checks that every orbital period is within 1 % of its target, that the chain rollers sit in the sprocket seats, and that no parts collide at any angle, including the space reserved for future moons and Saturn's ring. Pass larger numbers for a longer simulation, for example `node scripts/check.mjs 100000 10000`.
 
 ## Tweaking
 
@@ -58,3 +61,4 @@ Arm lengths, shaft positions, tube order, heights, tooth sizes, chain lengths an
 - [src/arm.js](src/arm.js): builds the tapered arms with rounded ends and a soft transition into the hub
 - [src/panels.js](src/panels.js): builds the planet spheres from panels with dark seams, in a different pattern for each body
 - [src/config.js](src/config.js): all the settings
+- [scripts/check.mjs](scripts/check.mjs): the checks behind `npm run check`
