@@ -3,7 +3,8 @@
 ## Prosjekt og status
 - Mappe: `c:\Users\oyvin\Desktop\Projects\Vibekoding\claudecode_VScode\orrery` (Vite + three.js, `npm run dev` / `npm run build`). Repo: PartyFriedman/orrery, publiseres til GitHub Pages fra `main` via `.github/workflows/deploy.yml` (base `/orrery/` i `vite.config.js`).
 - Gren: `Outer-Planets`. Jupiter og Saturn, den kompakte modellen og `npm run check` er committet her, men ikke merget til `main` ennå.
-- Siste steg (ferdig): Jupiter og Saturn i en kompakt modell, med plass reservert til senere månemekanikk. Bygget går gjennom, og `npm run check` sier «Alt i orden».
+- Forrige steg (ferdig): Jupiter og Saturn i en kompakt modell, med plass reservert til senere månemekanikk.
+- Siste steg (ferdig, ikke committet): det store kjedehjulet 12→136 er byttet ut med to kjeder via et løst hjul på sentralakselen (se Mekanikken). Tårnet ble 1,5 høyere, så `bodies.height` er satt fra 41,5 til 43; den må være minst 42,7. Bygget går gjennom, og `npm run check` sier «Alt i orden».
 
 ## Arbeidsregler (fra brukeren)
 - Svar på norsk. Forklar kort hva som endret seg.
@@ -26,12 +27,17 @@
 - **Planetene:**
   - Jorda: 12→36, så mellomakselen går 3 ganger per år.
   - Merkur 29→21, Venus 19→35 og Mars 11→62 drives direkte fra mellomakselen.
-  - Jupiter og Saturn: kjede 12→136 helt nederst til en forlegsaksel 60° fra mellomakselen (kjedet beholder dreieretningen). Derfra 14→44 (Jupiter) og 10→78 (Saturn).
+  - Jupiter og Saturn: to kjeder helt nederst i tårnet, så ingen kjedehjul blir store (kjedene beholder dreieretningen):
+    - Kjede 1 (`driveChain`): 12 på mellomakselen → 48 på et løst dobbelt kjedehjul på sentralakselen.
+    - Kjede 2 (`layChain`, ett plan over): 12 på det løse hjulet → 34 på forlegsakselen, 60° fra mellomakselen.
+    - 48·34/144 = 136/12, samme utveksling som det gamle enkeltkjedet 12→136. Derfra 14→44 (Jupiter) og 10→78 (Saturn).
+    - Lengst ut når forlegshjulet, 48,7 fra sentrum, innenfor tårnets omriss. Det gamle 136-hjulet nådde 73,1 og tok fokus fra sola.
+    - De to kjedehjulene på det løse hjulet holdes sammen av et nav (`idlerHub`, r = sentralaksel + 0,3). Det gir 0,39 klaring til platene i kjede 2, som er den trangeste klaringen i `npm run check`.
   - Alle omløpstidene er innen 0,25 %.
 - **Jordas måne:**
   - Fast hjul 60, pinion 12 og kjede 47→19 gir 235/19 (Meton). Det faste hjulet sitter på et eget fast rør med brakett.
   - Parallellkjede 36:36 holder jordaksen (23,44°) og en skrå føringsring (månebane 5,14°) i fast retning.
-- **Stabling:** alle tannhjul står i et åpent tårn under alle armer. Rørene ligger med kortest arm innerst, og et fast rør inni røret til hver planet med mekanikk. Høydene regnes ut i `heights`.
+- **Stabling:** nederst ligger de to kjedene over hverandre (`heights.driveChain` og `heights.layChain`). Over dem står alle tannhjulene i et åpent tårn under alle armer. Rørene ligger med kortest arm innerst, og et fast rør inni røret til hver planet med mekanikk. Høydene regnes ut i `heights`.
 - **Armlengder:** pakkes automatisk innenfra og ut (`armLength: 'auto'`), med `reachGap` mellom rekkeviddene. Mekanikken ved planeten tas med.
 - **Reservert, ikke bygget:**
   - Faste rør og stabler over armen for Mars (`moons+parallel`), Jupiter (`moons`) og Saturn (`moons+parallel`).
