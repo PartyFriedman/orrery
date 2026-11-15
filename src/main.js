@@ -9,7 +9,10 @@ import { createPanelGeometry } from './panels.js';
 import {
   layout, anglesAt, pairModule, tube, tubes, heights, reach as armReach, armParts, armLengths,
   moonChain, parallelChain, driveChain, driveFrame, layChain, layFrame, idlerHub, earthAxis, moonRing, moonLift,
+  phases, inputPerYear, dateAt,
 } from './mechanism.js';
+import { daysPerYear } from './ephemeris.js';
+import { createTimeControl } from './timeControl.js';
 
 // Hvor langt ut og opp modellen rekker, så kamera og lys kan tilpasses.
 const reach = Math.max(...Object.values(armReach).map((r) => r.outer));
@@ -356,12 +359,17 @@ for (const t of tubes.filter((t) => t.fixed)) {
 addShaft(bracket, arm.width * 0.3, 0, bracketTop).position.x = drive.distance;
 
 // --- Mellomakselen, der inngangen kommer inn. Den har et hjul for hver planet
-// den driver direkte, og nederst et kjedehjul for det første kjedet. ---
+// den driver direkte, og nederst et kjedehjul for det første kjedet. Hvert
+// hjul er satt på akselen i sin egen vinkel (phases), så planeten står riktig
+// på startdatoen. ---
 const driveGroup = addGroupAt(scene, layout.drive);
 addShaft(driveGroup, drive.shaftRadius, 0, heights.driveTop);
-addGear(driveGroup, pairGear(smallGear.teeth, bigGear.teeth, drive.shaftRadius, smallGear), heights.bottom.earth);
+addGear(driveGroup, pairGear(smallGear.teeth, bigGear.teeth, drive.shaftRadius, smallGear), heights.bottom.earth)
+  .rotation.y = phases.earth;
 for (const [name, p] of Object.entries(planets)) {
-  if (p.driveTeeth) addGear(driveGroup, pairGear(p.driveTeeth, p.tubeTeeth, drive.shaftRadius), heights.bottom[name]);
+  if (p.driveTeeth) {
+    addGear(driveGroup, pairGear(p.driveTeeth, p.tubeTeeth, drive.shaftRadius), heights.bottom[name]).rotation.y = phases[name];
+  }
 }
 const sprocketStyle = { spokes: 0, spokeWidth: 1, hubWidth: 1, rimWidth: 1 };
 addSprocket(driveGroup, { teeth: outerDrive.driveSprocket, holeRadius: drive.shaftRadius, ...sprocketStyle },
@@ -384,7 +392,9 @@ addSprocket(layGroup, {
   teeth: outerDrive.laySprocket, holeRadius: drive.shaftRadius, spokes: 4, spokeWidth: 1.5, hubWidth: 1.2, rimWidth: 1.5,
 }, layChain.radius2, heights.layChain, layChain);
 for (const [name, p] of Object.entries(planets)) {
-  if (p.layTeeth) addGear(layGroup, pairGear(p.layTeeth, p.tubeTeeth, drive.shaftRadius), heights.bottom[name]);
+  if (p.layTeeth) {
+    addGear(layGroup, pairGear(p.layTeeth, p.tubeTeeth, drive.shaftRadius), heights.bottom[name]).rotation.y = phases[name];
+  }
 }
 // Kjedene, regnet ut langs +x fra sitt første kjedehjul og dreid på plass.
 const chainGroupAt = (frame) => {
@@ -421,7 +431,8 @@ addArm(armGroup, { length: armLengths.earth, hubRadius: tube.earth.outer + 1, pa
 const pinionGroup = addGroupAt(armGroup, layout.pinion);
 addShaft(pinionGroup, moonTrain.pinion.holeRadius, armTop, heights.pinionTop);
 addGear(pinionGroup, trainGear(moonTrain.pinion), level1);
-addSprocket(pinionGroup, moonTrain.driveSprocket, moonChain.radius1, moonChainLevel);
+// Kjedehjulet er satt på akselen i sin egen vinkel, så månefasen stemmer.
+addSprocket(pinionGroup, moonTrain.driveSprocket, moonChain.radius1, moonChainLevel).rotation.y = phases.moon;
 
 const updateMoonChain = addChain(armGroup, moonChain, moonChainLevel);
 const updateParallelChain = addChain(armGroup, parallelChain, parallelLevel);
@@ -507,16 +518,19 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Animasjon: inngangsvinkelen øker med valgt fart. Hver del får vinkelen
-// mekanismen regner ut fra tanntallene.
+// Animasjon: tiden går med farten fra glidebryteren, og inngangsvinkelen
+// følger av den. Hver del får vinkelen mekanismen regner ut fra tanntallene.
+const timeControl = createTimeControl();
 let lastTime = null;
-let input = 0;
+let years = 0; // år siden startdatoen
 renderer.setAnimationLoop((time) => {
-  const seconds = lastTime === null ? 0 : (time - lastTime) / 1000;
+  // Høyst 0,1 s per bilde, så modellen ikke hopper etter at fanen har vært skjult.
+  const seconds = lastTime === null ? 0 : Math.min((time - lastTime) / 1000, 0.1);
   lastTime = time;
-  input += (drive.speed / 60) * Math.PI * 2 * seconds;
+  years += (timeControl.daysPerSecond() * seconds) / daysPerYear;
+  timeControl.show(dateAt(years));
 
-  const a = anglesAt(input);
+  const a = anglesAt(years * inputPerYear);
   driveGroup.rotation.y = a.driveAngle;
   updateDriveChain(a.driveChainOffset);
   idlerGroup.rotation.y = a.idlerAngle;

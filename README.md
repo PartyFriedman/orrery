@@ -10,6 +10,7 @@ A single input turns a drive shaft. Everything else follows from the tooth count
 - **Room for later:** Mars, Jupiter and Saturn each have a fixed tube and space above their arm reserved for a moon mechanism like the earth's, and space around the planet for their moons and Saturn's ring.
 - **Moon:** a fixed 60-tooth wheel on its own fixed tube drives a 12-tooth pinion on the earth arm, and a chain from a 47-tooth to a 19-tooth sprocket turns the moon around the earth. That gives 235/19 = 12.368 lunar months per year, the Metonic cycle (about one day off every 220 years).
 - **Parallel motion:** a second chain between two equal sprockets keeps the earth's 23.44° axis and the moon's 5.14° orbit pointing the same way in space as the arm goes around. A tilted ring lifts the moon above and below the line between the earth and the sun.
+- **Time:** the model is set to a start date like a real orrery: each gear on the drive and lay shafts is fixed to its shaft at the angle that puts its planet at its mean longitude on that date (from JPL's approximate planet positions), and the moon's 47-tooth sprocket is set so the moon phase is right. A slider at the bottom sets how fast time runs, from still to about a year per second, and shows the date. The limits are those of any orrery: the orbits are circles at constant speed, so a planet can be off its true position by up to about 24° for Mercury, 11° for Mars and 2° for the earth; the gear ratios are close but not exact, so the planets drift slowly over the decades; and the moon's nodes stay fixed instead of turning once every 18.6 years.
 
 ## Getting started
 
@@ -35,7 +36,8 @@ Run `npm run check` after changing numbers in the config. It checks that every o
 
 Every number you can adjust lives in [src/config.js](src/config.js):
 
-- **`drive`**: speed of the input in turns per minute, and the distance from the drive shaft to the center.
+- **`time`**: the start date (`'today'` or a date like `'2026-11-15'`), and the slowest, fastest and starting speed of the time slider, in days per second.
+- **`drive`**: the distance from the drive shaft to the center, and the shaft's thickness.
 - **`outerDrive`**: the chain to the lay shaft that drives Jupiter and Saturn, and where the lay shaft stands.
 - **`spacing`**: gaps in height, between chains, between neighbouring arms' reach, and between moon orbits. Smaller numbers give a more compact model.
 - **`sizes`**: the compressed size scale for planets and moons (earth size, exponent, moon scale and real radii).
@@ -45,7 +47,7 @@ Every number you can adjust lives in [src/config.js](src/config.js):
 - **`armStyle`**: how the arms taper, the soft transition into the hub, the edge chamfer, and the collar around each post.
 - **`planets`**: tooth counts, arm length (`'auto'` or a number), the period each one aims for, the moons and ring to reserve room for, and what moon mechanism to reserve room for.
 - **`moonTrain`**: the moon gears, the sprockets for both chains, and the chain pitch.
-- **`tilt`**: the earth's axial tilt, the moon's orbital tilt, and the directions they point in.
+- **`tilt`**: the earth's axial tilt, the moon's orbital tilt, and the direction of the vernal equinox (longitude 0°) in the scene. The direction of the earth's axis and the moon's nodes follow from it.
 - **`bodies`**: the size of the sun, the height of the sun and planets, and the moon's distance from the earth.
 - **`panels`**: the panel pattern on each planet, the moon and the sun (triangles, quads, kites, rhombi, pentagons, latitude bands, hexagons, or for the sun four identical panels with S-shaped edges, like a Trionda ball, whose swing and bulge you can set), how finely each is divided, whether the panels are curved to the sphere or flat plates, and how wide and deep the seams are.
 - **`accent`**: the red colour, whether the sun is glossy red lacquer or red glass lit from inside, and the thin red ring where each planet post meets its arm.
@@ -57,6 +59,8 @@ Arm lengths, shaft positions, tube order, heights, tooth sizes, chain lengths an
 
 - [src/main.js](src/main.js): scene, camera, lighting, the parts and animation
 - [src/mechanism.js](src/mechanism.js): the mechanism as pure math (arm lengths, tube order, heights, shaft positions, chain paths, and every angle from the input)
+- [src/ephemeris.js](src/ephemeris.js): mean longitudes of the planets and the moon on a date
+- [src/timeControl.js](src/timeControl.js): the time slider and the date shown next to it
 - [src/gear.js](src/gear.js): builds gear and sprocket geometry (tooth profiles, hole, spokes and chamfer)
 - [src/arm.js](src/arm.js): builds the tapered arms with rounded ends and a soft transition into the hub
 - [src/panels.js](src/panels.js): builds the planet spheres from panels with dark seams, in a different pattern for each body

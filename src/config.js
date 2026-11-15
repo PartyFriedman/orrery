@@ -1,11 +1,20 @@
 // Alle tall du vil justere, samlet på ett sted.
 // Enheter: tenk på dem som millimeter.
 
-// Inngangen: mellomakselen dreies med fast fart. All annen bevegelse
-// følger av tanntallene.
+// Tiden: modellen starter på startDate med planetene der de faktisk står den
+// dagen (middellengder fra JPL), og glidebryteren nede på siden styrer hvor
+// fort tiden går. Helt til venstre står den stille; ellers går skalaen jevnt
+// (logaritmisk) fra slowest til fastest. Farten er i dager per sekund.
+export const time = {
+  startDate: 'today', // 'today' eller en dato som '2026-11-15'
+  slowest: 0.25,      // laveste fart over null (6 timer per sekund)
+  fastest: 365,       // høyeste fart (omtrent ett år per sekund)
+  start: 2,           // farten når siden åpnes (0 = står stille)
+};
+
+// Inngangen: mellomakselen driver alt. All bevegelse følger av tanntallene.
 export const drive = {
-  speed: 1,           // omdreininger per minutt for mellomakselen
-  distance: 40,       // avstanden fra mellomakselen (og forlegsakselen) til sentrum; alle hjulpar og begge kjedene nederst må nå over den
+  distance: 40,      // avstanden fra mellomakselen (og forlegsakselen) til sentrum; alle hjulpar og begge kjedene nederst må nå over den
   shaftRadius: 2,     // tykkelsen på mellomakselen
 };
 
@@ -162,11 +171,13 @@ export const moonTrain = {
 
 // Hellingene som parallellføringen holder i samme retning i rommet.
 // Retninger er grader rundt, sett ovenfra: 0 = mot høyre (+x), 90 = bakover.
+// equinoxDirection er retningen fra sola mot vårjevndøgnspunktet (lengde 0°),
+// som alle planetposisjonene måles fra. Retningen jordaksen heller mot (lengde
+// 90°) og månens knutelinje (på startdatoen) følger av den.
 export const tilt = {
   earthAxis: 23.44,         // jordaksens helning
-  earthAxisDirection: 0,    // retningen jordaksen heller mot
   moonOrbit: 5.14,          // månebanens helning mot jordbanen
-  moonNodeDirection: 0,     // knutelinjen, der månen krysser jordbanen (høyest 90° etter)
+  equinoxDirection: 0,      // retningen mot lengde 0°
 };
 
 // Kulene og hvor de sitter. Sola og planetene står i samme høyde, så linjen

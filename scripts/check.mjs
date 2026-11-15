@@ -69,7 +69,7 @@ let problems = 0;
     for (const [n, w] of [
       seat(driveChain, O0, { x: driveFrame.span, y: 0 }, outerDrive.driveSprocket, outerDrive.idlerLarge, a.driveAngle - driveFrame.angle, a.idlerAngle - driveFrame.angle, a.driveChainOffset),
       seat(layChain, O0, { x: layFrame.span, y: 0 }, outerDrive.idlerSmall, outerDrive.laySprocket, a.idlerAngle - layFrame.angle, a.layAngle - layFrame.angle, a.layChainOffset),
-      seat(moonChain, layout.pinion, layout.earth, moonTrain.driveSprocket.teeth, moonTrain.moonSprocket.teeth, a.pinionAngle, a.moonAngle, a.moonChainOffset),
+      seat(moonChain, layout.pinion, layout.earth, moonTrain.driveSprocket.teeth, moonTrain.moonSprocket.teeth, a.moonDriveAngle, a.moonAngle, a.moonChainOffset),
       seat(parallelChain, layout.center, layout.earth, moonTrain.parallelSprocket.teeth, moonTrain.parallelSprocket.teeth, a.fixedAngle, a.parallelAngle, a.parallelChainOffset),
     ]) { rollers += n; worst = Math.max(worst, w); }
   }
@@ -81,6 +81,31 @@ let problems = 0;
   }
   if (worst > 1e-6 || drift > 1e-9) problems++;
   console.log(`\nKjeder: ${rollers} ruller sjekket, største avvik fra setet ${worst.toExponential(1)}. Parallellhjulets drift ${drift.toExponential(1)} rad.`);
+}
+
+// ---------- 2b: startposisjon ----------
+// Ved inngang 0 skal hver planet og månen stå på middellengden for
+// startdatoen, og jordaksen og knutelinjen i riktig retning i verden.
+{
+  const a = anglesAt(0), eq = (tilt.equinoxDirection * Math.PI) / 180;
+  const wrap = (x) => Math.atan2(Math.sin(x), Math.cos(x));
+  const deg = (x) => ((((x * 180) / Math.PI) % 360) + 360) % 360;
+  const world = a.armAngle + a.parallelAngle;
+  const parts = [
+    ...Object.keys(planets).map((n) => [n, a.planetAngles[n], M.targets[n]]),
+    ['earth', a.armAngle, M.targets.earth],
+    ['moon', a.armAngle + a.moonAngle, M.targets.moon],
+    ['jordakse', world + earthAxis.direction, eq + Math.PI / 2],
+    ['knute', world + moonRing.node, moonRing.nodeWorld],
+  ];
+  console.log(`\nStartposisjon ${M.startDate.toISOString().slice(0, 10)} (middellengde, grader fra vårjevndøgn):`);
+  let worstStart = 0;
+  for (const [n, got, want] of parts) {
+    const err = Math.abs(wrap(got - want));
+    worstStart = Math.max(worstStart, err);
+    console.log(`  ${n.padEnd(8)} ${deg(got - eq).toFixed(2).padStart(7)}°${err > 1e-9 ? `  <-- FEIL (${err.toExponential(1)} rad)` : ''}`);
+  }
+  if (worstStart > 1e-9) problems++;
 }
 
 // ---------- 3: kollisjoner ----------
