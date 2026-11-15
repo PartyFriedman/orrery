@@ -54,7 +54,8 @@ export const sizes = {
   km: {               // ekte radier i km
     mercury: 2439.7, venus: 6051.8, earth: 6371.0, mars: 3389.5, jupiter: 69911, saturn: 58232,
     moon: 1737.4, phobos: 11.3, deimos: 6.2,
-    io: 1821.6, europa: 1560.8, ganymede: 2634.1, callisto: 2410.3, titan: 2574.7,
+    io: 1821.6, europa: 1560.8, ganymede: 2634.1, callisto: 2410.3,
+    enceladus: 252.1, titan: 2574.7, iapetus: 734.5,
   },
 };
 export const planetSize = (name) => sizes.earth * (sizes.km[name] / sizes.km.earth) ** sizes.exponent;
@@ -115,6 +116,122 @@ export const armStyle = {
   collarHeight: 0.65,  // høyden på kragen
 };
 
+// Saturns ring: tre bånd av frostet glass som dreier hver for seg rundt Saturns
+// skrå akse og bærer hver sin måne (se saturnMoons). Ringen holder retningen i
+// rommet, som jordaksen. Radiene er i ganger Saturns radius, bredder og
+// tykkelser i mm. Samme tall brukes på testsiden rings.html (variant C).
+// Cassinidelingen (spalten) deler ringen i to. Innenfor spalten deles ringen i
+// bands − 1 like brede bånd (med 3 blir det C- og B-ringen), og utenfor ligger
+// A-ringen. bands: 1 gir ingen deling utover spalten. I modellen må det være
+// 3 bånd, ett per måne.
+// De andre variantene på testsiden (ikke i modellen):
+//   A satin       satengmatt hvit skive, spalten er åpen (båndene brukes ikke)
+//   B instrument  tynne, konsentriske ringer i mørkt metall
+//   D mix         glass innerst, satengmatt hvitt ytterst, mørk spalte
+export const saturnRing = {
+  inner: 1.2,           // innerkanten (ekte C-ring: 1,24)
+  outer: 2.27,          // ytterkanten (ekte A-ring: 2,27)
+  tilt: 26.7,           // hellingen mot banen, i grader
+  gapCenter: 1.99,      // midten av spalten (ekte: 1,99)
+  gapWidth: 0.076,      // bredden på spalten (ekte: 0,076, her ca. 0,24 mm)
+  bands: 3,             // antall bånd, med A-ringen utenfor spalten
+  bandSeam: 0.04,       // fugen mellom båndene i mm (0 = båndene møtes uten fuge)
+  thickness: 0.12,      // tykkelsen på skiva
+  chamfer: 0.03,        // avfasing langs kantene
+  satin: { color: '#f4f6f7', roughness: 0.4, gloss: 0.7, glossRoughness: 0.3 },  // som hjulene (look)
+  instrument: {
+    rings: 14,          // antall ringer, fordelt på hver side av spalten etter bredden
+    ringWidth: 0.06,    // bredden på hver ring
+    thickness: 0.2,     // høyden på hver ring
+    color: '#303538', metalness: 0.8, roughness: 0.35,
+  },
+  glass: {
+    // Én tone per bånd, innenfra og ut (C, B, A). Har ringen flere bånd, brukes den siste.
+    // transmission: hvor mye lys som går gjennom (gjennomskinnelighet: 1 = klart, 0 = ugjennomsiktig).
+    // roughness: hvor frostet (0 = klart glass, 1 = helt matt).
+    tones: [
+      { color: '#aeb3b6', transmission: 0.9, roughness: 0.45 },   // C: svakest
+      { color: '#f4f6f7', transmission: 0.5, roughness: 0.5 },    // B: lysest og tettest
+      { color: '#d9dcde', transmission: 0.75, roughness: 0.45 },  // A
+    ],
+    ior: 1.5,           // lysbrytingen
+    depth: 0.6,         // hvor tykt glasset virker for lysbrytingen
+  },
+  // Kantlys: glasset lyser svakt opp langs kantene og der man ser det på skrå,
+  // som kanten på en glassplate. strength 0 = av.
+  rim: { color: '#ffffff', strength: 0.35, sharpness: 3 },  // sharpness: høyere = smalere kant
+  // Stagene under ringen: hvert bånd bæres av sine egne stag fra et nav på den
+  // skrå akselen, som en paraply. Navene ligger så stagene går klar av kula.
+  struts: { count: 3, width: 0.16, color: '#303538', metalness: 0.6, roughness: 0.45 },
+  mix: {
+    glassBands: 2,      // antall bånd innenfra som er glass (2 = alt innenfor spalten, 1 = bare C-ringen)
+    gapColor: '#303538', gapMetalness: 0.6, gapRoughness: 0.45,  // den mørke spalten (som fugene)
+    gapDepth: 0.5,      // tykkelsen på den mørke spalten, som andel av skiva
+  },
+  view: {               // kameraet på testsiden
+    turn: 60,           // sekunder per runde rundt ringen
+    bob: 24,            // sekunder fra lavest til høyest og ned igjen
+    lowest: 0,          // laveste høyde i grader (0 = rett fra siden, så ringen sees fra kanten)
+    highest: 70,        // høyeste høyde i grader
+  },
+};
+
+// Saturns måner. Hvert glassbånd i ringen dreier for seg og bærer én måne på en
+// arm over ringen: A-båndet (ytterst) Enceladus, rett ut i ringplanet; B-båndet
+// Titan og C-båndet (innerst) Iapetus, på armer i lag over ringen. Månene står
+// utenfor ringen i riktig rekkefølge.
+// Drivet: et månerør i tårnet (drive-saturn) og et kjede langs Saturn-armen til
+// en driveaksel midt i Saturn-stolpen. Øverst på driveakselen fører et skrått
+// tannhjulspar (vinkelgiren) bevegelsen over i en skrå forlegsaksel, parallell
+// med Saturns akse, og den driver de tre båndrørene rundt aksen:
+//   Enceladus (A-røret): steps.enceladus, Titan (B-røret): steps.titan.
+//   Iapetus (C-røret): fra et ekstra hjul på Titan-røret via en løs hylse på
+//   forlegsakselen (iapetusStage: [Titan → hylse], [hylse → Iapetus]).
+// Saturn-stolpen står stille i rommet: et eget rør i tårnet (par-saturn) dreier
+// sakte, og kjedet parallelSprocket gjør at stolpen holder retningen. Det
+// regnes eksakt, og gir feilmelding hvis tanntallene ikke går opp:
+//   (parallel.layTeeth/parallel.tubeTeeth − saturn.layTeeth/saturn.tubeTeeth)
+//   × (parallel.centerSprocket/parallel.postSprocket) = −saturn.layTeeth/saturn.tubeTeeth
+// periods er bare målet (sidereale omløpstider i dager).
+export const saturnMoons = {
+  periods: { enceladus: 1.370218, titan: 15.945448, iapetus: 79.331002 },
+  driveTeeth: 49,       // hjulet på mellomakselen som driver månerøret
+  tubeTeeth: 30,        // hjulet nederst på månerøret
+  tubeSprocket: 96,     // kjedehjulet på månerøret, over Saturn-armen
+  shaftSprocket: 10,    // kjedehjulet nederst på driveakselen ved Saturn
+  chainPitch: 1.0,      // ledd-lengden i begge kjedene langs Saturn-armen
+  parallel: {
+    layTeeth: 10,       // hjulet på forlegsakselen i tårnet som driver par-saturn
+    tubeTeeth: 90,      // hjulet nederst på par-saturn
+    centerSprocket: 90, // kjedehjulet på par-saturn
+    postSprocket: 12,   // kjedehjulet nederst på stolpen ved Saturn
+  },
+  bevel: { driveTeeth: 24, layTeeth: 12, module: 0.15 },  // vinkelgiren: hjulet på driveakselen og på forlegsakselen
+  layDistance: 7,       // fra Saturns akse til den skrå forlegsakselen
+  steps: {              // [hjulet på forlegsakselen, hjulet på båndrøret]
+    enceladus: [57, 20],
+    titan: [12, 49],
+  },
+  iapetusStage: [[18, 53], [29, 49]],  // [Titan-røret → hylsa], [hylsa → Iapetus-røret]
+  bandMoons: { A: 'enceladus', B: 'titan', C: 'iapetus' },  // hvilken måne hvert bånd bærer
+  axleRadius: 0.4,      // den faste, skrå akselen gjennom Saturn
+  tubeWall: 0.3,        // veggen i hvert båndrør
+  shaftRadius: 0.4,     // den skrå forlegsakselen
+  driveShaftRadius: 0.5, // driveakselen midt i stolpen
+  frameWall: 0.3,       // veggen i stolperøret rundt driveakselen
+  thickness: 0.5,       // tykkelsen på hjulene ved Saturn
+  chamfer: 0.1,
+  backlash: 0.05,
+  armThickness: 0.25,   // månearmene over ringen
+  armWidth: 0.5,
+  legRadius: 0.15,      // de korte leddene opp fra båndene
+  armLift: { titan: 0, iapetus: 0 },  // ekstra høyde over det som trengs, for hvert lag
+  // Materialet på månearmene, leddene og føttene. Standard er satengmatt hvitt
+  // som hjulene. Mørkt metall som i fugene: color '#303538', metalness 0.6,
+  // roughness 0.45, gloss 0.
+  armMaterial: { color: '#f4f6f7', metalness: 0, roughness: 0.4, gloss: 0.7 },
+};
+
 // Planetene (unntatt jorda): hver har sitt eget rør med et hjul nederst og en
 // arm øverst. Omløpstiden følger av tanntallene:
 //   driveTeeth: hjulet sitter på mellomakselen.
@@ -129,6 +246,7 @@ export const armStyle = {
 //   'moons' = fast hjul, pinion og månekjede; 'moons+parallel' = også parallellkjede
 //   (for en akse eller ring som skal holde retningen i rommet). Disse er bare reservert.
 //   'moonDrive' = et månerør drevet fra mellomakselen og et kjede langs armen (se jupiterMoons).
+//   'ringMoons' = Saturns dreiende ringbånd med månene, og stolpen som holder retningen (se saturnMoons).
 export const planets = {
   mercury: { period: 0.2408, driveTeeth: 29, tubeTeeth: 21, armLength: 'auto', radius: planetSize('mercury') },
   venus:   { period: 0.6152, driveTeeth: 19, tubeTeeth: 35, armLength: 'auto', radius: planetSize('venus') },
@@ -142,8 +260,8 @@ export const planets = {
   },
   saturn:  {
     period: 29.457, layTeeth: 10, tubeTeeth: 78, armLength: 'auto', radius: planetSize('saturn'),
-    ring: { inner: 1.2, outer: 2.27, tilt: 26.7 },  // ringen i ganger planetens radius, og hellingen
-    moons: ['titan'], mechanism: 'moons+parallel',
+    ring: saturnRing,  // radiene og hellingen står i saturnRing
+    moons: ['enceladus', 'titan', 'iapetus'], mechanism: 'ringMoons',
   },
 };
 
@@ -225,7 +343,7 @@ export const tilt = {
 export const bodies = {
   sunRadius: 6,
   earthRadius: planetSize('earth'),
-  height: 43,         // høyden på sentrum av sola og alle planetene (feilmelding hvis den er for lav)
+  height: 44,         // høyden på sentrum av sola og alle planetene (feilmelding hvis den er for lav)
   moonRadius: moonSize('moon'),
   moonOrbit: 4,       // avstanden fra jorda til månen (lavere gir for liten føringsring under jorda)
 };
@@ -258,6 +376,11 @@ export const panels = {
   ganymede: { pattern: 'quads', subdivisions: 1 },
   callisto: { pattern: 'quads', subdivisions: 1 },
   saturn:  { pattern: 'hexagons',  subdivisions: 3 },  // 80 sekskanter og 12 femkanter
+  enceladus: { pattern: 'quads', subdivisions: 1 },    // Saturns måner
+  titan:     { pattern: 'quads', subdivisions: 1 },
+  // Iapetus: uregelmessige fasetter, og panelene på siden som vender framover
+  // (fartsretningen) i mørkt metall. split: 'leading' = den ledende halvdelen er mørk.
+  iapetus:   { pattern: 'facets', subdivisions: 30, split: 'leading' },
   // Sola: fire like paneler fra et tetraeder, der hver kant er en S-kurve (som
   // Trionda-ballen). amplitude er hvor langt S-en svinger ut (andel av
   // kantlengden). bulge gjør hver bue bredere ytterst: 0 gir rolige bølger,

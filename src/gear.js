@@ -162,6 +162,25 @@ export function createGearGeometry(settings) {
   return extrudeFlat(createGearShape(settings), settings.thickness, settings.chamfer);
 }
 
+// Konisk tannhjul (rett fortanning) som 3D-geometri: et vanlig tannhjul der
+// alt smalner mot toppunktet av kjeglen, som ligger `apexDistance` over
+// midten av hjulet langs aksen (+y). Hjulet er sentrert på y = 0. Godt nok
+// når kjeglene er spisse (vinkelgiren ved Saturn); tannprofilen er den samme
+// som på et vanlig hjul.
+export function createBevelGeometry(settings, apexDistance) {
+  const geometry = createGearGeometry(settings);
+  geometry.translate(0, -settings.thickness / 2, 0);
+  const pos = geometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const k = 1 - pos.getY(i) / apexDistance;
+    pos.setX(i, pos.getX(i) * k);
+    pos.setZ(i, pos.getZ(i) * k);
+  }
+  pos.needsUpdate = true;
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 // Kjedehjul som 3D-geometri.
 export function createSprocketGeometry(settings) {
   return extrudeFlat(createSprocketShape(settings), settings.thickness, settings.chamfer);

@@ -542,8 +542,12 @@ const curveStep = 0.08;
 // Gir tilbake geometrien til panelene og radiusen kjernen skal ha. Geometrien
 // har to materialgrupper: toppene (0) og sidene med undersiden (1), så sidene
 // kan få samme mørke farge som kjernen og fugene blir mørke hele veien.
+// split deler toppene i to: panelene med midten på den ene siden av et plan
+// får materialgruppe 2 (for eksempel mørkt metall). 'leading' = siden som
+// vender i fartsretningen for en måne på en arm langs +x som dreier om +y
+// (mot −z), eller en retning [x, y, z].
 export function createPanelGeometry({
-  radius, pattern, subdivisions, seamWidth, seamDepth, shape = 'curved', amplitude = 0, bulge = 0,
+  radius, pattern, subdivisions, seamWidth, seamDepth, shape = 'curved', amplitude = 0, bulge = 0, split = null,
 }) {
   if (shape !== 'curved' && shape !== 'flat') throw new Error(`Ukjent panelform '${shape}'. Velg 'curved' eller 'flat'.`);
   if (pattern.startsWith('plexus')) throw new Error(`'${pattern}' er en plexus-kule og lages med createPlexus i plexus.js, ikke som paneler.`);
@@ -552,8 +556,17 @@ export function createPanelGeometry({
   const polygons = patterns[pattern] ? patterns[pattern](count) : [];
   const regions = regionPatterns[pattern] ? regionPatterns[pattern](count) : [];
 
-  const tops = [];      // toppen av panelene
-  const topNormals = [];
+  const lightTops = [], lightNormals = [];  // toppen av panelene
+  const darkTops = [], darkNormals = [];    // toppene på den andre siden av split
+  let tops = lightTops, topNormals = lightNormals;
+  const splitDirection = split === 'leading' ? new THREE.Vector3(0, 0, -1)
+    : Array.isArray(split) ? new THREE.Vector3(...split).normalize() : null;
+  if (split && !splitDirection) throw new Error(`Ukjent split '${split}'. Bruk 'leading' eller en retning [x, y, z].`);
+  const chooseSide = (center) => {
+    const dark = splitDirection && center.dot(splitDirection) > 0;
+    tops = dark ? darkTops : lightTops;
+    topNormals = dark ? darkNormals : lightNormals;
+  };
   const sides = [];     // sidene og undersiden, som ses ned i fugene
   let lowest = radius;  // det laveste punktet på noen panelflate
   const push = (list, ...vs) => { for (const v of vs) list.push(v.x, v.y, v.z); };
@@ -562,6 +575,7 @@ export function createPanelGeometry({
   for (const poly of polygons) {
     // Panelets retning (midt i panelet) og et flatt koordinatsystem på tvers av den.
     const normal = poly.reduce((s, p) => s.add(p), new THREE.Vector3()).normalize();
+    chooseSide(normal);
     const e1 = poly[0].clone().sub(normal.clone().multiplyScalar(poly[0].dot(normal))).normalize();
     const e2 = normal.clone().cross(e1);
     // Hjørnene skjøvet langs strålen fra sentrum ned i et plan, i 2D, så
@@ -643,6 +657,7 @@ export function createPanelGeometry({
     const down = 1 - (seamDepth * 2) / radius;
     const spacing = curveStep / 2; // i projeksjonen er avstandene omtrent halvparten av vinkelen
     for (const { center, outline } of large) {
+      chooseSide(center);
       const proj = stereographic(center);
       const edge2 = outline.map(proj.to);
       // Rutenett innenfor kanten, med litt avstand til den.
@@ -693,10 +708,12 @@ export function createPanelGeometry({
   }
 
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute([...tops, ...sides], 3));
-  geometry.setAttribute('normal', new THREE.Float32BufferAttribute([...topNormals, ...sideNormals], 3));
-  geometry.addGroup(0, tops.length / 3, 0);
-  geometry.addGroup(tops.length / 3, sides.length / 3, 1);
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute([...lightTops, ...darkTops, ...sides], 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute([...lightNormals, ...darkNormals, ...sideNormals], 3));
+  const nLight = lightTops.length / 3, nDark = darkTops.length / 3;
+  geometry.addGroup(0, nLight, 0);
+  if (nDark) geometry.addGroup(nLight, nDark, 2);
+  geometry.addGroup(nLight + nDark, sides.length / 3, 1);
 
   // Kjernen ligger seamDepth under det laveste punktet på panelene, så fugene
   // går ned til den overalt.
