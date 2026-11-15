@@ -9,3 +9,92 @@ body {
 canvas {
   display: block;
 }
+
+/* Glidebryteren for tid: et lite panel i mørkt metall nede på midten, med
+   satengmatt hvit knott. --metal og --white settes fra look i config.js.
+   Panelet er dempet til man peker på det eller bruker det. */
+.time-control {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--metal) 88%, var(--white)),
+    var(--metal)
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--white) 10%, transparent),
+    0 4px 14px rgb(0 0 0 / 0.35);
+  color: color-mix(in srgb, var(--white) 78%, transparent);
+  font: 12px/1 system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.55;
+  transition: opacity 0.3s;
+  user-select: none;
+}
+.time-control:hover,
+.time-control:focus-within {
+  opacity: 1;
+}
+.time-date {
+  min-width: 10.5ch;
+}
+.time-speed {
+  min-width: 9ch;
+  text-align: right;
+}
+
+.time-control input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  height: 18px;
+  margin: 0;
+  background: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.time-control input[type='range']:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--white) 50%, transparent);
+  outline-offset: 4px;
+  border-radius: 999px;
+}
+.time-control input[type='range']::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--metal) 55%, black);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--white) 8%, transparent);
+}
+.time-control input[type='range']::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--metal) 55%, black);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--white) 8%, transparent);
+}
+.time-control input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5.5px;
+  border: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--white), color-mix(in srgb, var(--white) 72%, var(--metal)));
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+}
+.time-control input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--white), color-mix(in srgb, var(--white) 72%, var(--metal)));
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+}

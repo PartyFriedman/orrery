@@ -7,8 +7,9 @@
 
 import {
   drive, outerDrive, spacing, center, gear, bigGear, smallGear, arm, armStyle,
-  planets, moonTrain, bodies, tilt, moonSize,
+  planets, moonTrain, bodies, tilt, moonSize, time,
 } from './config.js';
+import { longitudeAt, addYears } from './ephemeris.js';
 
 const { gap, chainGap, reachGap, moonGap } = spacing;
 const pitchRadius = (module, teeth) => (module * teeth) / 2;
@@ -302,8 +303,9 @@ const directionFrom = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
 const driveToCenter = directionFrom(layout.drive, layout.center);
 const layToCenter = directionFrom(layout.lay, layout.center);
 
-// Alle vinklene, utledet fra inngangsvinkelen gjennom hvert inngrep.
-export function anglesAt(input) {
+// Alle vinklene, utledet fra inngangsvinkelen gjennom hvert inngrep. phases er
+// vinkelen hvert hjul er satt på akselen med (se Startdatoen under).
+function anglesWith(input, phases) {
   // Inngangen dreier mellomakselen med klokka, så armene går mot klokka (som planetene).
   const driveAngle = -input;
 
@@ -316,12 +318,12 @@ export function anglesAt(input) {
 
   // Hjulparene nederst: hvert rør får sin vinkel fra sitt hjul på mellomakselen
   // eller forlegsakselen.
-  const armAngle = meshAngle(driveAngle, smallGear.teeth, bigGear.teeth, driveToCenter);
+  const armAngle = meshAngle(driveAngle + phases.earth, smallGear.teeth, bigGear.teeth, driveToCenter);
   const planetAngles = {};
   for (const [name, p] of Object.entries(planets)) {
     planetAngles[name] = p.layTeeth
-      ? meshAngle(layAngle, p.layTeeth, p.tubeTeeth, layToCenter)
-      : meshAngle(driveAngle, p.driveTeeth, p.tubeTeeth, driveToCenter);
+      ? meshAngle(layAngle + phases[name], p.layTeeth, p.tubeTeeth, layToCenter)
+      : meshAngle(driveAngle + phases[name], p.driveTeeth, p.tubeTeeth, driveToCenter);
   }
 
   // Herfra regner vi i jordarmens koordinatsystem. Alt som sitter fast på det
@@ -329,7 +331,9 @@ export function anglesAt(input) {
   const fixedAngle = -armAngle;
   const pinionAngle = meshAngle(fixedAngle, fixed.teeth, pinion.teeth, 0);
 
-  const moonChainOffset = moonChain.offsetFor(pinionAngle);
+  // Det store månekjedehjulet sitter på pinionakselen med sin egen vinkel.
+  const moonDriveAngle = pinionAngle + phases.moon;
+  const moonChainOffset = moonChain.offsetFor(moonDriveAngle);
   const moonAngle = moonChain.angle2For(moonChainOffset);
 
   const parallelChainOffset = parallelChain.offsetFor(fixedAngle);
@@ -337,9 +341,53 @@ export function anglesAt(input) {
 
   return {
     driveAngle, driveChainOffset, idlerAngle, layChainOffset, layAngle, armAngle, planetAngles, fixedAngle, pinionAngle,
-    moonChainOffset, moonAngle, parallelChainOffset, parallelAngle,
+    moonDriveAngle, moonChainOffset, moonAngle, parallelChainOffset, parallelAngle,
   };
 }
+
+// --- Startdatoen ---
+// Modellen stilles inn som en ekte orrery: hvert hjul på mellomakselen og
+// forlegsakselen settes på akselen i den vinkelen som gjør at planeten det
+// driver står riktig på startdatoen (inngangen er da 0). Tennene griper inn
+// som før, bare med en annen tann. Månen stilles med det store
+// månekjedehjulet på pinionakselen.
+const parseStart = (value) => {
+  if (value === 'today') return new Date();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`Ugyldig startdato '${value}' i time.startDate. Bruk 'today' eller en dato som '2026-11-15'.`);
+  }
+  return date;
+};
+export const startDate = parseStart(time.startDate);
+const equinox = degrees(tilt.equinoxDirection);
+
+// Vinkelen i verden hver del skal ha på startdatoen. Månen: fra jorda.
+export const targets = {};
+for (const name of [...Object.keys(planets), 'earth', 'moon']) targets[name] = longitudeAt(name, startDate) + equinox;
+
+const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const angleOf = (name, a) => {
+  if (name === 'earth') return a.armAngle;
+  if (name === 'moon') return a.armAngle + a.moonAngle;
+  return a.planetAngles[name];
+};
+
+// Vinklene er lineære i fasene, så hver fase løses direkte: hvor mye delen
+// dreier per radian fasen settes på, og hvor mye som mangler. Jorda før
+// månen, fordi månen sitter på jordarmen.
+export const phases = { moon: 0, earth: 0, ...Object.fromEntries(Object.keys(planets).map((n) => [n, 0])) };
+for (const name of [...Object.keys(planets), 'earth', 'moon']) {
+  const now = angleOf(name, anglesWith(0, phases));
+  const perRadian = angleOf(name, anglesWith(0, { ...phases, [name]: phases[name] + 1 })) - now;
+  phases[name] += wrap(targets[name] - now) / perRadian;
+}
+
+export const anglesAt = (input) => anglesWith(input, phases);
+
+// Mellomakselen går bigGear/smallGear runder per år (én runde for jorda).
+export const inputPerYear = (2 * Math.PI * bigGear.teeth) / smallGear.teeth;
+export const dateAt = (years) => addYears(startDate, years);
 
 // --- Det som sitter på parallellhjulet ---
 // Parallellhjulet har en fast retning i verden. Den følger av hvordan kjedet
@@ -347,10 +395,12 @@ export function anglesAt(input) {
 const start = anglesAt(0);
 const parallelWorldAngle = start.armAngle + start.parallelAngle;
 
-// Jordaksen monteres på parallellhjulet så den heller mot ønsket retning i verden.
+// Jordaksen monteres på parallellhjulet så den heller mot lengde 90° (der
+// sola står ved sommersolverv), altså mot sola i nordlig sommer.
 export const earthAxis = {
   tilt: degrees(tilt.earthAxis),
-  direction: degrees(tilt.earthAxisDirection) - parallelWorldAngle, // på parallellhjulet
+  world: equinox + Math.PI / 2,
+  direction: equinox + Math.PI / 2 - parallelWorldAngle, // på parallellhjulet
 };
 
 // Månebanen: en skrå føringsring på jordstolpen. Månestaven glir opp og ned i
@@ -362,7 +412,10 @@ export const moonRing = {
   radius: footRadius,
   halfWidth: 0.5,
   tilt: ringTilt,
-  node: degrees(tilt.moonNodeDirection) - parallelWorldAngle, // på parallellhjulet
+  // Knutelinjen der den står på startdatoen. På himmelen dreier den baklengs
+  // en runde på 18,6 år; her står den fast.
+  nodeWorld: longitudeAt('moonNode', startDate) + equinox,
+  node: longitudeAt('moonNode', startDate) + equinox - parallelWorldAngle, // på parallellhjulet
   // Hvor høyt og lavt ringen går (ytterkanten), så hylsa kan få plass under.
   maxLift: Math.tan(ringTilt) * (footRadius + 0.5),
 };
