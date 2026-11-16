@@ -16,9 +16,12 @@
 - Planets are geodesic spheres: triangular panels with narrow seams.
 
 ## Accents
-- Red is used sparingly: the sun, and a thin ring where each planet post
+- Red is used sparingly:, and a thin ring where each planet post
   meets its arm.
 - No colours other than white, dark metal and red
 
 ## Cogs
 - The arms in the cogs meet the edge with a smooth fillet
+
+## Sun, Planets and moons
+- The planets and moons have geometrical patterns and colors/textures that approximate the real world objects and a glossy finish. Leave options in config.js for me to play around with
