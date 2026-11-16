@@ -7,9 +7,9 @@
 
 import {
   drive, outerDrive, spacing, center, gear, bigGear, smallGear, arm, armStyle,
-  planets, moonTrain, bodies, tilt, moonSize, time, jupiterMoons, accent, saturnMoons, saturnRing,
+  planets, moonTrain, bodies, tilt, moonSize, time, jupiterMoons, accent, saturnMoons, saturnRing, marsMoons,
 } from './config.js';
-import { longitudeAt, addYears } from './ephemeris.js';
+import { longitudeAt, addYears, marsPoleLongitude } from './ephemeris.js';
 import { ringLayout } from './ringLayout.js';
 
 const { gap, chainGap, reachGap, moonGap } = spacing;
@@ -22,6 +22,13 @@ const at = (direction, distance) => ({ x: Math.cos(direction) * distance, y: Mat
 // modul × (tenner1 + tenner2) / 2, så hvert par får den modulen som gjør at
 // akkurat det paret når over.
 export const pairModule = (teeth1, teeth2) => (2 * drive.distance) / (teeth1 + teeth2);
+
+// Det samme for et hjul (2) som griper inn i et ringhjul med innvendige tenner
+// (1), når hjul 2 står i retning `direction` fra midten av ringhjulet. De
+// dreier samme vei.
+export function internalMeshAngle(angle1, teeth1, teeth2, direction) {
+  return direction - Math.PI / teeth2 + (teeth1 / teeth2) * (angle1 - direction);
+}
 
 // Vinkelen hjul 2 må ha for å gripe inn i hjul 1, når hjul 1 har vinkelen
 // angle1 og hjul 2 står i retning `direction` fra hjul 1.
@@ -152,7 +159,8 @@ export const moonSystems = Object.fromEntries(Object.entries(planets).map(([name
   const orbits = [];
   let edge = ring ? ring.outer : p.radius;
   for (const moon of p.moons ?? []) {
-    const radius = moonSize(moon);
+    // Mars' måner har egne, små størrelser (marsMoons.size).
+    const radius = (name === 'mars' && marsMoons.size?.[moon]) || moonSize(moon);
     const orbit = edge + moonGap + radius;
     orbits.push({ name: moon, radius, orbit });
     edge = orbit + radius;
@@ -172,6 +180,9 @@ for (const [name, p] of Object.entries(planets)) {
   }
   if (p.mechanism === 'ringMoons' && name !== 'saturn') {
     throw new Error(`planets.${name}.mechanism: 'ringMoons' er bare bygget for Saturn.`);
+  }
+  if (p.mechanism === 'epicyclic' && name !== 'mars') {
+    throw new Error(`planets.${name}.mechanism: 'epicyclic' er bare bygget for Mars.`);
   }
 }
 
@@ -398,17 +409,119 @@ export const saturnTrain = (() => {
 // Kjedehjulene ute ved planeten (og kjedet rundt dem) rekker så langt ut fra
 // planetens sentrum.
 const chainEnd = (teeth) => sprocketRadius(teeth, moonTrain.chainPitch) + moonTrain.chainPitch * 0.3 * 1.3;
-// Hvor langt hjulverket ved Saturn (rundt den skrå aksen) rekker ut, sett ovenfra.
-const saturnGearboxReach = (() => {
-  const ST = saturnTrain, c = Math.cos(saturnTilt), s0 = Math.sin(saturnTilt);
-  const disc = (x, s, r) => {
-    let m = 0;
-    for (let k = 0; k < 72; k++) {
-      const a = (k / 72) * Math.PI * 2;
-      m = Math.max(m, Math.hypot((x + r * Math.cos(a)) * c + s * s0, r * Math.sin(a)));
-    }
-    return m;
+// --- Hjulverket ved Mars ---
+// Som ved Saturn regnes alt rundt Mars' skrå akse med s langs aksen (0 =
+// ekvatorplanet, positivt mot nordpolen) og rho fra aksen, og x' er retningen
+// aksen heller mot. Ovenfra og ned under Mars: armen til Fobos (på solrøret),
+// armen til Deimos (på bærerrøret), hjulparet med mellomhjulet (det lille
+// hjulet på bærerrøret), bærerens øvre plate, planetgiret (laget med solhjulet
+// og planet1 øverst, laget med ringhjulet og planet2 under), bærerens nedre
+// plate, og skåla som holder ringhjulet og den faste akselen.
+// Den skrå drivakselen står drive.distance fra Mars' akse, mot +x'. Forlenget
+// nedover treffer den loddlinjen gjennom stolpen i K, og der sitter kryssleddet
+// på toppen av stolpen.
+const MM = marsMoons;
+export const marsMoonNames = planets.mars.moons;
+const marsTilt = degrees(MM.tilt);
+export const marsTrain = (() => {
+  const R = planets.mars.radius;
+  const gap = spacing.gap, T = MM.thickness, plate = 0.15, half = MM.armThickness / 2, rise = 0.08;
+  const PG = MM.planetary;
+  if (PG.ring !== PG.sun + PG.planet1 + PG.planet2) {
+    throw new Error('marsMoons.planetary: ring må være sun + planet1 + planet2, ellers når ikke planethjulene både solhjulet og ringhjulet.');
+  }
+  const m = PG.module;
+  const carrierRadius = (m * (PG.sun + PG.planet1)) / 2;   // fra aksen til planetaksene
+  const sunTube = { inner: MM.axleRadius, outer: MM.axleRadius + MM.tubeWall };
+  const carrierTube = { inner: sunTube.outer, outer: sunTube.outer + MM.tubeWall };
+  if (rootOf(m, PG.sun) < sunTube.outer + 0.15) throw new Error('Solhjulet i planetgiret ved Mars er for lite til røret: øk marsMoons.planetary.sun eller module.');
+  if (carrierRadius - tipOf(m, PG.planet2) < MM.axleRadius + gap) throw new Error('Planethjulene (planet2) ved Mars når inn til akselen i midten: gjør planet2 mindre (og sun større).');
+  const ringPitch = (m * PG.ring) / 2;
+  // Kanten utenfor tennene er bred nok til at braketten kan festes på utsiden
+  // og fortsatt gå klar av planethjulene inni.
+  const ring = { pitch: ringPitch, tip: ringPitch - m, root: ringPitch + 1.25 * m, outer: ringPitch + 1.25 * m + 0.5 };
+
+  // Månene og armene, og nivåene nedover.
+  const orbits = Object.fromEntries(moonSystems.mars.orbits.map((o) => [o.name, o]));
+  const level = {};
+  level.phobosArm = -R - gap - rise - half;
+  level.deimosArm = level.phobosArm - 2 * (half + rise) - gap;
+  level.drive = level.deimosArm - half - rise - gap - T / 2;           // hjulparet med mellomhjulet
+  level.carrierTop = level.drive - T / 2 - gap - plate / 2;
+  level.sunLayer = level.carrierTop - plate / 2 - gap - T / 2;       // solhjulet og planet1
+  level.ringLayer = level.sunLayer - T - gap;                        // ringhjulet og planet2
+  level.carrierBottom = level.ringLayer - T / 2 - gap - plate / 2;
+  level.bowl = level.carrierBottom - plate / 2 - gap - MM.bowlThickness / 2;  // bunnen i skåla
+
+  // Hjulparet: det store hjulet på drivakselen (i x' = distance), mellomhjulet
+  // ute ved ringhjulet (tappen står på en knast utenfor kanten, klar av
+  // planethjulene), og det lille hjulet på bærerrøret.
+  const DR = MM.drive, dm = DR.module, D = DR.distance;
+  const rBig = (dm * DR.bigTeeth) / 2, rIdler = (dm * DR.idlerTeeth) / 2, rSmall = (dm * DR.smallTeeth) / 2;
+  if (rootOf(dm, DR.smallTeeth) < carrierTube.outer + 0.15) throw new Error('Det lille hjulet på bærerrøret ved Mars er for lite til røret: øk marsMoons.drive.smallTeeth eller module.');
+  if (rootOf(dm, DR.bigTeeth) < MM.tiltShaftRadius + 0.15) throw new Error('Det store hjulet på drivakselen ved Mars er for lite til akselen.');
+  if (D - tipOf(dm, DR.bigTeeth) < tipOf(dm, DR.smallTeeth) + gap) {
+    throw new Error('Det store hjulet ved Mars når inn til det lille på bærerrøret: øk marsMoons.drive.distance eller gjør hjulene mindre.');
+  }
+  if (D - MM.tiltShaftRadius < ring.outer + gap) throw new Error('Den skrå drivakselen ved Mars går for nær ringhjulet: øk marsMoons.drive.distance.');
+  const idlerRho = rSmall + rIdler;                                   // fra Mars' akse til mellomhjulet
+  if (idlerRho - MM.pinRadius < ring.root + gap) {
+    throw new Error('Tappen til mellomhjulet ved Mars står for nær planethjulene: gjør marsMoons.drive.idlerTeeth større.');
+  }
+  const dBI = rBig + rIdler;                                          // fra det store hjulet til mellomhjulet
+  const cosPhi = (D * D + idlerRho * idlerRho - dBI * dBI) / (2 * D * idlerRho);
+  if (Math.abs(cosPhi) > 1) throw new Error('Mellomhjulet ved Mars får ikke plass mellom det store og det lille hjulet: endre marsMoons.drive.');
+  const idlerPhi = Math.acos(cosPhi);                                 // vinkelen til mellomhjulet om Mars' akse, fra x'
+  const drive = {
+    distance: D, module: dm, rBig, rIdler, rSmall, idlerRho, idlerPhi,
+    idler: { x: idlerRho * Math.cos(idlerPhi), z: idlerRho * Math.sin(idlerPhi) },   // z i vinkelretningen (three.js: −z)
+    // K, toppen av stolpen: der drivakselen forlenget treffer loddlinjen.
+    jointS: -D / Math.tan(marsTilt), jointDrop: D / Math.sin(marsTilt),
   };
+
+  const hubRadius = (tube) => tube.outer + 0.15;
+  const arms = {
+    phobos: { s: level.phobosArm, tube: sunTube, orbit: orbits.phobos.orbit, radius: orbits.phobos.radius },
+    deimos: { s: level.deimosArm, tube: carrierTube, orbit: orbits.deimos.orbit, radius: orbits.deimos.radius },
+  };
+  // Fobos-stolpen går opp forbi Mars: den må stå klar av kula.
+  if (arms.phobos.orbit - MM.postRadius < R + gap) {
+    throw new Error('Fobos går for nær Mars: øk spacing.moonGap eller gjør marsMoons.size mindre.');
+  }
+
+  return {
+    radius: R, module: m, planetary: PG, carrierRadius, sunTube, carrierTube, ring, drive, level, arms,
+    plateThickness: plate, hubRadius, hubLength: MM.armThickness + 2 * rise,
+    axleSpan: [level.bowl - MM.bowlThickness / 2, R + 0.4],            // den faste akselen, fra skåla opp gjennom Mars
+    sunTubeSpan: [level.sunLayer - T / 2, level.phobosArm + half + rise],
+    carrierTubeSpan: [level.carrierTop - plate / 2, level.deimosArm + half + rise],
+    driveShaftSpan: [drive.jointS, level.drive + T / 2],               // den skrå drivakselen, fra K til det store hjulet
+    pinSpan: [level.ringLayer - T / 2, level.drive - T / 2],            // tappen til mellomhjulet, fra knasten opp
+  };
+})();
+
+// Hvor langt hjulverket ved Saturn (rundt den skrå aksen) rekker ut, sett ovenfra.
+// En skive med radius r rundt et punkt (x', s) i den skrå aksens koordinater:
+// hvor langt den rekker ut fra loddlinjen, sett ovenfra.
+const tiltedDiscReach = (tiltAngle, x, s, r, z = 0) => {
+  const c = Math.cos(tiltAngle), s0 = Math.sin(tiltAngle);
+  let m = 0;
+  for (let k = 0; k < 72; k++) {
+    const a = (k / 72) * Math.PI * 2;
+    m = Math.max(m, Math.hypot((x + r * Math.cos(a)) * c + s * s0, z + r * Math.sin(a)));
+  }
+  return m;
+};
+const marsGearboxReach = (() => {
+  const MT = marsTrain, DR = MT.drive, s = MT.level.drive;
+  let m = tiltedDiscReach(marsTilt, 0, MT.level.ringLayer, MT.ring.outer);
+  m = Math.max(m, tiltedDiscReach(marsTilt, DR.distance, s, tipOf(DR.module, MM.drive.bigTeeth)));
+  m = Math.max(m, tiltedDiscReach(marsTilt, DR.idler.x, s, tipOf(DR.module, MM.drive.idlerTeeth), DR.idler.z));
+  return m;
+})();
+const saturnGearboxReach = (() => {
+  const ST = saturnTrain;
+  const disc = (x, s, r) => tiltedDiscReach(saturnTilt, x, s, r);
   let m = disc(ST.layDistance, ST.bevel.layGear, tipOf(ST.bevel.module, ST.bevel.layTeeth));
   for (const [name, p] of Object.entries(ST.pairs)) {
     const lvl = ST.level[name];
@@ -423,6 +536,10 @@ const mechanismEnd = (name) => {
   if (kind === 'ringMoons') {
     const sprocketEnd = Math.max(SM.shaftSprocket, SM.parallel.postSprocket) * SM.chainPitch / (2 * Math.PI) + SM.chainPitch * 0.3 * 1.3;
     return Math.max(sprocketEnd, saturnGearboxReach);
+  }
+  if (kind === 'epicyclic') {
+    const sprocketEnd = Math.max(MM.shaftSprocket, MM.parallel.postSprocket) * MM.chainPitch / (2 * Math.PI) + MM.chainPitch * 0.3 * 1.3;
+    return Math.max(sprocketEnd, marsGearboxReach);
   }
   return Math.max(chainEnd(moonSprocket.teeth), kind === 'moons+parallel' ? chainEnd(parallelSprocket.teeth) : 0);
 };
@@ -447,11 +564,12 @@ function envelopeOf(name) {
 const pinionX = pitchRadius(moonTrain.module, fixed.teeth) + pitchRadius(moonTrain.module, pinion.teeth);
 const mechanismMinimum = (name) => {
   if (!mechanismOf(name)) return 0;
-  if (mechanismOf(name) === 'ringMoons') {
-    // De to kjedene langs armen: det største kjedehjulet ved sentrum og det ved Saturn.
-    const p = SM.chainPitch;
-    const big = sprocketRadius(Math.max(SM.tubeSprocket, SM.parallel.centerSprocket), p);
-    return big + sprocketRadius(Math.max(SM.shaftSprocket, SM.parallel.postSprocket), p) + 2 * p;
+  if (mechanismOf(name) === 'ringMoons' || mechanismOf(name) === 'epicyclic') {
+    // De to kjedene langs armen: det største kjedehjulet ved sentrum og det ved planeten.
+    const C = mechanismOf(name) === 'ringMoons' ? SM : MM;
+    const p = C.chainPitch;
+    const big = sprocketRadius(Math.max(C.tubeSprocket, C.parallel.centerSprocket), p);
+    return big + sprocketRadius(Math.max(C.shaftSprocket, C.parallel.postSprocket), p) + 2 * p;
   }
   if (mechanismOf(name) === 'moonDrive') {
     // Kjedet fra månerøret ut til kragen, og forlegsakselen inne i kjedesløyfa.
@@ -511,7 +629,7 @@ const tubeNames = order.flatMap((name) => {
   const kind = mechanismOf(name);
   if (!kind) return [name];
   if (kind === 'moonDrive') return [`drive-${name}`, name];
-  if (kind === 'ringMoons') return [`par-${name}`, `drive-${name}`, name];
+  if (kind === 'ringMoons' || kind === 'epicyclic') return [`par-${name}`, `drive-${name}`, name];
   return [name === 'earth' ? 'fixed' : `fixed-${name}`, name];
 });
 export const tubes = tubeNames.map((name, i) => ({
@@ -630,6 +748,37 @@ export const saturnParallelChain = makeChain('Parallellkjedet til Saturn', layou
   }
 }
 
+// Kjedene langs Mars-armen, som ved Saturn: månekjedet til driveakselen og
+// parallellkjedet til stolpen. Begge rørene i tårnet drives fra mellomakselen.
+export const marsLayout = { post: { x: armLengths.mars, y: 0 } };
+const MP = MM.parallel;
+export const marsChain = makeChain('Kjedet til Mars\' måner', layout.center, marsLayout.post,
+  MM.tubeSprocket, MM.shaftSprocket, MM.chainPitch);
+export const marsParallelChain = makeChain('Parallellkjedet til Mars', layout.center, marsLayout.post,
+  MP.centerSprocket, MP.postSprocket, MM.chainPitch);
+{
+  const mars = planets.mars;
+  // (x/y − c/b) · e/f = −c/b  ⇔  (x·b − c·y) · e = −c · y · f
+  const lhs = (MP.driveTeeth * mars.tubeTeeth - mars.driveTeeth * MP.tubeTeeth) * MP.centerSprocket;
+  const rhs = -mars.driveTeeth * MP.tubeTeeth * MP.postSprocket;
+  if (!mars.driveTeeth || lhs !== rhs) {
+    throw new Error('marsMoons.parallel: tanntallene gjør ikke at Mars-stolpen står stille i rommet. Det må gjelde: (parallel.driveTeeth/parallel.tubeTeeth − mars.driveTeeth/mars.tubeTeeth) × centerSprocket/postSprocket = −mars.driveTeeth/mars.tubeTeeth.');
+  }
+  const root = (chain, r) => r - chain.rollerRadius * 1.1;
+  if (root(marsChain, marsChain.radius1) < tube['drive-mars'].outer + 0.2) {
+    throw new Error('Kjedehjulet på månerøret til Mars er for lite til røret: øk marsMoons.tubeSprocket.');
+  }
+  if (root(marsParallelChain, marsParallelChain.radius1) < tube['par-mars'].outer + 0.2) {
+    throw new Error('Kjedehjulet på par-mars er for lite til røret: øk marsMoons.parallel.centerSprocket (og tanntallene i tårnet så det går opp).');
+  }
+  if (root(marsChain, marsChain.radius2) < MM.driveShaftRadius + 0.2) {
+    throw new Error('Kjedehjulet på driveakselen ved Mars er for lite til akselen: øk marsMoons.shaftSprocket.');
+  }
+  if (root(marsParallelChain, marsParallelChain.radius2) < MM.driveShaftRadius + MM.frameWall + 0.2) {
+    throw new Error('Kjedehjulet nederst på Mars-stolpen er for lite til stolpen: øk marsMoons.parallel.postSprocket.');
+  }
+}
+
 // Runder månen går rundt jorda per runde armen tar (månefaser per år).
 export const moonPerYear = (fixed.teeth / pinion.teeth) * (driveSprocket.teeth / moonSprocket.teeth);
 
@@ -720,12 +869,42 @@ function anglesWith(input, phases) {
   const saturnSleeveAngle = meshAngle(saturnBands.B, ST.pairs.titan2.tube, ST.pairs.titan2.lay, 0);
   saturnBands.C = meshAngle(saturnSleeveAngle + phases.iapetus, ST.pairs.iapetus.lay, ST.pairs.iapetus.tube, Math.PI);
 
+  // Mars. Månerøret og par-mars drives fra mellomakselen, og kjedene tar dem
+  // ut til driveakselen og stolpen (vinkler sett fra armen). Sett fra stolpen:
+  // kryssleddet tar driveakselen 1 : 1 over i den skrå drivakselen, det store
+  // hjulet driver mellomhjulet, og mellomhjulet det lille hjulet på bæreren
+  // (to inngrep, så bæreren går samme vei som driveakselen). Planetgiret gir
+  // solhjulet. Planethjul nr. k står i vinkelen 2πk/count på bæreren; planet2
+  // griper i ringhjulet (som står stille, altså −bæreren sett fra bæreren),
+  // planet1 i solhjulet.
+  const MT = marsTrain, PG = MT.planetary;
+  const marsTubeAngle = meshAngle(driveAngle, MM.driveTeeth, MM.tubeTeeth, driveToCenter);
+  const marsParTubeAngle = meshAngle(driveAngle, MP.driveTeeth, MP.tubeTeeth, driveToCenter);
+  const marsChainOffset = marsChain.offsetFor(marsTubeAngle - planetAngles.mars);
+  const marsShaftAngle = marsChain.angle2For(marsChainOffset);                             // driveakselen, sett fra armen
+  const marsParChainOffset = marsParallelChain.offsetFor(marsParTubeAngle - planetAngles.mars);
+  const marsFrameAngle = marsParallelChain.angle2For(marsParChainOffset);                  // stolpen, sett fra armen
+  const marsShaftOnMount = marsShaftAngle - marsFrameAngle - (marsAxis.direction ?? 0);
+  const marsDriveAngle = marsShaftOnMount;                                                  // kryssleddet: 1 : 1
+  const MD = MT.drive;
+  const marsIdlerAngle = meshAngle(marsDriveAngle, MM.drive.bigTeeth, MM.drive.idlerTeeth,
+    Math.atan2(MD.idler.z, MD.idler.x - MD.distance));
+  const marsCarrier = meshAngle(marsIdlerAngle, MM.drive.idlerTeeth, MM.drive.smallTeeth, MD.idlerPhi + Math.PI);
+  const marsPlanetSpins = [];
+  for (let k = 0; k < PG.count; k++) {
+    marsPlanetSpins.push(internalMeshAngle(-marsCarrier, PG.ring, PG.planet2, (2 * Math.PI * k) / PG.count));
+  }
+  const marsSun = marsCarrier + meshAngle(marsPlanetSpins[0], PG.planet1, PG.sun, Math.PI);
+  const marsMoonAngles = { phobos: marsSun + phases.phobos, deimos: marsCarrier + phases.deimos };
+
   return {
     driveAngle, driveChainOffset, idlerAngle, layChainOffset, layAngle, armAngle, planetAngles, fixedAngle, pinionAngle,
     moonDriveAngle, moonChainOffset, moonAngle, parallelChainOffset, parallelAngle,
     jupiterTubeAngle, jupiterChainOffset, collarAngle, jupiterLayAngle, jupiterMoonAngles,
     saturnTubeAngle, saturnParTubeAngle, saturnChainOffset, saturnShaftAngle, saturnParChainOffset, saturnFrameAngle,
     saturnShaftOnFrame, saturnLayAngle, saturnSleeveAngle, saturnBands,
+    marsTubeAngle, marsParTubeAngle, marsChainOffset, marsShaftAngle, marsParChainOffset, marsFrameAngle,
+    marsShaftOnMount, marsDriveAngle, marsIdlerAngle, marsCarrier, marsPlanetSpins, marsSun, marsMoonAngles,
   };
 }
 
@@ -749,7 +928,7 @@ const equinox = degrees(tilt.equinoxDirection);
 // Vinkelen i verden hver del skal ha på startdatoen. Månene: fra planeten.
 // Jupiters måner stilles med hjulene på forlegsakselen ved Jupiter, Saturns
 // med hjulene på forlegsakselen ved Saturn (Iapetus med hylsa).
-const settable = [...Object.keys(planets), 'earth', 'moon', ...jupiterMoonNames, ...saturnMoonNames];
+const settable = [...Object.keys(planets), 'earth', 'moon', ...jupiterMoonNames, ...saturnMoonNames, ...marsMoonNames];
 export const targets = {};
 for (const name of settable) targets[name] = longitudeAt(name, startDate) + equinox;
 
@@ -762,11 +941,16 @@ export const saturnAxis = { tilt: saturnTilt };
 export const saturnBandOf = { enceladus: 'A', titan: 'B', iapetus: 'C' };
 // En måne i ringplanet i vinkelen psi fra retningen aksen heller mot (om aksen),
 // sett ovenfra fra Saturn: lengden i verden, og omvendt.
-const saturnProjected = (psi) => saturnAxis.poleWorld + Math.atan2(Math.sin(psi), Math.cos(psi) * Math.cos(saturnTilt));
-const saturnInPlane = (world) => {
-  const phi = world - saturnAxis.poleWorld;
-  return Math.atan2(Math.sin(phi) * Math.cos(saturnTilt), Math.cos(phi));
+const projected = (axis, psi) => axis.poleWorld + Math.atan2(Math.sin(psi), Math.cos(psi) * Math.cos(axis.tilt));
+const inPlane = (axis, world) => {
+  const phi = world - axis.poleWorld;
+  return Math.atan2(Math.sin(phi) * Math.cos(axis.tilt), Math.cos(phi));
 };
+const saturnProjected = (psi) => projected(saturnAxis, psi);
+const saturnInPlane = (world) => inPlane(saturnAxis, world);
+// Mars' akse: stolpen står stille i rommet, og nordpolen heller mot lengden
+// til Mars' pol på ekliptikken (IAU) på startdatoen. Settes når planetene er stilt inn.
+export const marsAxis = { tilt: marsTilt };
 
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const angleOf = (name, a) => {
@@ -774,6 +958,7 @@ const angleOf = (name, a) => {
   if (name === 'moon') return a.armAngle + a.moonAngle;
   if (jupiterMoonNames.includes(name)) return a.planetAngles.jupiter + a.jupiterMoonAngles[name];
   if (saturnMoonNames.includes(name)) return saturnProjected(a.saturnBands[saturnBandOf[name]]);
+  if (marsMoonNames.includes(name)) return projected(marsAxis, a.marsMoonAngles[name]);
   return a.planetAngles[name];
 };
 export const worldAngleOf = angleOf;
@@ -788,8 +973,17 @@ const solvePhase = (name, measure, target) => {
   const perRadian = measure(anglesWith(0, { ...phases, [name]: phases[name] + 1 })) - now;
   phases[name] += wrap(target - now) / perRadian;
 };
-for (const name of settable.filter((n) => !saturnMoonNames.includes(n))) {
+for (const name of settable.filter((n) => !saturnMoonNames.includes(n) && !marsMoonNames.includes(n))) {
   solvePhase(name, (a) => angleOf(name, a), targets[name]);
+}
+{
+  const a = anglesWith(0, phases);
+  const poleWorld = marsPoleLongitude(startDate) + equinox;
+  const frameWorld = a.planetAngles.mars + a.marsFrameAngle;
+  Object.assign(marsAxis, { poleWorld, frameWorld, direction: poleWorld - frameWorld });
+}
+for (const name of marsMoonNames) {
+  solvePhase(name, (a) => a.marsMoonAngles[name], inPlane(marsAxis, targets[name]));
 }
 {
   const a = anglesWith(0, phases);
@@ -902,9 +1096,9 @@ export const heights = (() => {
       a = s.chainTop + armStyle.hubRise + gap;
       continue;
     }
-    if (kind === 'ringMoons') {
+    if (kind === 'ringMoons' || kind === 'epicyclic') {
       // To kjeder over armen: månekjedet nederst (fra månerøret til
-      // driveakselen) og parallellkjedet over (fra par-saturn til stolpen).
+      // driveakselen) og parallellkjedet over (fra par-røret til stolpen).
       const s = {};
       s.chain = armTop + Math.max(armStyle.hubRise + plateDepth, armStyle.collarHeight + accent.ringWidth) + gap;
       s.driveTubeTop = s.chain + moonTrain.thickness;                      // toppen av månerøret
@@ -976,17 +1170,57 @@ export const heights = (() => {
     const more = ss.chainTop + gap - (ss.bracket - 0.25);
     throw new Error(`Vinkelgiren ved Saturn kommer ned i kjedene: øk bodies.height med minst ${more.toFixed(1)}, eller gjør saturnMoons.layDistance eller bevel.module mindre.`);
   }
+
+  // Ved Mars: kryssleddet K sitter på toppen av stolpen, der den skrå
+  // drivakselen forlenget treffer loddlinjen. Stolperøret går fra
+  // parallellkjedet opp til rett under K, og braketten går ut fra toppen av det.
+  const ms = h.stack.mars;
+  const MT = marsTrain;
+  ms.joint = bodies.height - MT.drive.jointDrop;                 // høyden på K
+  ms.shaftTop = ms.joint;                                        // driveakselen går opp til K
+  ms.frameTop = ms.joint - MM.jointRadius - gap;
+  ms.bracket = ms.frameTop - 2 * MM.bracket.radius - 0.1;        // braketten ut fra stolperøret (under kanten, også den myke overgangen)
+  const bracketLowest = ms.chainTop + gap + MM.bracket.radius + 0.4;  // braketten må gå klar av kjedene
+  if (ms.bracket < bracketLowest) {
+    throw new Error(`Kryssleddet ved Mars kommer ned i kjedene: øk bodies.height med minst ${(bracketLowest - ms.bracket).toFixed(1)}, eller gjør marsMoons.drive.distance mindre.`);
+  }
   return h;
 })();
 
-// Punkter ved Saturn: fra den skrå aksens koordinater (x' mot forlegsakselen,
-// s langs aksen, z') til koordinater på stolpen (x den veien aksen heller,
-// y høyde, z), før stolpen dreies til retningen saturnAxis.direction.
-export const saturnToPost = (x, s, z = 0) => ({
-  x: x * Math.cos(saturnTilt) + s * Math.sin(saturnTilt),
-  y: bodies.height - x * Math.sin(saturnTilt) + s * Math.cos(saturnTilt),
+// Punkter ved Saturn og Mars: fra den skrå aksens koordinater (x' mot
+// forlegsakselen, s langs aksen, z') til koordinater på stolpen (x den veien
+// aksen heller, y høyde, z), før stolpen dreies til retningen axis.direction.
+const tiltedToPost = (tiltAngle) => (x, s, z = 0) => ({
+  x: x * Math.cos(tiltAngle) + s * Math.sin(tiltAngle),
+  y: bodies.height - x * Math.sin(tiltAngle) + s * Math.cos(tiltAngle),
   z,
 });
+export const saturnToPost = tiltedToPost(saturnTilt);
+export const marsToPost = tiltedToPost(marsTilt);
+
+// Braketten ved Mars (knekt): fra toppen av stolperøret vannrett ut til siden
+// (+z, motsatt av mellomhjulet og på tvers av drivakselen), rett opp, og
+// vannrett inn i ytterveggen under Mars (ringhjulet og veggen i skåla, midt
+// på). Endene møter stolperøret og veggen med myke overganger (fillet), og
+// knekkene er runde.
+export const marsBracket = (() => {
+  const MT = marsTrain, ms = heights.stack.mars, r = MM.bracket.radius;
+  const wallBottom = MT.level.bowl - MM.bowlThickness / 2, wallTop = MT.level.ringLayer + MM.thickness / 2;
+  const q = marsToPost(0, (wallBottom + wallTop) / 2, MT.ring.outer);   // midt på ytterveggen
+  const out = MT.ring.outer + spacing.gap + r + 0.3;              // den loddrette delen står så langt ute
+  const frameOuter = MM.driveShaftRadius + MM.frameWall;
+  const toward = Math.atan2(out, q.x);                            // retningen ut fra stolperøret
+  return {
+    radius: r,
+    fillet: MM.bracket.fillet,
+    points: [
+      { x: frameOuter * Math.cos(toward), y: ms.bracket, z: frameOuter * Math.sin(toward) },
+      { x: q.x, y: ms.bracket, z: out },
+      { x: q.x, y: q.y, z: out },
+      q,
+    ],
+  };
+})();
 // Braketten fra toppen av stolperøret til platen under hjulene: ut til siden
 // (z), opp under platen og inn til akselen.
 export const saturnBracket = (() => {

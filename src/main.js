@@ -4,18 +4,20 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   drive, outerDrive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, panels, accent, look, jupiterMoons,
-  saturnMoons, saturnRing,
+  saturnMoons, saturnRing, marsMoons,
 } from './config.js';
-import { createGearGeometry, createSprocketGeometry, createBevelGeometry } from './gear.js';
+import { createGearGeometry, createSprocketGeometry, createBevelGeometry, createRingGearGeometry } from './gear.js';
 import { createArmGeometry } from './arm.js';
 import { createPanelGeometry } from './panels.js';
 import { createPlexus, plexusPatterns } from './plexus.js';
-import { createGlassBands } from './ring.js';
+import { trackRotation, trackValue, updateBlur, createTrail, createFan, createSmoothGear, createSmoothChain } from './blur.js';
+import { createGlassBands, createAnnulus } from './ring.js';
 import {
   layout, anglesAt, pairModule, tube, tubes, heights, reach as armReach, armParts, armLengths,
   moonChain, parallelChain, driveChain, driveFrame, layChain, layFrame, idlerHub, earthAxis, moonRing, moonLift,
-  phases, inputPerYear, dateAt, jupiterChain, jupiterLayout, jupiterTrain, moonSystems, mechanismOf,
+  phases, inputPerYear, dateAt, jupiterChain, jupiterLayout, jupiterTrain, moonSystems, mechanismOf, meshAngle,
   saturnTrain, saturnChain, saturnParallelChain, saturnLayout, saturnAxis, saturnBracket,
+  marsTrain, marsChain, marsParallelChain, marsLayout, marsAxis, marsBracket,
 } from './mechanism.js';
 import { daysPerYear } from './ephemeris.js';
 import { createTimeControl } from './timeControl.js';
@@ -419,6 +421,9 @@ for (const [name, p] of Object.entries(planets)) {
 addGear(driveGroup, pairGear(jupiterMoons.driveTeeth, jupiterMoons.tubeTeeth, drive.shaftRadius), heights.bottom['drive-jupiter']);
 // Og hjulet som driver månerøret til Saturns ringbånd og måner.
 addGear(driveGroup, pairGear(saturnMoons.driveTeeth, saturnMoons.tubeTeeth, drive.shaftRadius), heights.bottom['drive-saturn']);
+// Mars: hjulene som driver månerøret og par-mars.
+addGear(driveGroup, pairGear(marsMoons.driveTeeth, marsMoons.tubeTeeth, drive.shaftRadius), heights.bottom['drive-mars']);
+addGear(driveGroup, pairGear(marsMoons.parallel.driveTeeth, marsMoons.parallel.tubeTeeth, drive.shaftRadius), heights.bottom['par-mars']);
 const sprocketStyle = { spokes: 0, spokeWidth: 1, hubWidth: 1, rimWidth: 1 };
 addSprocket(driveGroup, { teeth: outerDrive.driveSprocket, holeRadius: drive.shaftRadius, ...sprocketStyle },
   driveChain.radius1, heights.driveChain, driveChain);
@@ -466,7 +471,7 @@ for (const [name, p] of Object.entries(planets)) {
   addGear(group, pairGear(p.tubeTeeth, p.driveTeeth ?? p.layTeeth, tube[name].outer), heights.bottom[name]);
   addArm(group, { length, hubRadius: tube[name].outer + 1, part: armParts.planet, y, ring: true });
   planetGroups[name] = group;
-  if (mechanismOf(name) === 'ringMoons') continue; // Saturn står på sin egen stolpe, se under
+  if (mechanismOf(name) === 'ringMoons' || mechanismOf(name) === 'epicyclic') continue; // Saturn og Mars står på sine egne stolper, se under
   addShaft(group, armParts.planet.postRadius, y + arm.thickness, bodies.height).position.x = length;
   addPlanetSphere(group, p.radius, name).position.set(length, bodies.height, 0);
 }
@@ -503,6 +508,9 @@ const jupiterArmTop = heights.arm.jupiter + arm.thickness;
 const updateJupiterChain = addChain(jupiterGroup, jupiterChain, JS.chain);
 
 // Kragen går løst på stolpen: kjedehjulet nederst, tannhjulet over.
+// Raske deler som får lysspor, vifter og glatte former (blur.js): gruppen som
+// dreier, tannhjulene i den, delene som får vifte, og eventuelt månens bane.
+const fastParts = [];
 const collarGroup = addGroupAt(jupiterGroup, jupiterLayout.post);
 addShaft(collarGroup, jupiterTrain.collar.outer, JS.chain, JS.collarGear + JM.thickness);
 addSprocket(collarGroup, { teeth: JM.collarSprocket, holeRadius: jupiterTrain.collar.outer, ...sprocketStyle },
@@ -524,14 +532,17 @@ for (const [name, m] of Object.entries(jupiterTrain.moons)) {
   const y = JS.moonArm[name];
   const { orbit, radius } = moonOrbits[name];
   addShaft(group, m.outer, JS.moonGear[name], y);
-  addGear(group, jupiterGear(m.moonTeeth, m.layTeeth, m.outer), JS.moonGear[name]);
+  const gearMesh = addGear(group, jupiterGear(m.moonTeeth, m.layTeeth, m.outer), JS.moonGear[name]);
+  const armStart = group.children.length;
   addArm(group, {
     length: orbit, hubRadius: m.outer + 0.25, part: armParts.jupiterMoon, y,
     thickness: JM.armThickness, chamfer: JM.chamfer, collar: false,
   });
   addShaft(group, JM.postRadius, y + JM.armThickness, bodies.height).position.x = orbit;
+  const fan = group.children.slice(armStart); // armen og stolpen, til vifta mot flimring
   addPlanetSphere(group, radius, name).position.set(orbit, bodies.height, 0);
   jupiterMoonGroups[name] = group;
+  fastParts.push({ group, gears: [gearMesh], fan, trail: { radius: orbit, y: bodies.height, tube: radius * 0.35 } });
 }
 
 // --- Saturn ---
@@ -668,16 +679,18 @@ const bandTop = saturnRing.thickness / 2;
   saturnBandGroups[b] = group;
   const t = ST.tubeOf[b], hub = ST.hubs[b];
   addShaft(group, t.outer, ...ST.tubeSpan[b]);
+  const bandGears = [];
   for (const name of gearsOnBand[b]) {
     const p = ST.pairs[name];
-    addGear(group, smallTrainGear(SM, p.tube, p.lay, t.outer), ST.level[name] - SM.thickness / 2);
+    bandGears.push(addGear(group, smallTrainGear(SM, p.tube, p.lay, t.outer), ST.level[name] - SM.thickness / 2));
   }
   addShaft(group, hub.radius, hub.s - hub.length / 2, hub.s + hub.length / 2);
   const count = saturnRing.struts.count;
+  const fan = [];
   for (let k = 0; k < count; k++) {
     const ang = ((k + 0.5) / count) * Math.PI * 2;
     const at = (r, y) => ({ x: r * Math.cos(ang), y, z: -r * Math.sin(ang) });
-    addRod(group, at(hub.radius - 0.05, hub.s), at(hub.attach, -bandTop), ST.strutRadius, strutMaterial);
+    fan.push(addRod(group, at(hub.radius - 0.05, hub.s), at(hub.attach, -bandTop), ST.strutRadius, strutMaterial));
   }
   const glass = new THREE.Mesh(glassBands[i].geometry, glassBands[i].material);
   glass.receiveShadow = true; // glasset stenger ikke lyset helt, så det kaster ingen skygge
@@ -686,14 +699,207 @@ const bandTop = saturnRing.thickness / 2;
   // Månearmen: Enceladus rett ut fra ytterkanten av A-båndet; Titan og Iapetus
   // på et ledd opp fra båndet og en arm over det som ligger under.
   const name = moonOnBand[b], m = ST.arms[name], half = SM.armThickness / 2;
+  const armStart = group.children.length;
   if (m.s > 0) {
     addShaft(group, ST.footRadius, bandTop, bandTop + 0.08).position.x = m.from; // foten på glasset
     const leg = addMeshWith(group, new THREE.CylinderGeometry(SM.legRadius, SM.legRadius, m.s + half - bandTop, 16), moonArmMaterial);
     leg.position.set(m.from, (bandTop + m.s + half) / 2, 0);
   }
   addFlatBar(group, m.from, m.orbit, m.s - half, m.s + half, SM.armWidth, moonArmMaterial);
+  fan.push(...group.children.slice(armStart));
   addPlanetSphere(group, m.radius, name).position.set(m.orbit, m.s, 0);
+  fastParts.push({ group, gears: bandGears, fan, trail: { radius: m.orbit, y: m.s, tube: m.radius * 0.35 } });
 });
+
+// --- Mars ---
+// Fobos og Deimos med planetgir. Drivet går fra månerøret i tårnet, med et
+// kjede langs armen, til driveakselen midt i Mars-stolpen. Øverst på den sitter
+// klokka (et ringhjul med innvendige tenner), som driver den loddrette
+// sideakselen. Der sideakselen møter Mars' skrå akse, under Mars, sitter et
+// dobbelt kryssledd (kardang) som tar bevegelsen inn i bæreren i planetgiret.
+// Ringhjulet står fast; bæreren med planethjulene går med Deimos, solhjulet med
+// Fobos. Mars står stille på en aksel som holdes av gaffelen over nordpolen.
+// Stolpen holdes i samme retning i rommet av par-mars og parallellkjedet.
+const MMc = marsMoons, MS = heights.stack.mars, MTr = marsTrain, PGm = MTr.planetary;
+const marsArmMaterial = new THREE.MeshPhysicalMaterial({
+  color: MMc.armMaterial.color, metalness: MMc.armMaterial.metalness, roughness: MMc.armMaterial.roughness,
+  clearcoat: MMc.armMaterial.gloss, clearcoatRoughness: look.glossRoughness,
+});
+const marsGear = (teeth, holeRadius, module) => smallTrainGear(MMc, teeth, 0, holeRadius, module);
+
+// I tårnet: månerøret og par-mars, med kjedehjulene rett over Mars-armen.
+const marsTubeGroup = new THREE.Group();
+scene.add(marsTubeGroup);
+const marsDriveTube = tube['drive-mars'], marsParTube = tube['par-mars'];
+addShaft(marsTubeGroup, marsDriveTube.outer, heights.bottom['drive-mars'], MS.driveTubeTop);
+addGear(marsTubeGroup, pairGear(MMc.tubeTeeth, MMc.driveTeeth, marsDriveTube.outer), heights.bottom['drive-mars']);
+addSprocket(marsTubeGroup, { teeth: MMc.tubeSprocket, holeRadius: marsDriveTube.outer, ...bigSprocketStyle },
+  marsChain.radius1, MS.chain, marsChain);
+const marsParGroup = new THREE.Group();
+scene.add(marsParGroup);
+addShaft(marsParGroup, marsParTube.outer, heights.bottom['par-mars'], MS.parTubeTop);
+addGear(marsParGroup, pairGear(MMc.parallel.tubeTeeth, MMc.parallel.driveTeeth, marsParTube.outer), heights.bottom['par-mars']);
+addSprocket(marsParGroup, { teeth: MMc.parallel.centerSprocket, holeRadius: marsParTube.outer, ...bigSprocketStyle },
+  marsParallelChain.radius1, MS.parallel, marsParallelChain);
+
+// Langs Mars-armen: de to kjedene.
+const marsGroup = planetGroups.mars;
+const marsArmTop = heights.arm.mars + arm.thickness;
+const updateMarsChain = addChain(marsGroup, marsChain, MS.chain);
+const updateMarsParChain = addChain(marsGroup, marsParallelChain, MS.parallel);
+
+// Driveakselen midt i stolpen: kjedehjulet nederst, opp til kryssleddet K på toppen.
+const plateT = MTr.plateThickness;
+const marsShaftGroup = addGroupAt(marsGroup, marsLayout.post);
+addShaft(marsShaftGroup, MMc.driveShaftRadius, marsArmTop, MS.shaftTop);
+addSprocket(marsShaftGroup, { teeth: MMc.shaftSprocket, holeRadius: MMc.driveShaftRadius, ...sprocketStyle },
+  marsChain.radius2, MS.chain, marsChain);
+
+// Stolpen (står stille i rommet): kjedehjulet nederst og røret rundt
+// driveakselen, og på den retningen aksen heller mot (marsMount): den knekte
+// braketten, kryssleddet og alt rundt Mars' skrå akse.
+const marsFrameGroup = addGroupAt(marsGroup, marsLayout.post);
+const marsFrameOuter = MMc.driveShaftRadius + MMc.frameWall;
+addSprocket(marsFrameGroup, { teeth: MMc.parallel.postSprocket, holeRadius: marsFrameOuter, ...sprocketStyle },
+  marsParallelChain.radius2, MS.parallel, marsParallelChain);
+addShaft(marsFrameGroup, marsFrameOuter, MS.parallel + moonTrain.thickness, MS.frameTop);
+const marsMount = new THREE.Group();
+marsMount.rotation.y = marsAxis.direction;
+marsFrameGroup.add(marsMount);
+// Den knekte braketten: runde knekker, og myke overganger (en kjegle som vider
+// seg ut) der den møter stolperøret og ringhjulet.
+const mbp = marsBracket.points;
+for (let i = 0; i < mbp.length - 1; i++) addRod(marsMount, mbp[i], mbp[i + 1], marsBracket.radius);
+for (const p of mbp.slice(1, -1)) addSphere(marsMount, marsBracket.radius).position.set(p.x, p.y, p.z);
+const addFlare = (at, toward) => {
+  const A = new THREE.Vector3(at.x, at.y, at.z), dir = new THREE.Vector3(toward.x, toward.y, toward.z).sub(A).normalize();
+  const r = marsBracket.radius, L = marsBracket.fillet;
+  const flare = addMesh(marsMount, new THREE.CylinderGeometry(r, r * 2, L, 24));
+  flare.position.copy(A).addScaledVector(dir, L / 2);
+  flare.quaternion.setFromUnitVectors(upAxis, dir);
+};
+addFlare(mbp[0], mbp[1]);
+addFlare(mbp[mbp.length - 1], mbp[mbp.length - 2]);
+
+// Kryssleddet K på toppen av stolpen: driveakselen (loddrett) og den skrå
+// drivakselen møtes, og korset dreier med dem.
+const marsJoint = new THREE.Group();
+marsJoint.position.set(0, MS.joint, 0);
+const bisector = new THREE.Vector3(0, 1, 0).add(new THREE.Vector3(Math.sin(marsAxis.tilt), Math.cos(marsAxis.tilt), 0)).normalize();
+marsJoint.quaternion.setFromUnitVectors(upAxis, bisector);
+marsMount.add(marsJoint);
+addMeshWith(marsJoint, new THREE.SphereGeometry(MMc.jointRadius * 0.55, 24, 12), seamMaterial);
+const marsCross = new THREE.Group();
+marsJoint.add(marsCross);
+for (const [rx, rz] of [[0, Math.PI / 2], [Math.PI / 2, 0]]) {
+  const pin = addMesh(marsCross, new THREE.CylinderGeometry(0.06, 0.06, MMc.jointRadius * 2, 12));
+  pin.rotation.set(rx, 0, rz);
+}
+
+// Alt rundt Mars' skrå akse, med Mars' sentrum i origo og aksen langs y.
+const marsTilted = new THREE.Group();
+marsTilted.position.y = bodies.height;
+marsTilted.rotation.z = -marsAxis.tilt;
+marsMount.add(marsTilted);
+addPlanetSphere(marsTilted, MTr.radius, 'mars');
+addShaft(marsTilted, MMc.axleRadius, ...MTr.axleSpan);
+addMesh(marsTilted, createRingGearGeometry({
+  teeth: PGm.ring, module: MTr.module, outerRadius: MTr.ring.outer, thickness: MMc.thickness, chamfer: 0.02,
+})).position.y = MTr.level.ringLayer - MMc.thickness / 2;
+// Skåla under bæreren: bunnen rundt akselen og en vegg opp til ringhjulet, så
+// aksel, skål, ringhjul og Mars er én stiv enhet.
+{
+  const bt = MMc.bowlThickness, bottom = MTr.level.bowl, wallTop = MTr.level.ringLayer - MMc.thickness / 2;
+  addShaft(marsTilted, MTr.ring.outer, bottom - bt / 2, bottom + bt / 2);
+  addMesh(marsTilted, createAnnulus(MTr.ring.outer - 0.2, MTr.ring.outer, wallTop - (bottom + bt / 2), 0.02))
+    .position.y = (wallTop + bottom + bt / 2) / 2;
+}
+// Tappen mellomhjulet står på, på en knast ytterst på ringhjulet.
+const MDr = MTr.drive;
+{
+  const lug = new THREE.Group();
+  lug.rotation.y = MDr.idlerPhi;
+  marsTilted.add(lug);
+  addFlatBar(lug, MTr.ring.outer - 0.3, MDr.idlerRho, MTr.level.ringLayer - MMc.thickness / 2,
+    MTr.level.ringLayer + MMc.thickness / 2, MMc.pinRadius * 4);
+  addShaft(lug, MMc.pinRadius, ...MTr.pinSpan).position.x = MDr.idlerRho;
+}
+// Den skrå drivakselen fra kryssleddet, med det store hjulet øverst.
+const marsDriveGroup = new THREE.Group();
+marsDriveGroup.position.x = MDr.distance;
+marsTilted.add(marsDriveGroup);
+addShaft(marsDriveGroup, MMc.tiltShaftRadius, ...MTr.driveShaftSpan);
+addGear(marsDriveGroup, smallTrainGear(MMc, MMc.drive.bigTeeth, 0, MMc.tiltShaftRadius, MDr.module), MTr.level.drive - MMc.thickness / 2);
+// Mellomhjulet.
+const marsIdlerGroup = new THREE.Group();
+marsIdlerGroup.position.set(MDr.idler.x, 0, -MDr.idler.z);
+marsTilted.add(marsIdlerGroup);
+addGear(marsIdlerGroup, smallTrainGear(MMc, MMc.drive.idlerTeeth, 0, MMc.pinRadius, MDr.module), MTr.level.drive - MMc.thickness / 2);
+
+// Bæreren (Deimos): to plater, pinnene med planethjulene, det lille hjulet i
+// hjulparet, røret opp og armen til Deimos.
+const marsCarrierGroup = new THREE.Group();
+marsTilted.add(marsCarrierGroup);
+const marsSmallGear = addGear(marsCarrierGroup, smallTrainGear(MMc, MMc.drive.smallTeeth, 0, MTr.carrierTube.outer, MDr.module),
+  MTr.level.drive - MMc.thickness / 2);
+// Platene er edderkopper med én arm per planethjul, så solsystemet synes ovenfra.
+const pinRadius = 0.1, spiderWidth = 0.35;
+const spiderMeshes = [];
+for (const [y, inner] of [[MTr.level.carrierBottom, 0], [MTr.level.carrierTop, MTr.carrierTube.inner]]) {
+  addShaft(marsCarrierGroup, MTr.carrierTube.outer + 0.15, y - plateT / 2, y + plateT / 2);
+  for (let k = 0; k < PGm.count; k++) {
+    const spoke = new THREE.Group();
+    spoke.rotation.y = (2 * Math.PI * k) / PGm.count;
+    marsCarrierGroup.add(spoke);
+    addFlatBar(spoke, Math.max(inner, 0.2), MTr.carrierRadius, y - plateT / 2, y + plateT / 2, spiderWidth);
+    spiderMeshes.push(...spoke.children);
+  }
+}
+fastParts.push({ group: marsCarrierGroup, fan: spiderMeshes, gears: [marsSmallGear] });
+addShaft(marsCarrierGroup, MTr.carrierTube.outer, ...MTr.carrierTubeSpan);
+const marsPlanets = [];
+const startMars = anglesAt(0);
+for (let k = 0; k < PGm.count; k++) {
+  const az = (2 * Math.PI * k) / PGm.count;
+  const pin = new THREE.Group();
+  pin.position.set(MTr.carrierRadius * Math.cos(az), 0, -MTr.carrierRadius * Math.sin(az));
+  marsCarrierGroup.add(pin);
+  addShaft(pin, pinRadius, MTr.level.carrierBottom, MTr.level.carrierTop);
+  const spin = new THREE.Group();
+  pin.add(spin);
+  const planet2 = addGear(spin, marsGear(PGm.planet2, pinRadius, MTr.module), MTr.level.ringLayer - MMc.thickness / 2);
+  // planet1 sitter fast på planet2, satt på så det griper i solhjulet.
+  const sunRel = startMars.marsSun - startMars.marsCarrier;
+  const p1 = meshAngle(sunRel, PGm.sun, PGm.planet1, az) - startMars.marsPlanetSpins[k];
+  const planet1 = addGear(spin, marsGear(PGm.planet1, pinRadius, MTr.module), MTr.level.sunLayer - MMc.thickness / 2);
+  planet1.rotation.y = p1;
+  marsPlanets.push(spin);
+  fastParts.push({ group: spin, gears: [planet2, planet1] });
+}
+
+// Månearmene: et nav på røret, armen ut og en stolpe opp til ekvatorplanet.
+const addMarsMoon = (parent, name, tubeOuter, gears = []) => {
+  const m = MTr.arms[name], half = MMc.armThickness / 2;
+  const holder = new THREE.Group();
+  holder.rotation.y = phases[name];
+  parent.add(holder);
+  addShaft(holder, tubeOuter + 0.15, m.s - MTr.hubLength / 2, m.s + MTr.hubLength / 2);
+  addFlatBar(holder, tubeOuter + 0.15, m.orbit, m.s - half, m.s + half, MMc.armWidth, marsArmMaterial);
+  const post = addMeshWith(holder, new THREE.CylinderGeometry(MMc.postRadius, MMc.postRadius, -m.s, 12), marsArmMaterial);
+  post.position.set(m.orbit, m.s / 2, 0);
+  const fan = holder.children.slice(1);
+  addPlanetSphere(holder, m.radius, name).position.set(m.orbit, 0, 0);
+  // Sporet ligger i holderen (der månen står på +x), men måles på gruppen som dreier.
+  fastParts.push({ group: parent, gears, fan, trail: { parent: holder, radius: m.orbit, y: 0, tube: Math.max(m.radius * 0.35, 0.03) } });
+};
+addMarsMoon(marsCarrierGroup, 'deimos', MTr.carrierTube.outer);
+
+// Solhjulet (Fobos): hjulet, røret opp og armen til Fobos.
+const marsSunGroup = new THREE.Group();
+marsTilted.add(marsSunGroup);
+const marsSunGear = addGear(marsSunGroup, marsGear(PGm.sun, MTr.sunTube.outer, MTr.module), MTr.level.sunLayer - MMc.thickness / 2);
+addShaft(marsSunGroup, MTr.sunTube.outer, ...MTr.sunTubeSpan);
+addMarsMoon(marsSunGroup, 'phobos', MTr.sunTube.outer, [marsSunGear]);
 
 // --- Jordarmen: røret, det store hjulet nederst og stanga ut til jorda. ---
 const armGroup = new THREE.Group();
@@ -786,6 +992,39 @@ foot.rotation.z = Math.PI / 2;
 foot.position.set(-footLength / 2, ringY + bandThickness / 2 + footSize, 0);
 addPlanetSphere(moonPin, bodies.moonRadius, 'moon').position.y = bodies.height;
 
+// --- Mot flimring (blur.js) ---
+// Hjulene på akslene som går fort (alle unntatt den første delen, som er akselen).
+const gearsOf = (group) => group.children.filter((c) => c.isMesh).slice(1);
+fastParts.push({ group: collarGroup, gears: gearsOf(collarGroup) });
+fastParts.push({ group: jupiterLayGroup, gears: gearsOf(jupiterLayGroup) });
+fastParts.push({ group: saturnLayGroup, gears: gearsOf(saturnLayGroup) });
+fastParts.push({ group: saturnSleeveGroup, gears: gearsOf(saturnSleeveGroup) });
+fastParts.push({ group: marsDriveGroup, gears: gearsOf(marsDriveGroup) });
+fastParts.push({ group: marsIdlerGroup, gears: marsIdlerGroup.children.filter((c) => c.isMesh) });
+// Månen: sporet i høyden der banen ligger i snitt (den går litt opp og ned).
+fastParts.push({ group: moonGroup, trail: { radius: bodies.moonOrbit, y: bodies.height, tube: bodies.moonRadius * 0.35 } });
+scene.updateMatrixWorld(true);
+for (const p of fastParts) {
+  const pieces = [];
+  for (const g of p.gears ?? []) pieces.push(createSmoothGear(g));
+  if (p.fan?.length) pieces.push(createFan(p.group, p.fan));
+  if (p.trail) pieces.push(createTrail(p.trail.parent ?? p.group, p.trail));
+  trackRotation(p.group, pieces);
+}
+// Kjedene til månene: et glatt bånd over leddene. Farten måles som vinkelen
+// det minste kjedehjulet dreier.
+const chainOffsets = {};
+for (const [key, parent, chain, y] of [
+  ['jupiter', jupiterGroup, jupiterChain, JS.chain],
+  ['saturn', saturnGroup, saturnChain, SS.chain],
+  ['mars', marsGroup, marsChain, MS.chain],
+  ['moon', armGroup, moonChain, moonChainLevel],
+]) {
+  const over = plateGap + 2 * plateThickness;
+  const band = createSmoothChain(parent, chain, y - over, moonTrain.thickness + 2 * over, chain.rollerRadius * 1.25, chainMaterial);
+  trackValue(() => chainOffsets[key] ?? 0, Math.min(chain.radius1, chain.radius2), [band]);
+}
+
 // Tilpass ved endring av vindusstørrelse.
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -827,6 +1066,18 @@ renderer.setAnimationLoop((time) => {
   saturnLayGroup.rotation.y = a.saturnLayAngle;
   saturnSleeveGroup.rotation.y = a.saturnSleeveAngle;
   for (const b in saturnBandGroups) saturnBandGroups[b].rotation.y = a.saturnBands[b];
+  marsTubeGroup.rotation.y = a.marsTubeAngle;
+  marsParGroup.rotation.y = a.marsParTubeAngle;
+  updateMarsChain(a.marsChainOffset);
+  updateMarsParChain(a.marsParChainOffset);
+  marsShaftGroup.rotation.y = a.marsShaftAngle;
+  marsFrameGroup.rotation.y = a.marsFrameAngle;
+  marsDriveGroup.rotation.y = a.marsDriveAngle;
+  marsIdlerGroup.rotation.y = a.marsIdlerAngle;
+  marsCross.rotation.y = a.marsDriveAngle;
+  marsCarrierGroup.rotation.y = a.marsCarrier;
+  marsPlanets.forEach((spin, k) => { spin.rotation.y = a.marsPlanetSpins[k]; });
+  marsSunGroup.rotation.y = a.marsSun;
   pinionGroup.rotation.y = a.pinionAngle;
   updateMoonChain(a.moonChainOffset);
   updateParallelChain(a.parallelChainOffset);
@@ -835,6 +1086,12 @@ renderer.setAnimationLoop((time) => {
   moonPin.position.y = moonLift(a);
   // Plexus-kulene driver i vanlig tid, uansett hvor fort modellen går.
   for (const update of plexusUpdates) update(time / 1000);
+  // Lysspor, vifter og glatte former for det som går fort (blur i config).
+  chainOffsets.jupiter = a.jupiterChainOffset;
+  chainOffsets.saturn = a.saturnChainOffset;
+  chainOffsets.mars = a.marsChainOffset;
+  chainOffsets.moon = a.moonChainOffset;
+  updateBlur();
 
   controls.update();
   renderer.render(scene, camera);
