@@ -465,8 +465,8 @@ export const panels = {
   // bredere fuger på sola og store planeter. Da gjelder den verdien for den kula.
   mercury: { pattern: 'kites',     subdivisions: 1 },  // 60 drager
   venus:   { pattern: 'rhombi',    subdivisions: 2 },  // 120 ruter
-  earth:   { pattern: 'triangles', subdivisions: 2 },  // 80 trekanter
-  mars:    { pattern: 'quads',     subdivisions: 3 },  // 54 firkanter
+  earth:   { pattern: 'spiral', subdivisions: 2 },  // 80 trekanter
+  mars:    { pattern: 'quads',     subdivisions: 3, amplitude: 0.32, bulge: 0.8, seamWidth: 0.01 },  // 54 firkanter
   moon:    { pattern: 'pentagons', subdivisions: 1 },  // 12 femkanter med en ring av trapeser rundt (72 paneler)
   jupiter: { pattern: 'bands',     subdivisions: 3 },  // 7 bånd à 16 firkanter, og en 16-kant over hver pol
   io:       { pattern: 'quads', subdivisions: 1 },     // Jupiters måner: 6 firkanter hver
@@ -486,7 +486,7 @@ export const panels = {
   // kantlengden). bulge gjør hver bue bredere ytterst: 0 gir rolige bølger,
   // rundt 1 gir tydelige armer. For store verdier gir en feilmelding.
   // Fugebredden på sola følger solradiusen (0,1 ved radius 10).
-  sun:     { pattern: 'trionda', amplitude: 0.32, bulge: 0.2, seamWidth: 0.01 * bodies.sunRadius },
+sun:     { pattern: 'plexusA', amplitude: 0.32, bulge: 0.2, seamWidth: 0.01 * bodies.sunRadius },
 };
 
 // Raske deler (månene, Saturns bånd og stag, hjulene og kjedene ved månene)
@@ -509,7 +509,7 @@ export const blur = {
 
 // Rødt brukes sparsomt: sola, og en tynn ring der hver planetstolpe møter armen.
 export const accent = {
-  red: '#960820',         // fargen på det røde
+  red: '#f3f595',         // fargen på det røde
   sunStyle: 'glass',    // 'lacquer' = blank rød lakk, 'glass' = rødt glass med lys innenfra
   glow: 1,                // hvor sterkt glasssola lyser innenfra (bare for 'glass')
   ringWidth: 0.16,        // tykkelsen på den røde ringen rundt planetstolpene
@@ -531,14 +531,14 @@ export const accent = {
 export const plexus = {
   radius: 3,              // kulenes radius på testsiden
   A: {                    // tett og fin
-    nodes: 280,           // tettheten: antall noder
-    nodeSize: 0.045,      // radius på nodekulene
-    edgeWidth: 0.012,     // radius på stengene
-    fill: 0.3,            // andel fasetter som er fylt (0–1)
+    nodes: 180,           // tettheten: antall noder
+    //nodeSize: 0.045,      // radius på nodekulene
+    //edgeWidth: 0.012,     // radius på stengene
+    fill: 1,            // andel fasetter som er fylt (0–1)
     speed: 0.05,          // hvor fort nodene driver (svingninger per sekund)
     drift: 0.3,           // hvor langt de driver, som andel av avstanden mellom noder
-    core: 0.55,           // kjernens radius, som andel av kula (0 = ingen kjerne)
-    seed: 1,              // et annet tall gir en annen tilfeldig fordeling
+    core: 0.90,           // kjernens radius, som andel av kula (0 = ingen kjerne)
+    seed: 3,              // et annet tall gir en annen tilfeldig fordeling
   },
   B: {                    // grov, med få og store fasetter
     nodes: 34,
@@ -551,9 +551,9 @@ export const plexus = {
     seed: 7,
   },
   C: {                    // typisk motion graphics
-    nodes: 170,
+    nodes: 370,
     nodeSize: 0.8,        // størrelsen på de lysende punktene (med glorie)
-    linkDistance: 0.55,   // linjer mellom punkter nærmere enn dette (andel av radius)
+    linkDistance: 0.6,   // linjer mellom punkter nærmere enn dette (andel av radius)
     speed: 0.08,          // hvor fort punktene vandrer (radianer per sekund)
     depth: 0.08,          // hvor mye punktene ligger over og under kula (andel av radius)
     seed: 3,
