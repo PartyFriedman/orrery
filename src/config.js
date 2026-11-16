@@ -34,6 +34,17 @@ export const outerDrive = {
   angle: 60,          // hvor forlegsakselen står: grader mot klokka fra mellomakselen, rundt sentrum
 };
 
+// Uranus og Neptun: omløpstidene er for lange til et hjulpar fra forlegsakselen
+// (pinjongen ville blitt tynnere enn akselen). I stedet driver et ekstra hjul på
+// Saturn-røret en motaksel i tårnet, like langt fra sentrum som de andre
+// akslene. Fra motakselen går et hjulpar inn til Uranus-røret, Neptun-røret og
+// par-uranus (se planets og uranusPost).
+export const counterDrive = {
+  saturnTeeth: 69,    // hjul nr. 2 på Saturn-røret, ett plan over det første
+  shaftTeeth: 41,     // hjulet på motakselen som det driver
+  angle: -60,         // hvor motakselen står: grader mot klokka fra mellomakselen, rundt sentrum
+};
+
 // Mellomrom. Mindre tall gir en mer kompakt modell.
 export const spacing = {
   gap: 0.3,           // mellomrom i høyden mellom deler over hverandre
@@ -56,6 +67,7 @@ export const sizes = {
     moon: 1737.4, phobos: 11.3, deimos: 6.2,
     io: 1821.6, europa: 1560.8, ganymede: 2634.1, callisto: 2410.3,
     enceladus: 252.1, titan: 2574.7, iapetus: 734.5,
+    uranus: 25362, neptune: 24622,
   },
 };
 export const planetSize = (name) => sizes.earth * (sizes.km[name] / sizes.km.earth) ** sizes.exponent;
@@ -329,6 +341,61 @@ export const marsMoons = {
   armMaterial: { color: '#f4f6f7', metalness: 0, roughness: 0.4, gloss: 0.7 },  // månearmer og stolper
 };
 
+// Uranus' ringer: tynne ringer av mørkt glass i ekvatorplanet, som ligger nesten
+// loddrett, fordi Uranus ligger på siden. Ringene holder retningen i rommet
+// sammen med kula (se uranusPost). Radiene er i ganger Uranus' radius (de ekte
+// hovedringene), bredder og tykkelser i mm. Legg til eller fjern ringer i lista;
+// de ekte radiene til de andre: 5: 1.665, 4: 1.679, η: 1.860, γ: 1.878.
+// scale drar ringene inn mot kula, som planetstørrelsene: radius = 1 + (r − 1) × scale.
+// 1 gir de ekte radiene; 0.78 legger ε på ca. 1,8 og gjør Uranus- og Neptun-armen ca. 1,2 kortere.
+export const uranusRing = {
+  tilt: 97.77,          // aksens helning mot banen, i grader (over 90: aksen heller under vannrett)
+  scale: 1,
+  rings: [
+    { name: '6', radius: 1.650, width: 0.05 },
+    { name: 'α', radius: 1.763, width: 0.06 },
+    { name: 'β', radius: 1.800, width: 0.06 },
+    { name: 'δ', radius: 1.904, width: 0.06 },
+    { name: 'ε', radius: 2.017, width: 0.14 },  // den bredeste og tydeligste
+  ],
+  thickness: 0.08,      // tykkelsen på ringene
+  chamfer: 0.02,
+  // Glasset, som i Saturns ring (variant C), men mørkt. Én tone per ring,
+  // innenfra og ut; er det færre toner enn ringer, brukes den siste.
+  // transmission: hvor mye lys som går gjennom (1 = klart). roughness: hvor frostet.
+  glass: {
+    tones: [{ color: '#3a3f44', transmission: 0.5, roughness: 0.4 }],
+    ior: 1.5,
+    depth: 0.3,
+  },
+  rim: { color: '#ffffff', strength: 0.35, sharpness: 3 },  // kantlys (strength 0 = av)
+  // Ringene bæres av stag fra et nav på polakselen ut til den innerste ringen,
+  // og tynne eiker i ringplanet binder ringene sammen.
+  struts: { count: 3, width: 0.1, color: '#303538', metalness: 0.6, roughness: 0.45 },
+  spokeWidth: 0.08,     // eikene i ringplanet
+};
+
+// Uranus holdes i polen, som en globus på siden: stolpen slutter under ringene,
+// og en knekt brakett går vannrett ut langs polretningen, rett opp, og inn som
+// en aksel i Uranus' pol. Et nav på polakselen bærer stagene til ringene.
+// Stolpen står stille i rommet, som Saturn-stolpen: et eget rør i tårnet
+// (par-uranus) dreier sakte, drevet fra motakselen, og et kjede langs armen gjør
+// at stolpen holder retningen. Det regnes eksakt (feilmelding hvis tanntallene
+// ikke går opp):
+//   (parallel.counterTeeth/parallel.tubeTeeth − uranus.counterTeeth/uranus.tubeTeeth)
+//   × (centerSprocket/postSprocket) = −uranus.counterTeeth/uranus.tubeTeeth
+export const uranusPost = {
+  parallel: {
+    counterTeeth: 11,     // hjulet på motakselen som driver par-uranus
+    tubeTeeth: 60,        // hjulet nederst på par-uranus
+    centerSprocket: 100,  // kjedehjulet på par-uranus, over Uranus-armen
+    postSprocket: 12,     // kjedehjulet nederst på Uranus-stolpen
+  },
+  chainPitch: 1.0,
+  bracket: { radius: 0.25, fillet: 0.4 },  // braketten og polakselen, og hvor langt de myke overgangene går
+  hub: { radius: 0.55, length: 0.5 },      // navet på polakselen som stagene går ut fra
+};
+
 // Planetene (unntatt jorda): hver har sitt eget rør med et hjul nederst og en
 // arm øverst. Omløpstiden følger av tanntallene:
 //   driveTeeth: hjulet sitter på mellomakselen.
@@ -336,8 +403,11 @@ export const marsMoons = {
 //   layTeeth: hjulet sitter på forlegsakselen (se outerDrive).
 //     år per runde = (tubeTeeth / layTeeth) × (idlerLarge / driveSprocket) × (laySprocket / idlerSmall)
 //                    × (smallGear.teeth / bigGear.teeth)
+//   counterTeeth: hjulet sitter på motakselen (se counterDrive).
+//     år per runde = Saturns år × (counterDrive.shaftTeeth / counterDrive.saturnTeeth) × (tubeTeeth / counterTeeth)
 // period er bare målet den sammenlignes med.
 // armLength: 'auto' gir den korteste armen som går klar av naboene, eller et tall.
+// reachGap (valgfritt): mellomrommet til naboarmen innenfor, i stedet for spacing.reachGap.
 // moons og ring: plass som reserveres rundt planeten (Jupiters måner er bygget).
 // mechanism: mekanikken over armen ved sentrum:
 //   'moons' = fast hjul, pinion og månekjede; 'moons+parallel' = også parallellkjede
@@ -345,6 +415,7 @@ export const marsMoons = {
 //   'moonDrive' = et månerør drevet fra mellomakselen og et kjede langs armen (se jupiterMoons).
 //   'ringMoons' = Saturns dreiende ringbånd med månene, og stolpen som holder retningen (se saturnMoons).
 //   'epicyclic' = Mars' planetgir med kardang og gaffel (se marsMoons).
+//   'parallelPost' = en stolpe som står stille i rommet, med par-røret og kjedet (Uranus, se uranusPost).
 export const planets = {
   mercury: { period: 0.2408, driveTeeth: 29, tubeTeeth: 21, armLength: 'auto', radius: planetSize('mercury') },
   venus:   { period: 0.6152, driveTeeth: 19, tubeTeeth: 35, armLength: 'auto', radius: planetSize('venus') },
@@ -361,6 +432,12 @@ export const planets = {
     ring: saturnRing,  // radiene og hellingen står i saturnRing
     moons: ['enceladus', 'titan', 'iapetus'], mechanism: 'ringMoons',
   },
+  uranus:  {
+    period: 84.0205, counterTeeth: 10, tubeTeeth: 48, armLength: 'auto', radius: planetSize('uranus'),
+    ring: uranusRing,  // ringene og hellingen står i uranusRing
+    mechanism: 'parallelPost',  // stolpen holder retningen i rommet, se uranusPost
+  },
+  neptune: { period: 164.79, counterTeeth: 12, tubeTeeth: 113, armLength: 'auto', radius: planetSize('neptune') },
 };
 
 // Månehjulverket på jordarmen. Et fast hjul driver en pinion på armen. Det
@@ -441,7 +518,7 @@ export const tilt = {
 export const bodies = {
   sunRadius: 6,
   earthRadius: planetSize('earth'),
-  height: 45.5,       // høyden på sentrum av sola og alle planetene (feilmelding hvis den er for lav)
+  height: 55.1, // høyden på sentrum av sola og alle planetene (feilmelding hvis den er for lav; var 45,5 før Uranus og Neptun)
   moonRadius: moonSize('moon'),
   moonOrbit: 4,       // avstanden fra jorda til månen (lavere gir for liten føringsring under jorda)
 };
@@ -481,6 +558,8 @@ export const panels = {
   // Iapetus: uregelmessige fasetter, og panelene på siden som vender framover
   // (fartsretningen) i mørkt metall. split: 'leading' = den ledende halvdelen er mørk.
   iapetus:   { pattern: 'facets', subdivisions: 30, split: 'leading' },
+  uranus:  { pattern: 'triangles', subdivisions: 2 },  // 80 trekanter
+  neptune: { pattern: 'rhombi',    subdivisions: 2 },  // 120 ruter
   // Sola: fire like paneler fra et tetraeder, der hver kant er en S-kurve (som
   // Trionda-ballen). amplitude er hvor langt S-en svinger ut (andel av
   // kantlengden). bulge gjør hver bue bredere ytterst: 0 gir rolige bølger,

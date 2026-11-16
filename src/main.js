@@ -4,20 +4,21 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   drive, outerDrive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, panels, accent, look, jupiterMoons,
-  saturnMoons, saturnRing, marsMoons,
+  saturnMoons, saturnRing, marsMoons, counterDrive, uranusRing, uranusPost,
 } from './config.js';
 import { createGearGeometry, createSprocketGeometry, createBevelGeometry, createRingGearGeometry } from './gear.js';
 import { createArmGeometry } from './arm.js';
 import { createPanelGeometry } from './panels.js';
 import { createPlexus, plexusPatterns } from './plexus.js';
 import { trackRotation, trackValue, updateBlur, createTrail, createFan, createSmoothGear, createSmoothChain } from './blur.js';
-import { createGlassBands, createAnnulus } from './ring.js';
+import { createGlassBands, createAnnulus, createGlassMaterials } from './ring.js';
 import {
   layout, anglesAt, pairModule, tube, tubes, heights, reach as armReach, armParts, armLengths,
   moonChain, parallelChain, driveChain, driveFrame, layChain, layFrame, idlerHub, earthAxis, moonRing, moonLift,
   phases, inputPerYear, dateAt, jupiterChain, jupiterLayout, jupiterTrain, moonSystems, mechanismOf, meshAngle,
   saturnTrain, saturnChain, saturnParallelChain, saturnLayout, saturnAxis, saturnBracket,
   marsTrain, marsChain, marsParallelChain, marsLayout, marsAxis, marsBracket,
+  usesCounter, uranusTrain, uranusParallelChain, uranusLayout, uranusAxis, uranusBracket,
 } from './mechanism.js';
 import { daysPerYear } from './ephemeris.js';
 import { createTimeControl } from './timeControl.js';
@@ -451,6 +452,20 @@ for (const [name, p] of Object.entries(planets)) {
 }
 // Hjulet som driver par-saturn (parallellføringen av Saturn-stolpen).
 addGear(layGroup, pairGear(saturnMoons.parallel.layTeeth, saturnMoons.parallel.tubeTeeth, drive.shaftRadius), heights.bottom['par-saturn']);
+
+// --- Motakselen: drives av hjul nr. 2 på Saturn-røret, og driver Uranus,
+// Neptun og par-uranus (parallellføringen av Uranus-stolpen). ---
+const counterGroup = addGroupAt(scene, layout.counter);
+if (usesCounter) {
+  addShaft(counterGroup, drive.shaftRadius, 0, heights.driveTop);
+  addGear(counterGroup, pairGear(counterDrive.shaftTeeth, counterDrive.saturnTeeth, drive.shaftRadius), heights.counterGear);
+  for (const [name, p] of Object.entries(planets)) {
+    if (p.counterTeeth) {
+      addGear(counterGroup, pairGear(p.counterTeeth, p.tubeTeeth, drive.shaftRadius), heights.bottom[name]).rotation.y = phases[name];
+    }
+  }
+  addGear(counterGroup, pairGear(uranusPost.parallel.counterTeeth, uranusPost.parallel.tubeTeeth, drive.shaftRadius), heights.bottom['par-uranus']);
+}
 // Kjedene, regnet ut langs +x fra sitt første kjedehjul og dreid på plass.
 const chainGroupAt = (frame) => {
   const group = addGroupAt(scene, frame.origin);
@@ -468,12 +483,17 @@ for (const [name, p] of Object.entries(planets)) {
   const y = heights.arm[name];
   const length = armLengths[name];
   addShaft(group, tube[name].outer, heights.bottom[name], y);
-  addGear(group, pairGear(p.tubeTeeth, p.driveTeeth ?? p.layTeeth, tube[name].outer), heights.bottom[name]);
+  addGear(group, pairGear(p.tubeTeeth, p.driveTeeth ?? p.layTeeth ?? p.counterTeeth, tube[name].outer), heights.bottom[name]);
   addArm(group, { length, hubRadius: tube[name].outer + 1, part: armParts.planet, y, ring: true });
   planetGroups[name] = group;
-  if (mechanismOf(name) === 'ringMoons' || mechanismOf(name) === 'epicyclic') continue; // Saturn og Mars står på sine egne stolper, se under
+  // Saturn, Mars og Uranus står på sine egne stolper, se under.
+  if (['ringMoons', 'epicyclic', 'parallelPost'].includes(mechanismOf(name))) continue;
   addShaft(group, armParts.planet.postRadius, y + arm.thickness, bodies.height).position.x = length;
   addPlanetSphere(group, p.radius, name).position.set(length, bodies.height, 0);
+}
+// Hjul nr. 2 på Saturn-røret, som driver motakselen.
+if (usesCounter) {
+  addGear(planetGroups.saturn, pairGear(counterDrive.saturnTeeth, counterDrive.shaftTeeth, tube.saturn.outer), heights.counterGear);
 }
 
 // --- Jupiters måner ---
@@ -771,15 +791,15 @@ marsFrameGroup.add(marsMount);
 const mbp = marsBracket.points;
 for (let i = 0; i < mbp.length - 1; i++) addRod(marsMount, mbp[i], mbp[i + 1], marsBracket.radius);
 for (const p of mbp.slice(1, -1)) addSphere(marsMount, marsBracket.radius).position.set(p.x, p.y, p.z);
-const addFlare = (at, toward) => {
+// En myk overgang: en kjegle fra 2 × radius ved `at` ned til radius, lengden L mot `toward`.
+const addFlare = (parent, at, toward, r, L) => {
   const A = new THREE.Vector3(at.x, at.y, at.z), dir = new THREE.Vector3(toward.x, toward.y, toward.z).sub(A).normalize();
-  const r = marsBracket.radius, L = marsBracket.fillet;
-  const flare = addMesh(marsMount, new THREE.CylinderGeometry(r, r * 2, L, 24));
+  const flare = addMesh(parent, new THREE.CylinderGeometry(r, r * 2, L, 24));
   flare.position.copy(A).addScaledVector(dir, L / 2);
   flare.quaternion.setFromUnitVectors(upAxis, dir);
 };
-addFlare(mbp[0], mbp[1]);
-addFlare(mbp[mbp.length - 1], mbp[mbp.length - 2]);
+addFlare(marsMount, mbp[0], mbp[1], marsBracket.radius, marsBracket.fillet);
+addFlare(marsMount, mbp[mbp.length - 1], mbp[mbp.length - 2], marsBracket.radius, marsBracket.fillet);
 
 // Kryssleddet K på toppen av stolpen: driveakselen (loddrett) og den skrå
 // drivakselen møtes, og korset dreier med dem.
@@ -900,6 +920,66 @@ marsTilted.add(marsSunGroup);
 const marsSunGear = addGear(marsSunGroup, marsGear(PGm.sun, MTr.sunTube.outer, MTr.module), MTr.level.sunLayer - MMc.thickness / 2);
 addShaft(marsSunGroup, MTr.sunTube.outer, ...MTr.sunTubeSpan);
 addMarsMoon(marsSunGroup, 'phobos', MTr.sunTube.outer, [marsSunGear]);
+
+// --- Uranus ---
+// Uranus ligger på siden, med tynne ringer av mørkt glass i ekvatorplanet.
+// Stolpen holdes i samme retning i rommet av par-uranus og parallellkjedet.
+// Den slutter under ringene, og en knekt brakett går ut langs polretningen,
+// opp og inn som en aksel i polen. Et nav på akselen bærer stagene ut til den
+// innerste ringen, og eiker i ringplanet binder ringene sammen.
+// Se uranusRing og uranusPost i config.
+const UPc = uranusPost, US = heights.stack.uranus, UT = uranusTrain;
+const uranusParGroup = new THREE.Group();
+scene.add(uranusParGroup);
+const uranusParTube = tube['par-uranus'];
+addShaft(uranusParGroup, uranusParTube.outer, heights.bottom['par-uranus'], US.parTubeTop);
+addGear(uranusParGroup, pairGear(UPc.parallel.tubeTeeth, UPc.parallel.counterTeeth, uranusParTube.outer), heights.bottom['par-uranus']);
+addSprocket(uranusParGroup, { teeth: UPc.parallel.centerSprocket, holeRadius: uranusParTube.outer, ...bigSprocketStyle },
+  uranusParallelChain.radius1, US.parallel, uranusParallelChain);
+const uranusGroup = planetGroups.uranus;
+const updateUranusParChain = addChain(uranusGroup, uranusParallelChain, US.parallel);
+
+// Stolpen (står stille i rommet): kjedehjulet nederst, og stolpen opp til braketten.
+const uranusPostR = armParts.planet.postRadius;
+const uranusFrameGroup = addGroupAt(uranusGroup, uranusLayout.post);
+addSprocket(uranusFrameGroup, { teeth: UPc.parallel.postSprocket, holeRadius: uranusPostR, ...sprocketStyle },
+  uranusParallelChain.radius2, US.parallel, uranusParallelChain);
+addShaft(uranusFrameGroup, uranusPostR, heights.arm.uranus + arm.thickness, US.postTop);
+const uranusMount = new THREE.Group();
+uranusMount.rotation.y = uranusAxis.direction;
+uranusFrameGroup.add(uranusMount);
+// Braketten: vannrett ut, opp, og langs polakselen inn i polen. Runde knekker,
+// og myke overganger ved stolpen og ved polen.
+const ubp = uranusBracket.points, ubr = uranusBracket.radius;
+for (let i = 0; i < ubp.length - 1; i++) addRod(uranusMount, ubp[i], ubp[i + 1], ubr);
+for (const p of ubp.slice(1, -1)) addSphere(uranusMount, ubr).position.set(p.x, p.y, p.z);
+addFlare(uranusMount, ubp[0], ubp[1], ubr, uranusBracket.fillet);
+addFlare(uranusMount, ubp[ubp.length - 1], ubp[ubp.length - 2], ubr, uranusBracket.fillet);
+
+// Alt rundt Uranus' akse, med sentrum i origo og aksen langs y.
+const uranusTilted = new THREE.Group();
+uranusTilted.position.y = bodies.height;
+uranusTilted.rotation.z = -uranusAxis.tilt; // heller polen med akselen mot +x i uranusMount (under vannrett)
+uranusMount.add(uranusTilted);
+addPlanetSphere(uranusTilted, UT.radius, 'uranus');
+addShaft(uranusTilted, UT.hub.radius, UT.hub.s0, UT.hub.s1);   // navet, en hylse på polakselen
+const uranusStrutMaterial = new THREE.MeshPhysicalMaterial({
+  color: uranusRing.struts.color, metalness: uranusRing.struts.metalness, roughness: uranusRing.struts.roughness,
+});
+const ringAt = (r, y, ang) => ({ x: r * Math.cos(ang), y, z: -r * Math.sin(ang) });
+for (const ang of UT.azimuths) {
+  addRod(uranusTilted, ringAt(UT.hub.radius - 0.05, UT.hub.s, ang), ringAt(UT.attach.rho, UT.attach.s, ang), UT.strutRadius, uranusStrutMaterial);
+  addRod(uranusTilted, ringAt(UT.ring.inner, 0, ang), ringAt(UT.ring.outer, 0, ang), uranusRing.spokeWidth / 2, uranusStrutMaterial);
+}
+const uranusGlass = createGlassMaterials(uranusRing);
+for (const r of UT.ring.rings) {
+  const glass = new THREE.Mesh(
+    createAnnulus(r.inner, r.outer, uranusRing.thickness, uranusRing.chamfer),
+    uranusGlass[Math.min(r.index, uranusGlass.length - 1)],
+  );
+  glass.receiveShadow = true; // glasset stenger ikke lyset helt, så det kaster ingen skygge
+  uranusTilted.add(glass);
+}
 
 // --- Jordarmen: røret, det store hjulet nederst og stanga ut til jorda. ---
 const armGroup = new THREE.Group();
@@ -1050,6 +1130,7 @@ renderer.setAnimationLoop((time) => {
   idlerGroup.rotation.y = a.idlerAngle;
   updateLayChain(a.layChainOffset);
   layGroup.rotation.y = a.layAngle;
+  counterGroup.rotation.y = a.counterAngle;
   armGroup.rotation.y = a.armAngle;
   for (const name in planetGroups) planetGroups[name].rotation.y = a.planetAngles[name];
   jupiterTubeGroup.rotation.y = a.jupiterTubeAngle;
@@ -1078,6 +1159,9 @@ renderer.setAnimationLoop((time) => {
   marsCarrierGroup.rotation.y = a.marsCarrier;
   marsPlanets.forEach((spin, k) => { spin.rotation.y = a.marsPlanetSpins[k]; });
   marsSunGroup.rotation.y = a.marsSun;
+  uranusParGroup.rotation.y = a.uranusParTubeAngle;
+  updateUranusParChain(a.uranusParChainOffset);
+  uranusFrameGroup.rotation.y = a.uranusFrameAngle;
   pinionGroup.rotation.y = a.pinionAngle;
   updateMoonChain(a.moonChainOffset);
   updateParallelChain(a.parallelChainOffset);
