@@ -189,3 +189,6 @@
   - Aksler og rør som dreide profiler med skulder og avfaset ende.
   - Armene skal være parallelle: stilguiden ble endret, men koden har fortsatt avsmalning.
   - Myk overgang der eikene møter kransen på tannhjulene.
+
+## Småting
+- **Jordrotasjon som et tellurium:** jorda dreier rundt sin egen skrå akse, drevet av ekte hjulverk (ikke bare satt i animasjonen). Bare for jorda. Ikke påbegynt.
