@@ -14,6 +14,7 @@
 //         tilfeldige tidspunkt. Kontroll av A med de faktiske formene.
 //      C: hjulverket ved Jupiter, med ringområder rundt Jupiter-stolpen: krage,
 //         forlegsaksel, månerør, hjul, månearmer, stolper og måner.
+//      D, E og F: alt ved Saturn, Mars og Uranus i 3D, sett fra stolpen.
 //   Reservert plass (stabler over armene, måner og Saturns ring) er med.
 //   Jupiters måner: omløpstidene, at de tre innerste går 4 : 2 : 1 sett fra
 //   armen, og at Laplace-vinkelen (Io − 3 × Europa + 2 × Ganymedes) står stille.
@@ -31,6 +32,7 @@ const { drive, outerDrive, center, gear, bigGear, smallGear, arm, armStyle, plan
 const JM = C.jupiterMoons;
 const SMc = C.saturnMoons;
 const MMc = C.marsMoons;
+const CD = C.counterDrive, UPc = C.uranusPost;
 const {
   tube, tubes, heights: h, layout, anglesAt, pairModule, moonChain, parallelChain,
   driveChain, driveFrame, layChain, layFrame, idlerHub,
@@ -38,6 +40,7 @@ const {
   jupiterChain, jupiterLayout, jupiterTrain: JT, worldAngleOf,
   saturnTrain: ST, saturnChain, saturnParallelChain, saturnLayout, saturnAxis, saturnBracket, saturnToPost, inputPerYear,
   marsTrain: MT, marsChain, marsParallelChain, marsLayout, marsAxis, marsBracket, marsToPost,
+  uranusTrain: UT, uranusParallelChain, uranusLayout, uranusAxis, uranusBracket, uranusToPost,
 } = M;
 const mMoons = planets.mars.moons;
 const jMoons = planets.jupiter.moons;
@@ -133,21 +136,24 @@ let problems = 0;
       seat(saturnParallelChain, layout.center, saturnLayout.post, SMc.parallel.centerSprocket, SMc.parallel.postSprocket, a.saturnParTubeAngle - a.planetAngles.saturn, a.saturnFrameAngle, a.saturnParChainOffset),
       seat(marsChain, layout.center, marsLayout.post, MMc.tubeSprocket, MMc.shaftSprocket, a.marsTubeAngle - a.planetAngles.mars, a.marsShaftAngle, a.marsChainOffset),
       seat(marsParallelChain, layout.center, marsLayout.post, MMc.parallel.centerSprocket, MMc.parallel.postSprocket, a.marsParTubeAngle - a.planetAngles.mars, a.marsFrameAngle, a.marsParChainOffset),
+      seat(uranusParallelChain, layout.center, uranusLayout.post, UPc.parallel.centerSprocket, UPc.parallel.postSprocket, a.uranusParTubeAngle - a.planetAngles.uranus, a.uranusFrameAngle, a.uranusParChainOffset),
     ]) { rollers += n; worst = Math.max(worst, w); }
   }
-  let drift = 0, saturnDrift = 0, marsDrift = 0;
+  let drift = 0, saturnDrift = 0, marsDrift = 0, uranusDrift = 0;
   const w0 = anglesAt(0).armAngle + anglesAt(0).parallelAngle;
   const s0 = anglesAt(0).planetAngles.saturn + anglesAt(0).saturnFrameAngle;
   const m0 = anglesAt(0).planetAngles.mars + anglesAt(0).marsFrameAngle;
+  const u0 = anglesAt(0).planetAngles.uranus + anglesAt(0).uranusFrameAngle;
   const wrapAbs = (x) => Math.abs(Math.atan2(Math.sin(x), Math.cos(x)));
   for (let t = 0; t < 5000; t += 3.7) {
     const a = anglesAt(t);
     drift = Math.max(drift, wrapAbs(a.armAngle + a.parallelAngle - w0));
     saturnDrift = Math.max(saturnDrift, wrapAbs(a.planetAngles.saturn + a.saturnFrameAngle - s0));
     marsDrift = Math.max(marsDrift, wrapAbs(a.planetAngles.mars + a.marsFrameAngle - m0));
+    uranusDrift = Math.max(uranusDrift, wrapAbs(a.planetAngles.uranus + a.uranusFrameAngle - u0));
   }
-  if (worst > 1e-6 || drift > 1e-9 || saturnDrift > 1e-9 || marsDrift > 1e-9) problems++;
-  console.log(`\nKjeder: ${rollers} ruller sjekket, største avvik fra setet ${worst.toExponential(1)}. Drift i rommet: parallellhjulet ved jorda ${drift.toExponential(1)} rad, Saturn-stolpen ${saturnDrift.toExponential(1)} rad, Mars-stolpen ${marsDrift.toExponential(1)} rad.`);
+  if (worst > 1e-6 || drift > 1e-9 || saturnDrift > 1e-9 || marsDrift > 1e-9 || uranusDrift > 1e-9) problems++;
+  console.log(`\nKjeder: ${rollers} ruller sjekket, største avvik fra setet ${worst.toExponential(1)}. Drift i rommet: parallellhjulet ved jorda ${drift.toExponential(1)} rad, Saturn-stolpen ${saturnDrift.toExponential(1)} rad, Mars-stolpen ${marsDrift.toExponential(1)} rad, Uranus-stolpen ${uranusDrift.toExponential(1)} rad.`);
   // Kryssleddet ved Mars: K (toppen av stolpen) skal ligge både på loddlinjen
   // gjennom stolpen og på den skrå drivakselen; de to leddene har like vinkler,
   // så drivakselen går like jevnt som driveakselen.
@@ -179,6 +185,7 @@ let problems = 0;
     ['Saturnakse', a.planetAngles.saturn + a.saturnFrameAngle + saturnAxis.direction, saturnAxis.poleWorld],
     ...mMoons.map((n) => [n, worldAngleOf(n, a), M.targets[n]]),
     ['Marsakse', a.planetAngles.mars + a.marsFrameAngle + marsAxis.direction, marsAxis.poleWorld],
+    ['Uranusakse', a.planetAngles.uranus + a.uranusFrameAngle + uranusAxis.direction, uranusAxis.poleWorld],
   ];
   console.log(`\nStartposisjon ${M.startDate.toISOString().slice(0, 10)} (middellengde, grader fra vårjevndøgn):`);
   let worstStart = 0;
@@ -232,6 +239,21 @@ let problems = 0;
   const marsOk = Math.abs(marsEquinox) <= 6 && marsSolstice > 15;
   if (!marsOk) problems++;
   console.log(`  Sola sett fra Mars' ekvator: ${marsEquinox.toFixed(1)}° 12.11.2024 (vårjevndøgn, skal være nær 0), ${marsSolstice.toFixed(1)}° 12.07.2023 (sommersolverv i nord, skal være stor og positiv)${marsOk ? '' : '  <-- FEIL'}`);
+
+  // Uranus' ringer sett fra sola: på kanten ved jevndøgn (07.12.2007), og nesten
+  // rett mot sola ved solverv (sydpolen mot sola i 1985). Middellengder, så det
+  // er noen grader slingring.
+  const uranusSun = (iso) => {
+    const years = (new Date(iso) - M.startDate) / 86400000 / daysPerYear;
+    const x = anglesAt(years * inputPerYear);
+    const ur = x.planetAngles.uranus;
+    const pole = ur + x.uranusFrameAngle + uranusAxis.direction;
+    return (Math.asin(Math.sin(uranusAxis.tilt) * Math.cos(ur + Math.PI - pole)) * 180) / Math.PI;
+  };
+  const uranusEquinox = uranusSun('2007-12-07'), uranusSolstice = uranusSun('1985-12-01');
+  const uranusOk = Math.abs(uranusEquinox) <= 5 && Math.abs(uranusSolstice) > 60;
+  if (!uranusOk) problems++;
+  console.log(`  Uranus' ringer sett fra sola: ${uranusEquinox.toFixed(1)}° 07.12.2007 (jevndøgn, skal være nær 0), ${uranusSolstice.toFixed(1)}° 01.12.1985 (solverv, skal være over 60° fra ringplanet)${uranusOk ? '' : '  <-- FEIL'}`);
 }
 
 // ---------- 3: kollisjoner ----------
@@ -245,7 +267,10 @@ const plateEnd = (chain) => chain.rollerRadius * 1.25;
 const chainBand = (y) => [y - 0.29, y + mT + 0.29];
 const around = (dist, r) => [dist - r, dist + r];
 const radiusOf = (name) => (name === 'earth' ? bodies.earthRadius : planets[name].radius);
-const teethFor = (name) => (name === 'earth' ? [smallGear.teeth, bigGear.teeth] : [planets[name].driveTeeth ?? planets[name].layTeeth, planets[name].tubeTeeth]);
+const teethFor = (name) => (name === 'earth' ? [smallGear.teeth, bigGear.teeth]
+  : [planets[name].driveTeeth ?? planets[name].layTeeth ?? planets[name].counterTeeth, planets[name].tubeTeeth]);
+// Akselen i tårnet som driver røret: mellomakselen, forlegsakselen eller motakselen.
+const shaftOf = (name) => (name === 'earth' ? 'drive' : planets[name].layTeeth ? 'lay' : planets[name].counterTeeth ? 'counter' : 'drive');
 const fixedTip = tipOf(moonTrain.module, moonTrain.fixed.teeth);
 const parallelTip = sTip(parallelChain.radius1, parallelChain);
 const bigSprocketReach = sTip(moonChain.radius1, moonChain);                       // 47-hjulet ved pinionen
@@ -284,8 +309,15 @@ add('lay', 'forlegsaksel', ...around(d, drive.shaftRadius), 0, h.driveTop);
 for (const name of order) {
   const [c, t] = teethFor(name);
   const m = pairModule(c, t);
-  const body = name !== 'earth' && planets[name].layTeeth ? 'lay' : 'drive';
-  add(body, `hjul for ${name}`, ...around(d, tipOf(m, c)), h.bottom[name], h.bottom[name] + gear.thickness, { mesh: [`tubegear-${name}`] });
+  add(shaftOf(name), `hjul for ${name}`, ...around(d, tipOf(m, c)), h.bottom[name], h.bottom[name] + gear.thickness, { mesh: [`tubegear-${name}`] });
+}
+// Motakselen og hjul nr. 2 på Saturn-røret, som driver den.
+const counterModule = pairModule(CD.shaftTeeth, CD.saturnTeeth);
+if (M.usesCounter) {
+  const y2 = h.counterGear;
+  add('counter', 'motaksel', ...around(d, drive.shaftRadius), 0, h.driveTop);
+  add('counter', 'hjul fra Saturn-røret', ...around(d, tipOf(counterModule, CD.shaftTeeth)), y2, y2 + gear.thickness, { mesh: ['tubegear-saturn2'] });
+  add('saturn', 'rørhjul 2', tube.saturn.outer, tipOf(counterModule, CD.saturnTeeth), y2, y2 + gear.thickness, { id: 'tubegear-saturn2' });
 }
 // De to kjedene nederst og det løse hjulet på sentralakselen
 add('drive', 'lite kjedehjul', ...around(d, sTip(driveChain.radius1, driveChain)), h.driveChain, h.driveChain + mT);
@@ -323,7 +355,7 @@ for (const name of order) {
   const r = radiusOf(name);
   add(name, 'stolpe', ...around(L, part.postRadius), top, H);
   add(name, 'kule', ...around(L, r), H - r, H + r);
-  if (['moonDrive', 'ringMoons', 'epicyclic'].includes(mechanismOf(name))) continue; // Jupiter, Saturn og Mars, under
+  if (['moonDrive', 'ringMoons', 'epicyclic', 'parallelPost'].includes(mechanismOf(name))) continue; // Jupiter, Saturn, Mars og Uranus, under
   if (s) add(name, 'reservert stabel', t.outer + 1, L + endReach(name), s.level1, s.pinionTop, { id: `stack-${name}` });
   const env = moonSystems[name].envelope;
   if (env > 0) add(name, 'reservert plass til måner/ring', ...around(L, env), s ? s.moonArm : top, H + vReserve(name));
@@ -402,6 +434,23 @@ const marsLow = mS.bracket - 2 * marsBracket.radius - 0.1;  // det laveste ved M
   add('mars', 'parallellkjede', ...chainRange(marsParallelChain), ...chainBand(mS.parallel), { id: 'marsparallell' });
   add('mars', 'Mars med måner, planetgir og gaffel', ...around(mL, marsEnvelope), marsLow, H + marsTopV);
 }
+// Uranus: par-uranus i midten (drevet fra motakselen), parallellkjedet langs
+// armen, og alt ved Uranus (kula, ringene og braketten) som ett område rundt
+// stolpen. Det ved Uranus sjekkes for seg i F.
+const uS = h.stack.uranus, uL = armLengths.uranus, uPar = tube['par-uranus'];
+const uParModule = pairModule(UPc.parallel.counterTeeth, UPc.parallel.tubeTeeth);
+const uranusEnvelope = uL - reach.uranus.inner;
+const uranusTopV = UT.ring.outer * Math.sin(uranusAxis.tilt) + 0.3;           // ringene står nesten loddrett
+const uranusLow = uS.bracket - 2 * uranusBracket.radius - 0.1;                // braketten med den myke overgangen
+{
+  const yP = h.bottom['par-uranus'];
+  add('counter', 'hjul for par-uranus', ...around(d, tipOf(uParModule, UPc.parallel.counterTeeth)), yP, yP + gear.thickness, { mesh: ['tubegear-uranusPar'] });
+  add('uranusPar', 'par-uranus', uPar.inner, uPar.outer, yP, uS.parTubeTop, { tube: true });
+  add('uranusPar', 'rørhjul', uPar.outer, tipOf(uParModule, UPc.parallel.tubeTeeth), yP, yP + gear.thickness, { id: 'tubegear-uranusPar' });
+  add('uranusPar', 'kjedehjul på par-uranus', uPar.outer, sTip(uranusParallelChain.radius1, uranusParallelChain), uS.parallel, uS.parallel + mT, { mesh: ['uranusparallell'] });
+  add('uranus', 'parallellkjede', ...chainRange(uranusParallelChain), ...chainBand(uS.parallel), { id: 'uranusparallell' });
+  add('uranus', 'Uranus med ringer og brakett', ...around(uL, uranusEnvelope), uranusLow, H + uranusTopV);
+}
 // Jordas hjulverk og det som står ved jorda
 {
   const E = armLengths.earth, top = h.arm.earth + armT, s = h.stack.earth;
@@ -424,7 +473,7 @@ const marsLow = mS.bracket - 2 * marsBracket.radius - 0.1;  // det laveste ved M
   add('earth', 'månen', ...around(E, bodies.moonOrbit + bodies.moonRadius), H - moonRing.maxLift - bodies.moonRadius, H + moonRing.maxLift + bodies.moonRadius);
 }
 
-const statics = new Set(['fixed', 'drive', 'lay', 'idler', 'driveChain', 'layChain']);
+const statics = new Set(['fixed', 'drive', 'lay', 'counter', 'idler', 'driveChain', 'layChain']);
 const meshes = (a, b) => (a.mesh ?? []).includes(b.id) || (b.mesh ?? []).includes(a.id);
 const minA = {};
 let failures = 0;
@@ -452,7 +501,20 @@ const O = { x: 0, y: 0 };
 
 function shapesAt(input) {
   const a = anglesAt(input);
-  const S = { fixed: [], drive: [], lay: [], idler: [], driveChain: [], layChain: [], jupiterDrive: [], saturnDrive: [], saturnPar: [], marsDrive: [], marsPar: [] };
+  const S = {
+    fixed: [], drive: [], lay: [], counter: [], idler: [], driveChain: [], layChain: [],
+    jupiterDrive: [], saturnDrive: [], saturnPar: [], marsDrive: [], marsPar: [], uranusPar: [],
+  };
+  {
+    const yP = h.bottom['par-uranus'];
+    S.counter.push(circ(layout.counter, tipOf(uParModule, UPc.parallel.counterTeeth), yP, yP + gear.thickness, 'hjul for uranusPar'));
+    S.uranusPar.push(circ(O, tipOf(uParModule, UPc.parallel.tubeTeeth), yP, yP + gear.thickness, 'rørhjul uranusPar'));
+    S.uranusPar.push(circ(O, sTip(uranusParallelChain.radius1, uranusParallelChain), uS.parallel, uS.parallel + mT, 'kjedehjul på par-uranus'));
+    if (M.usesCounter) {
+      S.counter.push(circ(layout.counter, drive.shaftRadius, 0, h.driveTop, 'motaksel'));
+      S.counter.push(circ(layout.counter, tipOf(counterModule, CD.shaftTeeth), h.counterGear, h.counterGear + gear.thickness, 'hjul for saturn2'));
+    }
+  }
   {
     const yD = h.bottom['drive-mars'], yP = h.bottom['par-mars'];
     S.drive.push(circ(layout.drive, tipOf(mDriveModule, MMc.driveTeeth), yD, yD + gear.thickness, 'hjul for marsDrive'));
@@ -490,8 +552,8 @@ function shapesAt(input) {
   for (const name of order) {
     const [c, t] = teethFor(name);
     const m = pairModule(c, t);
-    const lay = name !== 'earth' && planets[name].layTeeth;
-    (lay ? S.lay : S.drive).push(circ(lay ? layout.lay : layout.drive, tipOf(m, c), h.bottom[name], h.bottom[name] + gear.thickness, `hjul for ${name}`));
+    const shaft = shaftOf(name);
+    S[shaft].push(circ(layout[shaft], tipOf(m, c), h.bottom[name], h.bottom[name] + gear.thickness, `hjul for ${name}`));
   }
   S.drive.push(circ(layout.drive, sTip(driveChain.radius1, driveChain), h.driveChain, h.driveChain + mT, 'lite kjedehjul'));
   S.idler.push(circ(O, sTip(driveChain.radius2, driveChain), h.driveChain, h.driveChain + mT, 'stort løst kjedehjul'));
@@ -593,6 +655,19 @@ function shapesAt(input) {
       list.push(circ(at(L), saturnEnvelope, saturnLow, H + saturnTopV, 'Saturn med ring, måner og hjulkasse'));
       continue;
     }
+    if (mechanismOf(name) === 'parallelPost') {
+      // Parallellkjedet langs armen, kjedehjulet på stolpen, og området rundt Uranus.
+      const [y0, y1] = chainBand(s.parallel);
+      let prev = rot(uranusParallelChain.point(a.uranusParChainOffset), ang);
+      for (let i = 1; i <= uranusParallelChain.links; i++) {
+        const p = rot(uranusParallelChain.point(a.uranusParChainOffset + i * uranusParallelChain.pitch), ang);
+        list.push(caps(prev, p, plateEnd(uranusParallelChain), y0, y1, 'uranusparallell'));
+        prev = p;
+      }
+      list.push(circ(at(L), sTip(uranusParallelChain.radius2, uranusParallelChain), s.parallel, s.parallel + mT, 'kjedehjul på stolpen'));
+      list.push(circ(at(L), uranusEnvelope, uranusLow, H + uranusTopV, 'Uranus med ringer og brakett'));
+      continue;
+    }
     if (s) {
       list.push(caps(at(tube[name].outer + 1), at(L), laneReach(name), s.level1, s.pinionTop, `reservert stabel ${name}`));
       list.push(circ(at(layout.pinion.x), bigSprocketReach, s.level1, s.pinionTop, `reservert stabel ${name}`));
@@ -601,6 +676,8 @@ function shapesAt(input) {
     const env = moonSystems[name].envelope;
     if (env > 0) list.push(circ(at(L), env, s ? s.moonArm : top, H + vReserve(name), 'reservert plass til måner/ring'));
   }
+  // Hjul nr. 2 på Saturn-røret (til motakselen).
+  if (M.usesCounter) S.saturn.push(circ(O, tipOf(counterModule, CD.saturnTeeth), h.counterGear, h.counterGear + gear.thickness, 'rørhjul saturn2'));
   // Jorda i detalj
   const A = a.armAngle, w = (p) => rot(p, A), e = w(layout.earth), s = h.stack.earth, top = h.arm.earth + armT;
   const Se = S.earth;
@@ -653,6 +730,7 @@ const allowedPair = (s, t) => {
   if (tags === 'kjedehjul på par-saturn|saturnparallell') return true;
   if (tags === 'kjedehjul på månerøret til Mars|marskjede') return true;
   if (tags === 'kjedehjul på par-mars|marsparallell') return true;
+  if (tags === 'kjedehjul på par-uranus|uranusparallell') return true;
   // Hvert kjede nederst ligger rundt sine egne kjedehjul og akslene de sitter på.
   const wraps = {
     'kjede til sentralakselen': ['mellomaksel', 'lite kjedehjul', 'stort løst kjedehjul'],
@@ -675,7 +753,7 @@ function check(S, A, B) {
 }
 
 const moving = order;
-const all = [...statics, ...moving, 'jupiterDrive', 'saturnDrive', 'saturnPar', 'marsDrive', 'marsPar'];
+const all = [...statics, ...moving, 'jupiterDrive', 'saturnDrive', 'saturnPar', 'marsDrive', 'marsPar', 'uranusPar'];
 const ang = (n, x) => (n === 'earth' ? x.armAngle : x.planetAngles[n]);
 const rateOf = (n) => { const a0 = anglesAt(0), a1 = anglesAt(2 * Math.PI); return (ang(n, a1) - ang(n, a0)) / (2 * Math.PI); };
 let samples = 0;
@@ -1075,6 +1153,69 @@ function run3D(letter, title, parts, skip = () => false) {
   });
   const idlerRoom = rootOf(MT.drive.module, MMc.drive.smallTeeth) - MT.carrierTube.outer;
   console.log(`  Mellomhjulet mot bærerrøret ved siden av det lille hjulet: ${idlerToTube.map((d) => d.toFixed(2)).join(', ')} (foten på det lille hjulet står ${idlerRoom.toFixed(2)} utenfor røret)`);
+}
+
+// ---------- F: alt ved Uranus, i 3D ----------
+// Sett fra Uranus-stolpen (som står stille i rommet) er det bare armen og
+// parallellkjedet som dreier (om loddlinjen). Resten står stille, men deles i
+// kropper så de sjekkes mot hverandre: stolpen med braketten og polakselen,
+// navet med stagene, ringene med eikene, og kula. Det som er festet sammen
+// (navet på akselen, akselen inn i kula, stagene på den innerste ringen og
+// eikene) regnes ikke mot hverandre.
+{
+  const tl = uranusAxis.tilt, u = v(Math.sin(tl), Math.cos(tl), 0);
+  const P = (x, s, z = 0) => uranusToPost(x, s, z);
+  const Vax = makeAxis(v(0, 0, 0), v(0, 1, 0));   // loddlinjen gjennom stolpen
+  const Uax = makeAxis(P(0, 0), u);                 // Uranus' akse
+  const fParts = [];
+  const addF = (body, name, ax, shape, extra = {}) => fParts.push({ body, name, ax, shape, ...extra });
+  const armY = h.arm.uranus, armTopU = armY + armT, postR = AP.planet.postRadius;
+  const ring = UT.ring, half = C.uranusRing.thickness / 2;
+
+  // Armen og kjedet (dreier om loddlinjen sett fra stolpen).
+  addF('arm', 'arm', Vax, rect(armY, armTopU, postR, 1e3), { tube: true });
+  addF('arm', 'krage og rød ring', Vax, rect(armTopU, armTopU + cH + accent.ringWidth, postR, AP.planet.collarRadius), { tube: true });
+  addF('arm', 'parallellkjede', Vax, rect(...chainBand(uS.parallel), uranusParallelChain.radius2 - plateEnd(uranusParallelChain), 1e3), { id: 'kjede' });
+  // Stolpen, braketten og polakselen.
+  addF('stolpe', 'kjedehjul', Vax, rect(uS.parallel, uS.parallel + mT, postR, sTip(uranusParallelChain.radius2, uranusParallelChain)), { mesh: ['kjede'] });
+  addF('stolpe', 'stolpe', Vax, rect(armTopU, uS.postTop, 0, postR), { tube: true });
+  // Polakselen synes bare mellom navet og albuen (fra polen til navet dekkes
+  // den av den myke overgangen og navet).
+  const bp = uranusBracket.points.map((p) => v(p.x, p.y, p.z)), br = uranusBracket.radius, last = bp.length - 1;
+  const hub = UT.hub;
+  for (let i = 0; i < last - 1; i++) addF('stolpe', `brakett ${i + 1}`, null, { kind: 'cap', a: bp[i], b: bp[i + 1], w: br });
+  // (kortet inn med radiusen, så den runde enden ikke stikker inn i navet)
+  addF('stolpe', 'polaksel', null, { kind: 'cap', a: bp[last - 1], b: P(0, hub.s1 + br), w: br });
+  addF('stolpe', 'myk overgang ved stolpen', makeAxis(bp[0], unit(sub(bp[1], bp[0]))), rect(0, uranusBracket.fillet, 0, 2 * br));
+  addF('stolpe', 'myk overgang ved polen', makeAxis(bp[last], unit(sub(bp[last - 1], bp[last]))), rect(0, uranusBracket.fillet, 0, 2 * br));
+  // Navet (en hylse på polakselen) og stagene.
+  addF('nav', 'nav', Uax, rect(hub.s0, hub.s1, br, hub.radius));
+  const at = (rho, s, ang) => P(rho * Math.cos(ang), s, -rho * Math.sin(ang));
+  UT.azimuths.forEach((ang, k) => {
+    addF('nav', `stag ${k + 1}`, null, { kind: 'cap', a: at(hub.radius - 0.05, hub.s, ang), b: at(UT.attach.rho, UT.attach.s, ang), w: UT.strutRadius });
+    addF('ringer', `eik ${k + 1}`, null, { kind: 'cap', a: at(ring.inner, 0, ang), b: at(ring.outer, 0, ang), w: C.uranusRing.spokeWidth / 2 });
+  });
+  for (const r of ring.rings) addF('ringer', `ring ${r.name}`, Uax, rect(-half, half, r.inner, r.outer));
+  addF('Uranus', 'Uranus', Uax, line(0, 0, 0, 0, UT.radius));
+
+  // Festet sammen: navet på akselen og den myke overgangen, overgangen inn i
+  // kula, og stagene på ringene. Stagene ender på den innerste ringen, og
+  // ringene ligger tettere enn 0,3 (som glassbåndene ved Saturn), så stagene
+  // regnes som en del av ringene; avstandene skrives ut under.
+  const strutToRings = [];
+  const attached = (a, b) => {
+    const names = [`${a.body} ${a.name}`, `${b.body} ${b.name}`].sort().join('|');
+    if (names === 'nav nav|stolpe polaksel' || names === 'nav nav|stolpe myk overgang ved polen') return true;
+    if (names === 'Uranus Uranus|stolpe myk overgang ved polen') return true;
+    const strut = [a, b].find((x) => x.body === 'nav' && x.name.startsWith('stag'));
+    const other = strut === a ? b : a;
+    if (!strut || other.body !== 'ringer') return false;
+    if (other.name.startsWith('ring') && other.name !== `ring ${ring.rings[0].name}`) strutToRings.push(distance(a, b));
+    return true;
+  };
+  problems += run3D('F', 'Uranus i 3D', fParts, attached);
+  const ringGaps = ring.rings.slice(1).map((r, i) => `${ring.rings[i].name}–${r.name} ${(r.inner - ring.rings[i].outer).toFixed(2)}`);
+  console.log(`  Glipen mellom ringene: ${ringGaps.join(', ')}. Stagene (festet til ring ${ring.rings[0].name}) mot de andre ringene: minst ${Math.min(...strutToRings).toFixed(2)}`);
 }
 
 // ---------- Raske deler ----------

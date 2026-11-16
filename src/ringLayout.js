@@ -34,3 +34,23 @@ export function ringLayout(radius, s) {
   }
   return { inner, outer, gap, parts, bands };
 }
+
+// Uranus' ringer i mm, innenfra og ut (uranusRing i config.js). Radiene dras inn
+// mot kula med scale: radius = 1 + (r − 1) × scale, i ganger planetens radius.
+// Svarer med inner, outer og rings [{ name, index, middle, inner, outer }].
+export function thinRingLayout(radius, s) {
+  const rings = [...s.rings]
+    .sort((a, b) => a.radius - b.radius)
+    .map((r, index) => {
+      const middle = (1 + (r.radius - 1) * (s.scale ?? 1)) * radius;
+      return { name: r.name, index, middle, inner: middle - r.width / 2, outer: middle + r.width / 2 };
+    });
+  if (!rings.length) throw new Error('uranusRing.rings: minst én ring.');
+  for (let i = 1; i < rings.length; i++) {
+    if (rings[i].inner < rings[i - 1].outer + 0.02) {
+      throw new Error(`uranusRing: ringene ${rings[i - 1].name} og ${rings[i].name} går over hverandre: gjør dem smalere eller fjern en.`);
+    }
+  }
+  if (rings[0].inner < radius + 0.3) throw new Error('uranusRing: den innerste ringen går for nær kula (øk scale).');
+  return { inner: rings[0].inner, outer: rings.at(-1).outer, rings };
+}

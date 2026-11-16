@@ -15,7 +15,9 @@ const meanLongitude = {
   mars:    [-4.55343205, 19140.30268499],
   jupiter: [34.39644051, 3034.74612775],
   saturn:  [49.95424423, 1222.49362201],
-  moon:    [218.3164477, 481267.88123421],  // sett fra jorda
+  uranus:  [313.23810451, 428.48202785],
+  neptune: [-55.12002969, 218.45945325],
+  moon:   [218.3164477, 481267.88123421],  // sett fra jorda
 };
 const moonNode = [125.0445479, -1934.1362891]; // månens oppstigende knute
 
@@ -61,6 +63,9 @@ for (const [name, [l0, period]] of Object.entries(martian)) {
 // endring per århundre), regnet om til lengde på ekliptikken. Mars' ekvator
 // har sin oppstigende knute på ekliptikken 90° forbi.
 const marsPoleEquatorial = { ra: [317.68143, -0.1061], dec: [52.88650, -0.0609] };
+// Uranus' nordpol etter IAU (den som ligger nord for ekliptikken; Uranus dreier
+// baklengs). Den står fast.
+const uranusPoleEquatorial = { ra: [257.311, 0], dec: [-15.175, 0] };
 const obliquity = 23.4392911;
 
 // Saturns ring: den oppstigende knuten til ringplanet på ekliptikken (Meeus kap. 45).
@@ -83,12 +88,15 @@ export function longitudeAt(name, date) {
 }
 
 // Lengden på ekliptikken som Mars' nordpol heller mot, i radianer.
-export function marsPoleLongitude(date) {
+function poleLongitude(pole, date) {
   const T = centuriesSinceJ2000(date);
-  const ra = degrees(marsPoleEquatorial.ra[0] + marsPoleEquatorial.ra[1] * T);
-  const dec = degrees(marsPoleEquatorial.dec[0] + marsPoleEquatorial.dec[1] * T);
+  const ra = degrees(pole.ra[0] + pole.ra[1] * T);
+  const dec = degrees(pole.dec[0] + pole.dec[1] * T);
   const e = degrees(obliquity);
   return Math.atan2(Math.sin(ra) * Math.cos(e) + Math.tan(dec) * Math.sin(e), Math.cos(ra));
 }
+export const marsPoleLongitude = (date) => poleLongitude(marsPoleEquatorial, date);
+// Lengden på ekliptikken som Uranus' nordpol (IAU) heller mot, i radianer.
+export const uranusPoleLongitude = (date) => poleLongitude(uranusPoleEquatorial, date);
 
 export const addYears =(date, years) => new Date(date.getTime() + years * daysPerYear * MS_PER_DAY);
