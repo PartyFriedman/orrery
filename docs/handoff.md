@@ -1,11 +1,16 @@
-# Handoff: orrery (mekanisk solsystem i three.js) – 16.11.2026
+# Handoff: orrery (mekanisk solsystem i three.js) – 17.11.2026
 
 ## Prosjekt og status
 - Mappe: `c:\Users\oyvin\Desktop\Projects\Vibekoding\claudecode_VScode\orrery` (Vite + three.js, `npm run dev` / `npm run build`). Repo: PartyFriedman/orrery, publiseres til GitHub Pages fra `main` via `.github/workflows/deploy.yml` (base `/orrery/` i `vite.config.js`).
-- Gren: `Ice-giant-moons` (fra `Ice-Giants`, PR #11). Her er månene til Uranus og Neptun (alternativ B), fargene på kulene, og den delte sjekken bygget, ikke committet. Merget så langt:
+- Gren: `main`, rent tre. Alt fra økta 17.11 er merget. Merget så langt:
   - PR #6 (`Outer-Planets`): Jupiter og Saturn, med to kjeder via et løst hjul på sentralakselen («Changes large cog»).
   - PR #7 (`Speed-Control`, commit «Add Time Control»): glidebryter for tid, med planetene stilt inn etter ekte dato (se Tid og dato).
   - PR #8 (`Jupiter-moons`): Jupiters fire måner med synlig 4:2:1-resonans (se Jupiters måner), eget materiale på kjedene, og nye panelmønstre, plexus-kuler og to testsider (se Utseende og Testsider). Bygget går gjennom, og `npm run check` sier «Alt i orden».
+  - Mars med Fobos og Deimos (grenen `Mars-moons`).
+  - PR #11 (`Ice-Giants`): Uranus og Neptun uten måner.
+  - PR #12 (`Ice-giant-moons`, commit «Add moons to ice giants»): månene til Uranus og Neptun (alternativ B), farger på kulene, `npm run check` delt i rask og full, festesjekken, og den raskere simuleringen B. `src/cord.js` er slettet og `scripts/lastCheck.json` ligger i `.gitignore`.
+- Gren `earth-rotation` (ikke committet): jorda roterer med ekte hjulverk, har landmasser (S2), og har en ny føringsring med en gaffel med ruller som følger den (alternativ A fra prøvesiden earth.html). Se Jorda under. `npm run check` sier «Alt i orden».
+- `git stash list` har fortsatt `stash@{0}`: den forkastede versjonen med snorer og hjultog for månene. Den trengs ikke; slett den med `git stash drop` når brukeren vil.
 - Kulene har de gamle mønstrene, nå med farger: `colors.bodies` i config (én farge per kule, sola inkludert), og `colors.accent` for det røde i mekanikken.
 
 ## Arbeidsregler (fra brukeren)
@@ -14,6 +19,10 @@
 - Store steg: planmodus først, så bygging etter godkjenning.
 - Brukeren justerer tall i `src/config.js` selv. Behold verdiene deres.
 - **Ikke sett i gang med noe før brukeren ber om det.** Når brukeren deler noe eller sier hva de vil, svar kort og vent.
+- Nye mekanismer prøves først på en testside (som moons.html) med alternativer og antall deler, og bygges inn i modellen først når brukeren har valgt.
+- Brukeren committer selv. Ikke commit, heller ikke når en endring er ferdig.
+- Hvert hjul skal sitte på en synlig aksel som er holdt av en fast del (brakett, stolpe eller lager), som ved Jupiter og Saturn. Ingen skjult aksel gjennom en kule.
+- Det er ingen fast grense for største radius; `npm run check` skriver den ut med endringen siden sist.
 - Stilguide: `docs/styleguide_orrery.md`. Kun hvitt, mørkt metall og rødt på de mekaniske delene. Planetene og månene skal få farger og blank finish som ligner de ekte himmellegemene, med valg i config.
 - Planetene: få, store flater fungerer bedre enn mange små. Unngå typisk sportsballgeometri (fotball, volleyball, tennisball, båter som en badeball). Moodboard: `images/inspiration/Planets moonboard.png` (uregelmessig fasettert lavpoly-kule og plexus).
 
@@ -21,7 +30,8 @@
 - `src/config.js`: alle innstillinger (se under).
 - `src/mechanism.js`: ren matematikk uten three.js. Pakker armlengder automatisk, ordner rørene, regner ut høyder, akselposisjoner og kjeder (`makeChain`), og alle vinkler fra inngangen (`anglesAt`). Har feilmeldinger når noe ikke passer.
 - `src/main.js`: scene, lys, kamera og alle deler. `addGear`, `addSprocket`, `addChain`, `addArm`, `addPlanetSphere`, `addSun`.
-- `src/ephemeris.js`: middellengder for planetene (JPL, Standish tabell 1, også Uranus og Neptun), polene til Mars og Uranus (IAU), månen og knutelinjen (Meeus), og Jupiters måner (Lieske via Meeus kap. 44, B1950 + 0,698° presesjon til J2000). `daysPerYear` = 365,256 (én runde for jorda).
+- `src/ephemeris.js`: middellengder for planetene (JPL, Standish tabell 1, også Uranus og Neptun), polene til Mars og Uranus (IAU), månen og knutelinjen (Meeus), Jupiters måner (Lieske via Meeus kap. 44, B1950 + 0,698° presesjon til J2000), og Saturns, Mars', Uranus' og Neptuns måner (JPL-middelelementer, lavpresisjon; Triton baklengs). `daysPerYear` = 365,256 (én runde for jorda).
+- `src/iceMoons.js`: geometrien for månene til Uranus og Neptun som ren matematikk (`uranusDesign`, `neptuneDesign`, `uranusParts`, `neptuneParts` for avstandssjekkene, `partReach`). Den importerer ikke `mechanism.js`; `mechanism.js` bruker den og sender inn `uranusTrain`, `armParts` og høydene ved armen. Alternativ A (bare prøvesiden) ligger her også.
 - `src/timeControl.js`: glidebryteren nede på siden (DOM), med dato og fart. Stilen ligger i `src/style.css`.
 - `src/gear.js`: evolventtannhjul, kjedehjul og `extrudeFlat`.
 - `src/arm.js`: armer som smalner av, med myk overgang inn i navet.
@@ -34,8 +44,15 @@
 - `src/testStage.js`: felles scene for testsidene (lys, kamera og materialer som i modellen, og navn under hver kule). `createRenderer`, `createLitScene` og `createMaterials` kan brukes for seg (rings.html gjør det).
 - `src/ringLayout.js`: hvor båndene og spalten i Saturns ring ligger, og Uranus' tynne ringer (`thinRingLayout`) (ren matematikk). `src/ring.js`: `createAnnulus`, glassmaterialene med kantlys (`createGlassMaterials`) og glassbåndene (`createGlassBands`), brukt av både modellen og rings.html.
 - `src/blur.js`: lysspor, vifter og glatte former for raske deler (se Utseende).
-- `panels.html` + `src/panelTest.js`, `plexus.html` + `src/plexusTest.js` og `rings.html` + `src/ringTest.js`: testsidene (se Testsider).
+- `panels.html` + `src/panelTest.js`, `plexus.html` + `src/plexusTest.js`, `rings.html` + `src/ringTest.js` `moons.html` + `src/moonTest.js` og `earth.html` + `src/earthTest.js`: testsidene (se Testsider).
+- `src/earthDesign.js`: jordstolpen som ren matematikk (drivet P/T, overgangen V/K, ringen G1–G3, foten F1/F2, høydene, `earthParts` til 3D-sjekken). Den importerer ikke `mechanism.js`; modellen sender inn høyder, armlengder og retninger som `ctx` (`contextFrom(M)` lager det samme for prøvesiden). `mechanism.js` lager `earthTrain` av ruta `earthDay.model`.
+- `src/earthBuild.js`: tegner jordstolpen i three.js fra `earthDesign` (`buildEarthEnd`), brukt av både `main.js` og `earthTest.js`, og små byggeklosser (`makeHelpers`).
+- `src/earthSurface.js` og `src/landmasses.js`: jorda med landmasser (S1 innlagte, S2 opphøyde, S3 fasetter), `surfaceKind` (land, hav eller is i en retning) og den glatte kula mot flimring (`createSpinBlur`). Konturene er tegnet for hånd (lengde, bredde).
 - `scripts/check.mjs`: sjekkene bak `npm run check` og `npm run check:full` (se under).
+- `scripts/clearance3d.mjs`: 3D-verktøyet (`run3D`, formene, `distance`, `shielded`), `toCheckParts` og festesjekken `checkMounts`. Brukes av `check.mjs` og `checkMoons.mjs`.
+- `scripts/checkMoons.mjs`: sjekk av alternativene på moons.html (klaring, festet, radius, omløpstider, Triton mot Neptuns diameter, vippearm). Feiler så lenge A er med.
+- `scripts/checkEarth.mjs`: sjekk av rutene på earth.html (døgnet, høyden, 3D-klaring og festet for A, B og C).
+- `scripts/lastCheck.json`: største radius fra forrige kjøring av sjekken (i `.gitignore`, per maskin).
 
 ## Mekanikken
 - **Én inngang:** mellomakselen står 40 fra sentrum. Alle hjulpar inn til sentrum når over 40, og hvert par får egen modul (`pairModule`).
@@ -51,7 +68,16 @@
   - Alle omløpstidene er innen 0,25 %.
 - **Jordas måne:**
   - Fast hjul 60, pinion 12 og kjede 47→19 gir 235/19 (Meton). Det faste hjulet sitter på et eget fast rør med brakett.
-  - Parallellkjede 36:36 holder jordaksen (23,44°) og en skrå føringsring (månebane 5,14°) i fast retning.
+  - Parallellkjede 36:36 holder stolperøret ved jorda i fast retning i rommet (og dermed jordaksen, 23,44°, og føringsringen for månebanen, 5,14°).
+- **Jorda** (`earthDay` og `moonGuide` i config, `earthTrain`, `earthDayChain`, `earthRate` i `mechanism.js`, geometrien i `earthDesign.js`; alternativ A fra earth.html):
+  - **Rotasjonen:** én omdreining per siderisk døgn (0,997287 d, −0,0017 %; soldøgnet blir 1,000017 d). Jorda dreier om sin skrå akse i forhold til stolperøret, som står stille i rommet, så parallellføringen er som før.
+  - **Drivet (P):** pinionakselen (5 runder per år sett fra armen) har et kjedehjul 39, og et finere kjede (deling 0,8) går til en forlegsaksel ved jordstolpen (8). Derfra 53→10 (modul 0,15) til driveakselen inni stolperøret (ca. 128 runder per år). Forlegsakselen står `earthLayDistance` = 4,7 innenfor stolpen. Dagkjedet ligger i et nytt plan (`heights.day`) mellom det faste hjulet og parallellkjedet, så jordstabelen ble 1,5 høyere og månearmen 0,3 høyere (den går nå klar av lenkeplatene på månekjedet).
+  - **Vinkelgiret (V):** aksene møtes bare i jordas sentrum, så vinkelgiret har toppunktet der: 40 på driveakselen, 14 på spindelen (modul 0,08), ×2,857. Hjulet på spindelen sitter 3,3 under sørpolen; spindelen går i et lager rett over det, holdt av en knekt brakett fra toppen av stolperøret, og stikker ut over nordpolen.
+  - **Føringsringen (G1):** et smalt bånd med loddrette sider (0,14 × 0,6), et snitt mellom en sylinder (radius 3) og et skrått plan, som ved Neptun, på tre tynne stag fra et nav i høyde med ringen. Høyden regnes ut: så lavt som mulig over månearmen.
+  - **Foten (F1):** en gaffel på månestaven med to ruller, én oppå og én under båndet; rullene dreier når foten går rundt. Staven (r 0,11) glir i en kort hylse (r 0,28) ytterst på en smal månearm.
+  - **Startvinkelen:** Greenwich-meridianen står stjernetiden (GMST, Meeus 12.4) østover fra vårjevndøgnsretningen på startdatoen (`phases.earthSpin`, `earthSpinTarget`).
+  - Ekvatorringen er fjernet (den hadde ingen funksjon, bare viste hellingen). Den gamle stolpen inn i jorda, ringen, foten og den tykke hylsa er også borte. Jordarmen har ingen krage ytterst, fordi tannhjulet på driveakselen står der.
+  - Vurdert på earth.html, ikke valgt: T (dagrør i tårnet: trenger mellomhjul ved jorda, nytt rør i tårnet, +2,9 i høyde), K (kryssledd og tannhjulspar), G2 (rund ring med glidesko F2, som går rundt stagene med under 0,3), G3 (skrå skive, +1,2 i høyde). `earthDay.model` må være en rute med P.
 - **Jupiters måner** (`jupiterMoons` i config, `jupiterTrain`, `jupiterChain`, `jupiterLayout` i `mechanism.js`):
   - Et fast hjul ved sentrum går ikke: Io går ca. 2450 runder per Jupiter-år. I stedet er Jupiters faste rør byttet med et **månerør** (`drive-jupiter`) som dreier.
   - Mellomaksel 27 → månerør 20 i tårnet. Øverst på månerøret sitter et kjedehjul 66, og et kjede (153 ledd) går over Jupiter-armen til et kjedehjul 12 på en **krage** som går løst på Jupiter-stolpen.
@@ -106,7 +132,7 @@
     - Triton sitter på en stav som glir i en hylse ytterst på Triton-armen. En fot på staven hviler på en skrå føringsring (et smalt bånd med loddrette sider) under Neptun, så banen heller 130° (50° baklengs). Knutelinjen står på tvers av armen og følger armen rundt (forenkling: på himmelen dreier den sakte). Banen er en sirkel sett ovenfra (3,12 fra stolpen) og en ellipse 1,56 : 1 i det skrå planet, med Neptun i midten. En vippearm ble vurdert og forkastet: rund bane, men ikke rundt Neptun, og mye bredere.
   - **Hva hver aksel er festet i:** driveakselen i stolperøret; forlegsakselen i lageret i braketten og lagerbukken; Titania-røret på polakselen og Oberon-røret på Titania-røret; ved Neptun kragen og Tritons rør på stolpen, dobbelthjulet på tapp A (på armen) og mellomhjulet på tapp B (i bøylen fra tapp A). `npm run check` sjekker det.
   - **Størrelsen:** Uranus rekker 7,31 fra stolpen og Neptun 3,32. Uranus-armen 102,4, Neptun-armen 113,9, største radius 117,22 (112,02 uten måner).
-- `bodies.height` er 61,0 (55,1 før månene til Uranus og Neptun, 45,5 før Uranus og Neptun). De to nye månerørene og kjedene løfter armene innenfor Uranus med ca. 5,9. Vinkelgiren ved Saturn er fortsatt den strengeste (minst ca. 60,95).
+- `bodies.height` er 61,75 (61,0 før jordrotasjonen, 55,1 før månene til Uranus og Neptun, 45,5 før Uranus og Neptun). Dagkjedet løfter armene innenfor jorda (og dermed sola) med 1,5; vinkelgiret under jorda krever omtrent det samme (minst 61,52). De to nye månerørene og kjedene løfter armene innenfor Uranus med ca. 5,9. Vinkelgiren ved Saturn er fortsatt den strengeste (minst ca. 60,95).
   - Scenen har sidens gradient som bakgrunn (`scene.background`), så glasset har noe å se gjennom.
 - **Stabling:** nederst ligger de to kjedene over hverandre (`heights.driveChain` og `heights.layChain`). Over dem står alle tannhjulene i et åpent tårn under alle armer. Rørene ligger med kortest arm innerst, og et fast rør inni røret til hver planet med mekanikk. Høydene regnes ut i `heights`.
 - **Armlengder:** pakkes automatisk innenfra og ut (`armLength: 'auto'`), med `reachGap` mellom rekkeviddene. Mekanikken ved planeten tas med.
@@ -121,12 +147,13 @@
 - **Innstillingen:** hvert hjul på mellomakselen og forlegsakselen står på akselen med en startvinkel (`phases` i `mechanism.js`, `mesh.rotation.y` i `main.js`). Det store månekjedehjulet 47 står med `phases.moon` på pinionakselen, og Jupiters måner med `phases.io` osv. på forlegsakselen ved Jupiter. Ved input 0 står da alt på middellengden for startdatoen. `anglesAt` returnerer også `moonDriveAngle`, og `worldAngleOf(navn, vinkler)` gir vinkelen i verden for planeter og måner.
 - **Retninger:** `tilt.equinoxDirection` er retningen mot lengde 0°. Jordaksen heller mot 0° + 90°, og knutelinjen er Ω på startdatoen. Begge regnes ut; `earthAxisDirection` og `moonNodeDirection` er fjernet.
 - **`drive.speed` er fjernet.** Animasjonen regner `years` og bruker input = `years · inputPerYear`. Hvert bilde dekker høyst 0,1 s.
+- Titania og Oberon stilles i Uranus' ekvatorplan med `inPlane` (som Saturns og Mars' måner), Triton med fasen på Tritons hjul (`phases.triton`), etter middellengdene i `ephemeris.js`.
 - **`npm run check`** har en startsjekk som skriver ut lengdene ved startdatoen.
 
 ## Utseende
 - **Armene:** `armStyle` styrer avsmalning, overgang, nav som stikker opp og ned, og krage. En tynn rød ring der planetstolpen møter armen.
 - **Kulene:** mønster per kule i `panels.*`. Fugebredden kan settes per kule; på sola følger den `sunRadius`.
-  - Standard: Merkur `kites`, Venus `rhombi`, jorda `triangles`, Mars `quads`, månen `pentagons`, Jupiter `bands`, Jupiters måner `quads` 1, Saturn `hexagons`, Uranus `triangles`, Neptun `rhombi`, sola `trionda`. Brukeren endrer dem selv i `panels`.
+  - Standard: Merkur `kites`, Venus `rhombi`, jorda landmasser (`continents`, S2, se under), Mars `quads`, månen `pentagons`, Jupiter `bands`, Jupiters måner `quads` 1, Saturn `hexagons`, Uranus `triangles`, Neptun `rhombi`, sola `trionda`. Brukeren endrer dem selv i `panels`.
   - Nye mønstre som kan velges:
     - `facets`: uregelmessige trekanter med fuger; `subdivisions` er antall hjørner (30 gir 56 fasetter, 200 gir 396). Passer best med tilbakemeldingen om få, store flater.
     - `boats`, `spiral`, `caps`, `volleyball`, `woven` og `seam`: laget til sammenligning. Flere av dem er sportsballgeometri, som brukeren ikke vil ha på planetene.
@@ -135,18 +162,26 @@
     - C: typisk motion graphics-plexus i hvitt (ikke blått, på grunn av stilguiden): lysende punkter som vandrer, og linjer mellom alle som er nærmere enn `linkDistance`, tonet ut med avstanden.
     - Testet i en scratch-kopi med Jupiter `plexusB`, Mars `plexusC` og Venus `facets` 30: alt tegnes riktig.
 - **Kjedene:** eget materiale, `chainColor`, `chainMetalness`, `chainRoughness` og `chainGloss` i `look`. Brukeren har satt dem til mørkt metall.
-- **Sola:** `accent.sunStyle` er `'lacquer'` eller `'glass'` (glass har lys innenfra).
+- **Farger** (`colors` i config, ny 17.11):
+  - `colors.accent` er det «røde» i mekanikken (i dag `#f3f595`): ringene ved stolpene og mellomhjulet ved Neptun. `accent.red` er fjernet; `accent` har bare `sunStyle`, `glow` og `ringWidth`.
+  - `colors.bodies` har én farge per kule, sola inkludert, i dempede, ekte toner (Merkur grå, Venus blek gul, jorda blå, Mars rustrød, Jupiter beige, Io svovelgul, Titan oransje, Uranus lys turkis, Neptun blå osv.). Toppen av panelene får fargen i den samme lakken som før (`look`); fugene er mørkt metall. Sola er uendret (`#f3f595`). Kuler uten farge blir hvite.
+  - `addPlanetSphere` i `main.js` lager ett materiale per navn (`bodyMaterial`). moons.html bruker de samme fargene. panels.html, plexus.html og rings.html er fortsatt hvite.
+- **Sola:** `accent.sunStyle` er `'lacquer'` eller `'glass'` (glass har lys innenfra), i fargen `colors.bodies.sun`.
 - **Mot flimring** (`blur` i config, `src/blur.js`): hver rask del måles hvert bilde (grader dreid siden forrige bilde). Over `threshold` (4°) tones det inn over `fade` (8°):
   - månene: et lysende spor bak månen langs banen (buen siden forrige bilde × `trailLength`), som blir en svak, hel ring over `ringAbove` (90°)
   - stag, månearmer og bærerens edderkopper: en vifte av `fanCopies` gjennomsiktige kopier, aldri bredere enn `fanMaxAngle`
   - tannhjul og kjeder ved månene: en glatt krans eller et glatt bånd i samme materiale over tennene og leddene
   - Listen over raske deler bygges i `main.js` (`fastParts` og kjedene), og `updateBlur()` kalles sist i animasjonen. Ved 2 d/s får Fobos og planethjulene ved Mars fullt spor; Io, Deimos og Enceladus-båndet delvis.
+  - Titania, Oberon og Triton har lysspor, hjulene ved Uranus og Neptun glatte kranser, og kjedene til Uranus' måner og Triton glatte bånd.
+  - Jorda: over grensen tones en glatt kule inn med fargene smurt ut langs hver breddegrad (`createSpinBlur`). Ved startfarten (2 d/s) dreier jorda 12° per bilde, så da synes den glatte kula; kontinentene synes under ca. 0,6 d/s. Vinkelgiret, hjulene ved foten og dagkjedet har glatte former.
+- **Jorda med landmasser** (`earthSurface` i config, `panels.earth = { pattern: 'continents', style: 'S2' }`): opphøyde kontinenter (0,06 opp, med fas) i `colors.bodies.earthLand`, isen (Antarktis, Grønland) i `earthIce`, havet i `earth`. S1 (innlagte med fuge) og S3 (fasetter) kan velges med `style`. Store paneler fylles ved å halvere den lengste kanten til alle er korte, så ingen flate trekanter ligger under havkula.
 
 ## Testsider
 - Åpnes med `npm run dev`:
   - `http://localhost:5173/orrery/panels.html`: én kule per panelmønster.
   - `http://localhost:5173/orrery/plexus.html`: plexus A, B og C.
   - `http://localhost:5173/orrery/moons.html`: månene til Uranus og Neptun, alternativ A (ringene bærer månene, ikke valgt) og B (i modellen). B og Neptun tegnes fra modellens geometri, så de ikke kan gli fra hverandre. `?cell=0|1`, `?speed=` (dager per sekund), `?t=…&stop`. `node scripts/checkMoons.mjs` sjekker begge (A har 21 kjente par under 0,3).
+  - `http://localhost:5173/orrery/earth.html`: jordstolpen i tre ruter (A i modellen, B og C til sammenligning; `earthDay.cells`), hver med hele jordarmen, og de tre overflatene nederst. `?view=top|gear|follower|foot` én visning stort (follower følger foten), `?view=globes` eller `?globe=0|1|2` overflatene, `?surface=`, `?speed=` (standard 0,1), `?cell=`, `?t=…&stop`. `node scripts/checkEarth.mjs` sjekker rutene.
   - `http://localhost:5173/orrery/rings.html`: Saturns ring i fire varianter (A satin, B instrument, C glass som i modellen, D blanding), hver stor og i samme størrelse som i modellen, med kameraet som går rundt. `?t=15&stop` står stille 15 s ut i runden. Hver rute tegner sin bit av gradienten, så glasset har noe å se gjennom.
 - Klikk stopper eller starter bevegelsen, og dra for å se fra andre vinkler.
 - Testsidene er ikke med i `npm run build`, så de kommer ikke på GitHub Pages. `vite preview` viser modellen i stedet for dem; bruk dev-serveren.
@@ -177,6 +212,7 @@
   - Mars: omløpstidene, planetgirets forhold, driften til stolpen, at K ligger på både loddlinjen og drivakselen, og ekvatorplanet (−3,7° ved vårjevndøgn 12.11.2024, 25,1° ved sommersolverv 12.07.2023).
   - En tabell over raske deler (grader per bilde ved startfarten og 60 bilder/s).
   - Saturns omløpstider (Enceladus, Titan, Iapetus), driften til Saturn-stolpen, og ringens retning: ca. −3,8° åpen mot sola ved ringplanpasseringen 23.03.2025 (middellengder, toleranse 5°) og nordsiden opplyst 24.05.2017.
+  - Jorda: døgnet (innen 0,01 %, prograd, og soldøgnet), og Greenwich-meridianen etter stjernetiden på startdatoen. I A og B er alt ved jordstolpen over månearmen ett område; dagkjedet og tannhjulet ved foten har egne. H: alt ved jordstolpen i 3D (`earthParts`), med festesjekken.
   - B tegner alt som massive sirkler, så rør må ikke legges inn der (de sjekkes i A). Saturn er ett område der (ring, måner og hjulkasse).
 
   Lengre kjøring: `node scripts/check.mjs 100000 10000`. Rask kjøring direkte: `node scripts/check.mjs quick`.
@@ -187,6 +223,15 @@
   - Stopp dev- og preview-servere etterpå. `TaskStop` stopper ikke alltid node-prosessen, så sjekk porten med `Get-NetTCPConnection -LocalPort <port>` og stopp prosessen hvis kommandolinjen inneholder `vite`.
 
 ## Kjente feller
+- **`segDist` i `scripts/clearance3d.mjs` regner feil mellom to linjestykker** (oppdaget 17.11, ikke rettet). Den gjør bare én runde med å klemme parameterne, så avstanden blir ofte for stor: i 44 % av tilfeldige par, opptil 4,3 for mye. Mellom et punkt og et linjestykke (når de to punktene i det ene stykket er like) regner den riktig.
+  - Brukes av simuleringen B i `check.mjs` (kapsel mot kapsel), og kan der slippe gjennom kollisjoner. 3D-sjekkene bruker den bare fra punkt til linjestykke, og er riktige.
+  - Den samme algoritmen står i `mechanism.js` som `segDist2` (stagene ved Saturn, stagene ved Uranus).
+  - Riktig: 0 hvis stykkene krysser, ellers den minste avstanden fra de fire endepunktene til det andre stykket (som `segDist2` i `iceMoons.js`). Bør rettes og sjekkene kjøres på nytt.
+- **Retning gjennom en vinkelgir:** to koniske hjul med toppunktet mellom seg dreier motsatt vei; ligger det ene hjulet på den andre siden av toppunktet, dreier de samme vei. Ved Uranus (aksene står 82° fra hverandre) måtte hjulet på driveakselen over toppunktet for at månene skulle gå riktig vei. `npm run check` sjekker retningen på alle månene.
+- **Ett mellomhjul mellom to hjul på samme akse snur ikke retningen** (to inngrep). Ved Neptun trengs tre inngrep: krage, dobbelthjul, mellomhjul, Tritons rør.
+- **Rekkevidden til noe som dreier om Uranus' akse** (som ligger nesten vannrett) er omtrent avstanden fra Uranus' sentrum, ikke fra aksen. En arm langt ute på polakselen gjør derfor Uranus bred; stagene til månene går skrått ned mot ringplanet.
+- **Kjedehjul på et rør i tårnet** må være større enn røret (de ytterste rørene er 16–18 i radius).
+- **Python i Git Bash:** `"\u0000"` i en Python-streng som skrives til JS kan bli et ekte NUL-tegn, og `sed` gjør `\u` i erstatningen om til «stor bokstav». Sjekk filen etterpå (`file`, `cat -A`).
 - **Git Bash** gjør `--base=/` om til en Windows-sti. Bruk `--base=./`.
 - **`node -e` med æøå eller mye anførselstegn** feiler. Skriv skript til fil, eller bruk Edit.
 - **Heredoc i Git Bash** gjør `\n` i teksten om til ekte linjeskift. Sjekk resultatet.
@@ -201,8 +246,11 @@
 - Plexus-kuler i modellen: `npm run check` regner kula som glatt med planetens radius, men nodene stikker litt utenfor (ca. 0,14 på Jupiter med B). Det spiser av klaringen på 0,3 mot Io. Overlappen er bare visuell, men sjekken fanger den ikke opp.
 
 ## Mulige neste steg
+- **Rett `segDist`** i `clearance3d.mjs` (og `segDist2` i `mechanism.js`), se Kjente feller, og kjør `npm run check:full`.
 - **Farger på kulene** (stilguiden): fargene står i `colors.bodies` (dempede, ekte toner). Se over dem i nettleseren og juster; testsidene panels, plexus og rings er fortsatt hvite.
 - **Uranus og Neptun:** se på månene, vinkelgiren, lagrene og føringsringen fra alle kanter i nettleseren. Hjulparene under Uranus er store fordi forlegsakselen ligger 7,7 under aksen; `uranusRing.scale` og `reachGap` kan gjøre modellen smalere.
+- moons.html: A (ikke valgt) kan fjernes fra `iceMoons.js`, `moonTest.js` og `checkMoons.mjs` når den ikke trengs til sammenligning lenger; da slutter `checkMoons.mjs` å feile.
+- Vurdert, men ikke valgt for månene til Uranus og Neptun (17.11): snorer og et tannhjultog langs Neptun-armen (for rotete, ligger i stashet), A (ringene δ og ε bærer månene: ringene ligger bare 0,2 fra hverandre, og største radius ble 118,0), B med månene inne i ringhullet (114,6, men brukeren ville ha dem utenfor), og en vippearm for Triton (rund bane, men ikke rundt Neptun, og mye bredere).
 - **Saturn:** se over om Saturn-hjulkassen ser bra ut fra alle kanter, og vurder kortere forlegsaksel (den går ca. 13 fra vinkelgiren opp til hjulene).
 - **Mars:** se på planetgiret, braketten og kryssleddet på toppen av stolpen fra alle kanter; drivakselen er ca. 10 lang fra K opp til det store hjulet.
 - **Velge nye mønstre for planetene,** med `facets` eller plexus som utgangspunkt (se Utseende).
@@ -214,5 +262,4 @@
   - Myk overgang der eikene møter kransen på tannhjulene.
 
 ## Småting
-- **Jordrotasjon som et tellurium:** jorda dreier rundt sin egen skrå akse, drevet av ekte hjulverk (ikke bare satt i animasjonen). Bare for jorda. Ikke påbegynt.
 - `inPlane` (mechanism.js) er rettet til `atan2(sin φ, cos φ / cos t)`, så den stemmer også over 90° (Uranus). For Saturn og Mars gir den det samme som før.

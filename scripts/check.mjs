@@ -20,7 +20,10 @@
 //      C: hjulverket ved Jupiter, med ringområder rundt Jupiter-stolpen: krage,
 //         forlegsaksel, månerør, hjul, månearmer, stolper og måner.
 //      D, E og F: alt ved Saturn, Mars og Uranus i 3D, sett fra stolpen. G: Neptun.
-//      Festet: hver aksel sitter i en fast del (Uranus og Neptun).
+//      H: alt ved jordstolpen i 3D (vinkelgiret, føringsringen, foten og månen).
+//      Festet: hver aksel sitter i en fast del (Uranus, Neptun og jorda).
+//   Jorda: døgnet (siderisk, innen 0,01 %), retningen, og at Greenwich-meridianen
+//   står etter stjernetiden på startdatoen.
 //   Reservert plass (stabler over armene, måner og Saturns ring) er med.
 //   Jupiters måner: omløpstidene, at de tre innerste går 4 : 2 : 1 sett fra
 //   armen, og at Laplace-vinkelen (Io − 3 × Europa + 2 × Ganymedes) står stille.
@@ -45,6 +48,7 @@ const C = await import(new URL('config.js', src).href);
 const M = await import(new URL('mechanism.js', src).href);
 const { daysPerYear } = await import(new URL('ephemeris.js', src).href);
 const I = await import(new URL('iceMoons.js', src).href);
+const E = await import(new URL('earthDesign.js', src).href);
 const { drive, outerDrive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, tilt, accent } = C;
 const JM = C.jupiterMoons;
 const SMc = C.saturnMoons;
@@ -53,7 +57,7 @@ const CD = C.counterDrive, UPc = C.uranusPost, UMc = C.iceMoons.uranus, NMc = C.
 const {
   tube, tubes, heights: h, layout, anglesAt, pairModule, moonChain, parallelChain,
   driveChain, driveFrame, layChain, layFrame, idlerHub,
-  moonRing, moonLift, earthAxis, armParts: AP, armLengths, moonSystems, mechanismOf, order, reach,
+  moonRing, earthAxis, earthTrain: ET, earthDayChain, armParts: AP, armLengths, moonSystems, mechanismOf, order, reach,
   jupiterChain, jupiterLayout, jupiterTrain: JT, worldAngleOf,
   saturnTrain: ST, saturnChain, saturnParallelChain, saturnLayout, saturnAxis, saturnBracket, saturnToPost, inputPerYear,
   marsTrain: MT, marsChain, marsParallelChain, marsLayout, marsAxis, marsBracket, marsToPost,
@@ -81,6 +85,14 @@ let problems = 0;
   const moon = (a1.moonAngle - a0.moonAngle) / (a1.armAngle - a0.armAngle);
   console.log(`  månen    ${moon.toFixed(6)} runder per år (skal være ${M.moonPerYear.toFixed(6)})`);
   if (Math.abs(moon - M.moonPerYear) > 1e-6) problems++;
+  // Jorda om sin akse, sett fra stolperøret (som står stille i rommet): sidereale omdreininger.
+  {
+    const spins = (a1.earthSpin - a0.earthSpin) / (2 * Math.PI) / years;
+    const sid = daysPerYear / spins, err = (sid / C.earthDay.siderealDay - 1) * 100;
+    const ok = spins > 0 && Math.abs(err) <= 0.01;
+    if (!ok) problems++;
+    console.log(`  jorda    ${sid.toFixed(6)} dager per omdreining i rommet (mål ${C.earthDay.siderealDay}, feil ${err.toFixed(4)} %), soldøgnet ${(daysPerYear / (spins - 1)).toFixed(6)} dager${spins > 0 ? '' : ' FEIL VEI'}${ok ? '' : '  <-- FEIL'}`);
+  }
 
   // Jupiters måner: sidereal omløpstid i dager, og forholdet sett fra armen.
   const rel = {};
@@ -235,6 +247,12 @@ let problems = 0;
     console.log(`  ${n.padEnd(8)} ${deg(got - eq).toFixed(2).padStart(7)}°${err > 1e-9 ? `  <-- FEIL (${err.toExponential(1)} rad)` : ''}`);
   }
   if (worstStart > 1e-9) problems++;
+  // Jorda om sin akse: Greenwich-meridianen står stjernetiden østover fra vårjevndøgnsretningen.
+  {
+    const gm = E.gmst(M.startDate), got = a.earthSpin + Math.PI / 2, err = Math.abs(wrap(got - gm));
+    if (err > 1e-9) problems++;
+    console.log(`  Greenwich ${deg(got).toFixed(2)}° østover fra vårjevndøgnsretningen langs ekvator (stjernetiden ${deg(gm).toFixed(2)}°)${err > 1e-9 ? '  <-- FEIL' : ''}`);
+  }
 
   // Laplace-vinkelen: 180° på startdatoen, og den skal stå stille.
   const laplace = (x) => {
@@ -323,6 +341,14 @@ const vReserve = (name) => {
   const moonV = Math.max(0, ...s.orbits.map((o) => o.radius)) + 0.5;
   return Math.max(ringV, moonV);
 };
+
+// Jordstolpen (earthTrain): hvor langt alt over månearmen rekker fra stolpen,
+// og hvor høyt over jordas sentrum (spindelen over nordpolen, månen).
+const overMoonArm = (p) => (p.shape.kind === 'cap' ? Math.max(p.shape.a.y, p.shape.b.y) + p.shape.w >= h.moonArm
+  : p.axis?.key === 'V' ? p.shape.s1 >= h.moonArm : true);
+const earthEnvelope = Math.max(...E.earthParts(ET, 24).filter((p) => p.body !== 'arm' && overMoonArm(p)).map(I.partReach));
+const earthTopV = Math.max(ET.R + 0.45 + ET.spR * 1.6, ET.K + bodies.moonRadius) + 0.3;
+const earthLayX = layout.earth.x - M.earthLayDistance;
 
 // ---------- A: områder som gjelder for alle vinkler ----------
 const parts = [];
@@ -528,14 +554,12 @@ const neptuneTopV = NMT.K + C.iceMoons.size.triton + 0.3;                     //
   add('earth', 'parallellkjede', ...range(parallelChain), ...chainBand(s.parallel), { id: 'stack-earth' });
   add('earth', 'parallellhjul ved jorda', ...around(E, sTip(parallelChain.radius2, parallelChain)), s.parallel, s.parallel + mT);
   add('earth', 'månekjedehjul', ...around(E, sTip(moonChain.radius2, moonChain)), s.moonChain, s.moonChain + mT);
-  add('earth', 'jordstolpe', ...around(E, AP.earth.postRadius), top, H);
-  add('earth', 'jorda', ...around(E, bodies.earthRadius), H - bodies.earthRadius, H + bodies.earthRadius);
-  add('earth', 'jordakse', ...around(E, (bodies.earthRadius + 1.5) * Math.sin(earthAxis.tilt) + 0.25), H - bodies.earthRadius - 0.6, H + bodies.earthRadius + 1.5);
-  add('earth', 'månearm', ...around(E, bodies.moonOrbit + AP.moon.endRadius), h.moonArm, h.moonArm + armT);
-  add('earth', 'hylse', ...around(E, bodies.moonOrbit + AP.moon.collarRadius), h.moonArm + armT, h.sleeveTop);
-  add('earth', 'månestav', ...around(E, bodies.moonOrbit + 0.35), h.moonArm + 0.1, H + moonRing.maxLift);
-  add('earth', 'ring', ...around(E, moonRing.radius + moonRing.halfWidth), h.ring - moonRing.maxLift - 0.3, h.ring + moonRing.maxLift + 0.3);
-  add('earth', 'månen', ...around(E, bodies.moonOrbit + bodies.moonRadius), H - moonRing.maxLift - bodies.moonRadius, H + moonRing.maxLift + bodies.moonRadius);
+  // Jordrotasjonen: kjedehjulet på pinionakselen, dagkjedet, tannhjulet på
+  // forlegsakselen ved stolpen, og alt ved stolpen over månearmen (sjekkes i H).
+  add('earth', 'kjedehjul til dagkjedet', ...around(layout.pinion.x, sTip(earthDayChain.radius1, earthDayChain)), s.day, s.day + mT);
+  add('earth', 'dagkjede', ...range(earthDayChain), ...chainBand(s.day));
+  add('earth', 'tannhjul ved jordstolpen', ...around(earthLayX, ET.lay.tipC), s.level1, s.level1 + C.earthDay.shaftGearThickness);
+  add('earth', 'jordstolpen med jorda, ringen og månen', ...around(E, earthEnvelope), h.moonArm, H + earthTopV);
 }
 
 const statics = new Set(['fixed', 'drive', 'lay', 'counter', 'idler', 'driveChain', 'layChain']);
@@ -783,22 +807,15 @@ function shapesAt(input) {
   }
   Se.push(circ(e, sTip(parallelChain.radius2, parallelChain), s.parallel, s.parallel + mT, 'parallellhjul'));
   Se.push(circ(e, sTip(moonChain.radius2, moonChain), s.moonChain, s.moonChain + mT, 'månekjedehjul'));
-  Se.push(circ(e, AP.earth.postRadius, top, H, 'jordstolpe'));
-  Se.push(circ(e, bodies.earthRadius, H - bodies.earthRadius, H + bodies.earthRadius, 'jorda'));
-  const mAng = A + a.moonAngle, v = { x: Math.cos(mAng), y: Math.sin(mAng) };
-  const mp = { x: e.x + v.x * bodies.moonOrbit, y: e.y + v.y * bodies.moonOrbit };
-  const lift = moonLift(a);
-  Se.push(caps(e, mp, AP.moon.rootHalf, h.moonArm, h.moonArm + armT, 'månearm'));
-  Se.push(circ(mp, AP.moon.collarRadius, h.moonArm + armT, h.moonArm + armT + cH, 'krage på hylsa'));
-  Se.push(circ(mp, 0.8, h.moonArm + armT, h.sleeveTop, 'hylse'));
-  Se.push(circ(mp, bodies.moonRadius, H + lift - bodies.moonRadius, H + lift + bodies.moonRadius, 'månen'));
-  const pAng = A + a.parallelAngle + moonRing.node;
-  for (let k = 0; k < 36; k++) {
-    const psi = (k / 36) * Math.PI * 2;
-    const p = { x: e.x + Math.cos(pAng + psi) * moonRing.radius, y: e.y + Math.sin(pAng + psi) * moonRing.radius };
-    const z = h.ring + Math.tan(moonRing.tilt) * moonRing.radius * Math.sin(psi);
-    Se.push(circ(p, moonRing.halfWidth + 0.05, z - 0.3, z + 0.3, 'ring'));
+  // Jordrotasjonen og jordstolpen (det som går rundt seg imellom ved stolpen, sjekkes i H).
+  Se.push(circ(pin, sTip(earthDayChain.radius1, earthDayChain), s.day, s.day + mT, 'kjedehjul til dagkjedet'));
+  {
+    const [y0, y1] = chainBand(s.day);
+    let prev = w(earthDayChain.point(a.earthDayChainOffset));
+    for (let i = 1; i <= earthDayChain.links; i++) { const p = w(earthDayChain.point(a.earthDayChainOffset + i * earthDayChain.pitch)); Se.push(caps(prev, p, plateEnd(earthDayChain), y0, y1, 'dagkjede')); prev = p; }
   }
+  Se.push(circ(w({ x: earthLayX, y: 0 }), ET.lay.tipC, s.level1, s.level1 + C.earthDay.shaftGearThickness, 'tannhjul ved jordstolpen'));
+  Se.push(circ(e, earthEnvelope, h.moonArm, H + earthTopV, 'jordstolpen med jorda, ringen og månen'));
   return S;
 }
 
@@ -1204,6 +1221,25 @@ problems += Object.values(minB).filter((r) => r.gap < 0.3).length;
   problems += checkMounts('Neptun', I.neptuneParts(NMT, 8), ['stolpe', 'Neptun']);
 }
 
+// ---------- H: alt ved jorda, i 3D ----------
+// Sett fra parallellhjulet (som står stille i rommet): armen, forlegsakselen og
+// månen dreier om stolpen, driveakselen og vinkelgiret om loddlinjen, jorda med
+// spindelen om sin skrå akse, og staven med foten og månen i 48 stillinger rundt.
+// Stolperøret, navet, stagene, ringen, braketten og lageret står stille.
+{
+  const named = (x) => `${x.body} ${x.name}`;
+  const skip = (a, b) => {
+    const pair = [named(a), named(b)].sort().join('|');
+    if ((a.rests && b.guide) || (b.rests && a.guide)) return true;                         // foten går på ringen
+    if ([a.body, b.body].sort().join('|') === 'driveaksel|skrå aksel') return true;       // møtes i kryssleddet
+    if (pair === 'driveaksel driveaksel|stolpe brakett 1') return true;                    // braketten sitter utenpå stolperøret
+    return (a.holds ?? []).includes(b.body) || (b.holds ?? []).includes(a.body);           // lageret holder spindelen
+  };
+  problems += run3D('H', 'Jorda i 3D', toCheckParts(E.earthParts(ET, 48)), skip);
+  problems += checkMounts('Jorda', E.earthParts(ET, 8), E.staticBodies);
+  console.log(`  Høyden: ringen midt på ${ET.ringY.toFixed(2)}, stolperøret til ${ET.frameTop.toFixed(2)}, jordas sentrum ${ET.H} (minst ${Math.max(ET.Hstage, ET.Hsun).toFixed(2)}).`);
+}
+
 // ---------- Raske deler ----------
 // Hvor mange grader de raskeste delene dreier per bilde ved startfarten
 // (time.start dager per sekund) og 60 bilder per sekund. Over blur.threshold
@@ -1223,6 +1259,10 @@ problems += Object.values(minB).filter((r) => r.gap < 0.3).length;
     ['Mars: mellomhjul', (x) => x.marsIdlerAngle],
     ['Mars: lite hjul og bærer', (x) => x.marsCarrier],
     ['månen (arm)', (x) => x.moonAngle],
+    ['jorda om sin akse', (x) => x.earthSpin],
+    ['jorda: driveaksel og vinkelgir', (x) => x.earthShaftAngle - x.parallelAngle],
+    ['jorda: forlegsaksel', (x) => x.earthLayAngle],
+    ['dagkjedet', (x) => x.earthDayChainOffset / earthDayChain.radius2],
     ['kjede til Jupiters måner', (x) => x.jupiterChainOffset / jupiterChain.radius2],
     ['kjede til Saturns måner', (x) => x.saturnChainOffset / saturnChain.radius2],
     ['kjede til Mars\' måner', (x) => x.marsChainOffset / marsChain.radius2],

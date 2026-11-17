@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   drive, outerDrive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, panels, accent, colors, look, jupiterMoons,
-  saturnMoons, saturnRing, marsMoons, counterDrive, uranusRing, uranusPost, iceMoons,
+  saturnMoons, saturnRing, marsMoons, counterDrive, uranusRing, uranusPost, iceMoons, earthDay, earthSurface,
 } from './config.js';
 import { createGearGeometry, createSprocketGeometry, createBevelGeometry, createRingGearGeometry } from './gear.js';
 import { createArmGeometry } from './arm.js';
@@ -12,9 +12,11 @@ import { createPanelGeometry } from './panels.js';
 import { createPlexus, plexusPatterns } from './plexus.js';
 import { trackRotation, trackValue, updateBlur, createTrail, createFan, createSmoothGear, createSmoothChain } from './blur.js';
 import { createGlassBands, createAnnulus, createGlassMaterials } from './ring.js';
+import { createEarthSurface, createSurfaceMaterials, createSpinBlur } from './earthSurface.js';
+import { buildEarthEnd } from './earthBuild.js';
 import {
   layout, anglesAt, pairModule, tube, tubes, heights, reach as armReach, armParts, armLengths,
-  moonChain, parallelChain, driveChain, driveFrame, layChain, layFrame, idlerHub, earthAxis, moonRing, moonLift,
+  moonChain, parallelChain, driveChain, driveFrame, layChain, layFrame, idlerHub, earthAxis, earthTrain, earthDayChain,
   phases, inputPerYear, dateAt, jupiterChain, jupiterLayout, jupiterTrain, moonSystems, mechanismOf, meshAngle,
   saturnTrain, saturnChain, saturnParallelChain, saturnLayout, saturnAxis, saturnBracket,
   marsTrain, marsChain, marsParallelChain, marsLayout, marsAxis, marsBracket,
@@ -192,10 +194,16 @@ const bodyMaterial = (name) => {
 // Med mønsteret 'plexusA', 'plexusB' eller 'plexusC' blir kula en plexus-kule
 // (plexus.js) i stedet. Andre tall i panels[name] erstatter dem i plexus i config.
 const plexusUpdates = []; // flytter nodene i plexus-kulene, se animasjonen nederst
+let earthSurfaceMaterials = null;
 function addPlanetSphere(parent, radius, name, topMaterial = bodyMaterial(name), coreMaterial = seamMaterial) {
   const group = new THREE.Group();
   parent.add(group);
   const { pattern, ...overrides } = panels[name] ?? {};
+  if (pattern === 'continents') {
+    // Jorda med landmasser (earthSurface.js), i fargene earth, earthLand og earthIce.
+    group.add(createEarthSurface(overrides.style, radius, earthSurfaceMaterials ??= createSurfaceMaterials()));
+    return group;
+  }
   if (plexusPatterns[pattern]) {
     plexusUpdates.push(createPlexus(group, pattern, radius, { white: topMaterial, metal: seamMaterial }, overrides));
     return group;
@@ -303,13 +311,6 @@ const armTop = armY + arm.thickness;
 const level1 = heights.level1;                 // fast hjul og pinion
 const parallelLevel = heights.parallel;        // parallellkjedet
 const moonChainLevel = heights.moonChain;      // månekjedet
-const moonArmY = heights.moonArm;              // månearmen
-const moonArmTop = moonArmY + arm.thickness;
-const travel = moonRing.maxLift;               // hvor langt månestaven går opp og ned
-const ringY = heights.ring;
-const sleeveTop = heights.sleeveTop;
-
-const pillarRadius = armParts.earth.postRadius; // jordstolpen og tappen parallellhjulet går på
 const trainGear = (settings) => ({ ...gear, ...moonTrain, ...settings });
 
 // Et hjul i et av parene nederst. Modulen følger av paret, og hjulet får eiker
@@ -1166,95 +1167,45 @@ fastParts.push({ group: neptuneLayGroup, gears: neptuneLayGears });
 fastParts.push({ group: neptuneIdlerGroup, gears: [neptuneIdlerGear] });
 
 // --- Jordarmen: røret, det store hjulet nederst og stanga ut til jorda. ---
+// Ytterst har armen ingen krage: der står tannhjulet på driveakselen til jordrotasjonen.
 const armGroup = new THREE.Group();
 scene.add(armGroup);
 addShaft(armGroup, tube.earth.outer, heights.bottom.earth, armY);
 addGear(armGroup, pairGear(bigGear.teeth, smallGear.teeth, tube.earth.outer, bigGear), heights.bottom.earth);
-addArm(armGroup, { length: armLengths.earth, hubRadius: tube.earth.outer + 1, part: armParts.earth, y: armY, ring: true });
+addArm(armGroup, { length: armLengths.earth, hubRadius: tube.earth.outer + 1, part: armParts.earth, y: armY, collar: false });
 
-// Pinion og det store månekjedehjulet på samme aksel, som går rundt det faste hjulet.
+// Pinion, kjedehjulet til dagkjedet og det store månekjedehjulet på samme aksel,
+// som går rundt det faste hjulet.
 const pinionGroup = addGroupAt(armGroup, layout.pinion);
 addShaft(pinionGroup, moonTrain.pinion.holeRadius, armTop, heights.pinionTop);
 addGear(pinionGroup, trainGear(moonTrain.pinion), level1);
+addSprocket(pinionGroup, { teeth: earthDay.P.pinionSprocket, holeRadius: moonTrain.pinion.holeRadius, ...bigSprocketStyle },
+  earthDayChain.radius1, heights.day, earthDayChain);
 // Kjedehjulet er satt på akselen i sin egen vinkel, så månefasen stemmer.
 addSprocket(pinionGroup, moonTrain.driveSprocket, moonChain.radius1, moonChainLevel).rotation.y = phases.moon;
 
 const updateMoonChain = addChain(armGroup, moonChain, moonChainLevel);
 const updateParallelChain = addChain(armGroup, parallelChain, parallelLevel);
+const updateDayChain = addChain(armGroup, earthDayChain, heights.day);
 const updateDriveChain = addChain(driveChainGroup, driveChain, heights.driveChain);
 const updateLayChain = addChain(layChainGroup, layChain, heights.layChain);
 
-// --- Ytterst på armen: en tapp som parallellhjulet går på. ---
-const earthGroup = addGroupAt(armGroup, layout.earth);
-addShaft(earthGroup, pillarRadius, armTop, parallelLevel);
-
-// --- Parallellhjulet står stille i rommet. Det bærer jordstolpen, jorda med
-// den skrå aksen og den skrå ringen som styrer månebanen. ---
-const parallelGroup = new THREE.Group();
-earthGroup.add(parallelGroup);
-addSprocket(parallelGroup, { ...moonTrain.parallelSprocket, holeRadius: pillarRadius }, parallelChain.radius2, parallelLevel);
-addShaft(parallelGroup, pillarRadius, parallelLevel, bodies.height);
-
-// Jorda, med aksen og ekvator så hellingen synes.
-const earthMount = new THREE.Group();
-earthMount.position.y = bodies.height;
-earthMount.rotation.y = earthAxis.direction;
-parallelGroup.add(earthMount);
-const earthTilted = new THREE.Group();
-earthTilted.rotation.z = -earthAxis.tilt; // heller toppen mot +x i earthMount
-earthMount.add(earthTilted);
-addPlanetSphere(earthTilted, bodies.earthRadius, 'earth');
-addShaft(earthTilted, 0.25, -(bodies.earthRadius + 0.6), bodies.earthRadius + 1.5); // jordaksen
-const equator = addMesh(earthTilted, new THREE.TorusGeometry(bodies.earthRadius + 0.04, 0.12, 12, 96));
-equator.rotation.x = Math.PI / 2;
-
-// Ringen månefoten hviler på: et nav på stolpen, tre eiker og en flat ring,
-// alt i et plan som heller med knutelinjen som akse.
-const ringMount = new THREE.Group();
-ringMount.position.y = ringY;
-ringMount.rotation.y = moonRing.node;
-parallelGroup.add(ringMount);
-addShaft(ringMount, pillarRadius + 0.5, -0.4, 0.4);
-const ringPlane = new THREE.Group();
-ringPlane.rotation.x = moonRing.tilt;
-ringMount.add(ringPlane);
-const bandThickness = 0.3;
-const bandShape = new THREE.Shape();
-bandShape.absarc(0, 0, moonRing.radius + moonRing.halfWidth, 0, Math.PI * 2, false);
-const bandHole = new THREE.Path();
-bandHole.absarc(0, 0, moonRing.radius - moonRing.halfWidth, 0, Math.PI * 2, true);
-bandShape.holes.push(bandHole);
-const bandGeometry = new THREE.ExtrudeGeometry(bandShape, { depth: bandThickness, bevelEnabled: false, curveSegments: 128 });
-bandGeometry.rotateX(-Math.PI / 2);
-bandGeometry.translate(0, -bandThickness / 2, 0);
-addMesh(ringPlane, bandGeometry);
-for (let k = 0; k < 3; k++) {
-  const spoke = new THREE.Group();
-  spoke.rotation.y = (k * Math.PI * 2) / 3 + Math.PI / 6;
-  ringPlane.add(spoke);
-  addBar(spoke, moonRing.radius, 0.6, -bandThickness / 2, bandThickness / 2);
-}
-
-// --- Månen: det lille kjedehjulet går på et rør rundt jordstolpen og bærer månearmen. ---
-const moonGroup = new THREE.Group();
-earthGroup.add(moonGroup);
-addSprocket(moonGroup, moonTrain.moonSprocket, moonChain.radius2, moonChainLevel);
-// Røret er navet til månearmen, og stikker litt opp over den.
-addShaft(moonGroup, moonTrain.moonSprocket.holeRadius, parallelLevel + moonTrain.thickness + 0.1, moonArmTop + armStyle.hubRise);
-addArm(moonGroup, { length: bodies.moonOrbit, hubRadius: moonTrain.moonSprocket.holeRadius, part: armParts.moon, y: moonArmY, hub: false });
-addShaft(moonGroup, armParts.moon.postRadius, moonArmTop, sleeveTop).position.x = bodies.moonOrbit; // hylsa
-
-// Månestaven med foten og månen. Den flyttes opp og ned etter ringen.
-const footSize = 0.2;
-const moonPin = new THREE.Group();
-moonPin.position.x = bodies.moonOrbit;
-moonGroup.add(moonPin);
-addShaft(moonPin, 0.35, moonArmY + travel + 0.1, bodies.height);
-const footLength = bodies.moonOrbit - moonRing.radius;
-const foot = addMesh(moonPin, new THREE.CylinderGeometry(footSize, footSize, footLength, 12));
-foot.rotation.z = Math.PI / 2;
-foot.position.set(-footLength / 2, ringY + bandThickness / 2 + footSize, 0);
-addPlanetSphere(moonPin, bodies.moonRadius, 'moon').position.y = bodies.height;
+// --- Ytterst på armen: jordstolpen (earthBuild.js, utformingen i earthTrain):
+// forlegsakselen og driveakselen ved foten, parallellhjulet med stolperøret,
+// føringsringen, vinkelgiret og jorda som roterer, og månen med staven og foten
+// som følger ringen. ---
+const earthEnd = buildEarthEnd(earthTrain, {
+  materials: { white: material, metal: seamMaterial, red: redLacquer, strut: uranusStrutMaterial },
+  moonChain, parallelChain, earthAxisDirection: earthAxis.direction, moonRadius: bodies.moonRadius,
+  addEarth: (group) => addPlanetSphere(group, bodies.earthRadius, 'earth'),
+  addMoon: (group, p) => addPlanetSphere(group, bodies.moonRadius, 'moon').position.set(p.x, p.y, p.z),
+});
+earthEnd.end.position.set(layout.earth.x, 0, -layout.earth.y);
+armGroup.add(earthEnd.end);
+// Mot flimring: en glatt kule med fargene smurt ut langs breddegradene når jorda spinner fort.
+const earthRaised = panels.earth?.pattern === 'continents' && panels.earth.style === 'S2' ? earthSurface.S2.height : 0;
+earthEnd.spinEntry.extra.push(createSpinBlur(earthEnd.tilted, bodies.earthRadius + earthRaised + 0.015));
+fastParts.push(...earthEnd.fast);
 
 // --- Mot flimring (blur.js) ---
 // Hjulene på akslene som går fort (alle unntatt den første delen, som er akselen).
@@ -1265,14 +1216,13 @@ fastParts.push({ group: saturnLayGroup, gears: gearsOf(saturnLayGroup) });
 fastParts.push({ group: saturnSleeveGroup, gears: gearsOf(saturnSleeveGroup) });
 fastParts.push({ group: marsDriveGroup, gears: gearsOf(marsDriveGroup) });
 fastParts.push({ group: marsIdlerGroup, gears: marsIdlerGroup.children.filter((c) => c.isMesh) });
-// Månen: sporet i høyden der banen ligger i snitt (den går litt opp og ned).
-fastParts.push({ group: moonGroup, trail: { radius: bodies.moonOrbit, y: bodies.height, tube: bodies.moonRadius * 0.35 } });
 scene.updateMatrixWorld(true);
 for (const p of fastParts) {
   const pieces = [];
   for (const g of p.gears ?? []) pieces.push(createSmoothGear(g));
   if (p.fan?.length) pieces.push(createFan(p.group, p.fan));
   if (p.trail) pieces.push(createTrail(p.trail.parent ?? p.group, p.trail));
+  pieces.push(...(p.extra ?? []));
   trackRotation(p.group, pieces);
 }
 // Kjedene til månene: et glatt bånd over leddene. Farten måles som vinkelen
@@ -1283,6 +1233,7 @@ for (const [key, parent, chain, y] of [
   ['saturn', saturnGroup, saturnChain, SS.chain],
   ['mars', marsGroup, marsChain, MS.chain],
   ['moon', armGroup, moonChain, moonChainLevel],
+  ['earthDay', armGroup, earthDayChain, heights.day],
   ['uranus', uranusGroup, uranusMoonChain, US.chain],
   ['neptune', neptuneGroup, neptuneChain, NS.chain],
 ]) {
@@ -1363,9 +1314,10 @@ renderer.setAnimationLoop((time) => {
   pinionGroup.rotation.y = a.pinionAngle;
   updateMoonChain(a.moonChainOffset);
   updateParallelChain(a.parallelChainOffset);
-  parallelGroup.rotation.y = a.parallelAngle;
-  moonGroup.rotation.y = a.moonAngle;
-  moonPin.position.y = moonLift(a);
+  updateDayChain(a.earthDayChainOffset);
+  earthEnd.update({
+    layAngle: a.earthLayAngle, shaftArm: a.earthShaftAngle, parallelAngle: a.parallelAngle, moonAngle: a.moonAngle, spin: a.earthSpin,
+  });
   // Plexus-kulene driver i vanlig tid, uansett hvor fort modellen går.
   for (const update of plexusUpdates) update(time / 1000);
   // Lysspor, vifter og glatte former for det som går fort (blur i config).
@@ -1373,6 +1325,7 @@ renderer.setAnimationLoop((time) => {
   chainOffsets.saturn = a.saturnChainOffset;
   chainOffsets.mars = a.marsChainOffset;
   chainOffsets.moon = a.moonChainOffset;
+  chainOffsets.earthDay = a.earthDayChainOffset;
   chainOffsets.uranus = a.uranusChainOffset;
   chainOffsets.neptune = a.neptuneChainOffset;
   updateBlur();

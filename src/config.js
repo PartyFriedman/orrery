@@ -533,6 +533,113 @@ export const moonTrain = {
   parallelSprocket: { teeth: 36, spokes: 4, spokeWidth: 1, hubWidth: 1.5, rimWidth: 1 },
 };
 
+// Jorda roterer, drevet med ekte hjulverk: én omdreining per siderisk døgn
+// (365,256 + 1 omdreininger per år i rommet). Modellen bruker ruta `model`
+// (A: P + V + G1 + F1); prøvesiden earth.html viser alle rutene, så de kan sammenlignes.
+// Stolpen under jorda blir et rør (stolperøret, på parallellhjulet) med en
+// driveaksel inni. Jorda sitter på sin egen skrå aksel (spindelen), som går i et
+// lager under sørpolen.
+// Driveakselen drives på en av to måter (source):
+//   P: fra pinionakselen på jordarmen (går 5 runder per år sett fra armen): et
+//      kjede ut til en forlegsaksel ved jordstolpen, og et tannhjulspar derfra
+//      til driveakselen. Tårnet endres ikke.
+//   T: fra et eget dagrør i tårnet (et hjulpar fra mellomakselen) og et kjede
+//      rett til driveakselen, som månene til Jupiter, Saturn og Mars. Gir et nytt
+//      rør og et nytt plan i tårnet.
+// Fra den loddrette driveakselen til den skrå jordaksen (top):
+//   V: ett vinkelgir med toppunktet i jordas sentrum (aksene møtes bare der).
+//      Begge hjulene ligger under jorda; hjulet på spindelen sitter et stykke
+//      under sørpolen.
+//   K: et dobbelt kryssledd (to ledd à 11,72°, jevn fart) på toppen av
+//      stolperøret gjør driveakselen om til en skrå aksel parallell med jordaksen,
+//      og et tannhjulspar går derfra til spindelen. Med T trengs et mellomhjul
+//      (rød ring, som ved Neptun), ellers går jorda baklengs.
+// Omdreininger per år (sett fra stolperøret, som står stille i rommet):
+//   P: driveakselen −(5 × pinionSprocket/laySprocket × layGear/shaftGear − 1)
+//   T: dagrøret 3 × driveTeeth/tubeTeeth; driveakselen (dagrøret − 1) × tubeSprocket/shaftSprocket + 1
+//   jorda: driveakselen × (V: shaftTeeth/earthTeeth, K: bigTeeth/smallTeeth), med fortegnet som gir prograd rotasjon
+// cells er rutene på prøvesiden: hvert valg kan blandes fritt (T + V går ikke:
+// da går jorda baklengs). Modellen kan bare bruke P (T krever et nytt rør i tårnet).
+export const earthDay = {
+  siderealDay: 0.99726968,  // bare målet: dager per omdreining i rommet
+  model: 'A',               // ruta modellen bruker
+  cells: {
+    A: { source: 'P', top: 'V', guide: 'G1', follower: 'F1' },
+    B: { source: 'T', top: 'K', guide: 'G2', follower: 'F2' },
+    C: { source: 'P', top: 'K', guide: 'G3', follower: 'F1' },
+  },
+  P: {
+    pinionSprocket: 39,   // kjedehjulet på pinionakselen
+    laySprocket: 8,       // kjedehjulet på forlegsakselen ved jordstolpen
+    chainPitch: 0.8,      // finere kjede enn månekjedet, så det får plass langs armen
+    layGear: 53,          // tannhjulet på forlegsakselen
+    shaftGear: 10,        // tannhjulet på driveakselen
+    module: 0.15,
+  },
+  T: {
+    driveTeeth: 45,       // hjulet på mellomakselen
+    tubeTeeth: 11,        // hjulet nederst på dagrøret
+    tubeSprocket: 82,     // kjedehjulet øverst på dagrøret, over jordarmen
+    shaftSprocket: 8,     // kjedehjulet nederst på driveakselen
+    chainPitch: 0.8,      // finere kjede, så kjedehjulet ved sentrum går klar av pinionakselen
+  },
+  V: { shaftTeeth: 40, earthTeeth: 14, module: 0.08, faceWidth: 0.3 },   // brukes med P
+  K: {
+    P: { bigTeeth: 40, smallTeeth: 14, module: 0.09 },                   // uten mellomhjul
+    T: { bigTeeth: 44, smallTeeth: 14, idlerTeeth: 17, module: 0.075 }, // med mellomhjul
+    idlerSide: 1,         // hvilken side mellomhjulet står på (1 eller −1)
+    thickness: 0.3,       // tannhjulene ved jorda
+    jointRadius: 0.26,    // kryssleddet
+    plateThickness: 0.2,  // platen som holder lagrene til spindelen og den skrå akselen
+  },
+  driveShaftRadius: 0.3,  // driveakselen inni stolperøret
+  frameWall: 0.25,        // veggen i stolperøret
+  spindleRadius: 0.15,    // jordas aksel
+  bearing: { wall: 0.14, length: 0.6 },   // lageret til spindelen
+  bracket: { radius: 0.14, fillet: 0.3 }, // braketten fra stolperøret til lageret
+  shaftGearThickness: 0.6, // hjulparet ved foten av stolpen (P) og kjedehjulene
+};
+
+// Månebanens helning: en føringsring på stolperøret under jorda, og en fot på
+// månestaven som følger den. Modellen bruker den ringen og foten ruta earthDay.model har.
+// Ringen er et snitt mellom en sylinder (radius) og et skrått plan, som ved
+// Neptun, så kontaktpunktet alltid ligger i samme avstand fra stolpen og staven
+// løftes like mye som ringen. Høyden regnes ut: så lavt som mulig over månearmen.
+//   G1: smal ring med loddrette sider, på tynne stag fra et nav (som ved Neptun)
+//   G2: rund ring på skrå stag
+//   G3: skrå skive med tre vinduer (taumelskive), uten stag
+//   F1: gaffel med to ruller, én oppå og én under ringen (på G3: kuler)
+//   F2: glidesko som griper rundt ringen (åpen innover, der stagene sitter)
+export const moonGuide = {
+  radius: 3.0,            // fra jordstolpen til kontaktpunktet
+  strutAzimuths: [90, 210, 330],  // grader rundt fra retningen jordaksen heller mot (unngår braketten og drivet)
+  strutRadius: 0.05,
+  hub: { radius: 0.3, height: 0.4 },  // navet på stolperøret (radius utenpå røret)
+  G1: { width: 0.14, height: 0.6 },  // høyden må være minst ca. 0,58, så akslene til rullene går klar av stagene
+  G2: { tube: 0.1 },
+  G3: { thickness: 0.14, edge: 0.18, windows: 3, chamfer: 0.03 },  // edge: så langt skiva går utenfor kontaktpunktet
+  F1: { rollerRadius: 0.09, rollerWidth: 0.12, barWidth: 0.12, axleRadius: 0.03 },
+  F2: { wall: 0.05, clearance: 0.03, length: 0.45, opening: 110 },  // opening: grader åpent innover
+  footRadius: 0.08,       // stanga fra staven inn til gaffelen eller skoen
+  pinRadius: 0.11,        // månestaven
+  sleeveRadius: 0.28,     // hylsa ytterst på månearmen
+  tubeWall: 0.25,         // månerøret rundt stolperøret
+  arm: { thickness: 0.4, rootHalf: 0.55, fillet: 0.3, chamfer: 0.08 },  // månearmen, smal og uten krage
+};
+
+// Landmassene på jorda, med fargene earth (havet), earthLand og earthIce i
+// colors.bodies. Konturene står i landmasses.js. Modellen bruker den som står i
+// panels.earth (pattern 'continents', style 'S1', 'S2' eller 'S3').
+//   S1: innlagte kontinenter: ett buet panel per kontinent i flukt med havet, med en mørk fuge rundt
+//   S2: opphøyde kontinenter: plater som står height opp fra havet, med fas
+//   S3: fasetter (lavpoly): uregelmessige trekanter farget etter land, hav og is
+//       (subdivisions = antall hjørner; flere gir en mer gjenkjennelig kystlinje)
+export const earthSurface = {
+  seamWidth: 0.04,        // fugen rundt kontinentene (S1)
+  S2: { height: 0.06, chamfer: 0.025 },
+  S3: { subdivisions: 500, seamWidth: 0.025, seamDepth: 0.06 },
+};
+
 // Jupiters fire måner. Månene går for fort til et fast hjul ved sentrum, så de
 // drives fra mellomakselen: et hjulpar i tårnet dreier et månerør (inni
 // Jupiter-røret), og et kjede over Jupiter-armen tar bevegelsen ut til en
@@ -588,7 +695,7 @@ export const tilt = {
 export const bodies = {
   sunRadius: 6,
   earthRadius: planetSize('earth'),
-  height: 61.0, // høyden på sentrum av sola og alle planetene (feilmelding hvis den er for lav; 45,5 før Uranus og Neptun, 55,1 før månene deres)
+  height: 61.75, // høyden på sentrum av sola og alle planetene (feilmelding hvis den er for lav; 61,0 før jordrotasjonen, 45,5 før Uranus og Neptun, 55,1 før månene deres)
   moonRadius: moonSize('moon'),
   moonOrbit: 4,       // avstanden fra jorda til månen (lavere gir for liten føringsring under jorda)
 };
@@ -612,7 +719,7 @@ export const panels = {
   // bredere fuger på sola og store planeter. Da gjelder den verdien for den kula.
   mercury: { pattern: 'kites',     subdivisions: 1 },  // 60 drager
   venus:   { pattern: 'rhombi',    subdivisions: 2 },  // 120 ruter
-  earth:   { pattern: 'spiral', subdivisions: 2 },  // 80 trekanter
+  earth:   { pattern: 'continents', style: 'S2' },  // landmasser (se earthSurface): S1 innlagte, S2 opphøyde, S3 fasetter
   mars:    { pattern: 'quads',     subdivisions: 3, amplitude: 0.32, bulge: 0.8, seamWidth: 0.01 },  // 54 firkanter
   moon:    { pattern: 'pentagons', subdivisions: 1 },  // 12 femkanter med en ring av trapeser rundt (72 paneler)
   jupiter: { pattern: 'bands',     subdivisions: 3 },  // 7 bånd à 16 firkanter, og en 16-kant over hver pol
@@ -670,7 +777,9 @@ export const colors = {
     sun: '#f3f595',       // glasset og lyset inni (accent.sunStyle)
     mercury: '#a8a29a',   // grå
     venus: '#e8d9a8',     // blek gul
-    earth: '#6f93c4',     // blå
+    earth: '#6f93c4',     // blå (havet når jorda har landmasser)
+    earthLand: '#8f9a6a', // dempet oliven (landmassene)
+    earthIce: '#f4f6f7',  // hvit (Antarktis og Grønland)
     moon: '#cbc8c1',      // lys grå
     mars: '#c06a43',      // rustrød
     phobos: '#8e8174', deimos: '#a39888',      // gråbrune
