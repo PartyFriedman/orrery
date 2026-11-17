@@ -3,8 +3,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
-  drive, outerDrive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, panels, accent, look, jupiterMoons,
-  saturnMoons, saturnRing, marsMoons, counterDrive, uranusRing, uranusPost,
+  drive, outerDrive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, panels, accent, colors, look, jupiterMoons,
+  saturnMoons, saturnRing, marsMoons, counterDrive, uranusRing, uranusPost, iceMoons,
 } from './config.js';
 import { createGearGeometry, createSprocketGeometry, createBevelGeometry, createRingGearGeometry } from './gear.js';
 import { createArmGeometry } from './arm.js';
@@ -19,6 +19,7 @@ import {
   saturnTrain, saturnChain, saturnParallelChain, saturnLayout, saturnAxis, saturnBracket,
   marsTrain, marsChain, marsParallelChain, marsLayout, marsAxis, marsBracket,
   usesCounter, uranusTrain, uranusParallelChain, uranusLayout, uranusAxis, uranusBracket,
+  uranusMoonTrain, uranusMoonChain, uranusMoonNames, neptuneMoonTrain, neptuneChain, neptuneLayout,
 } from './mechanism.js';
 import { daysPerYear } from './ephemeris.js';
 import { createTimeControl } from './timeControl.js';
@@ -172,21 +173,26 @@ const seamMaterial = new THREE.MeshPhysicalMaterial({
   metalness: look.seamMetalness,
   roughness: look.seamRoughness,
 });
-// Rødt: blank rød lakk, brukt på ringene ved stolpene og på lakksola.
-const redLacquer = new THREE.MeshPhysicalMaterial({
-  color: accent.red,
-  roughness: 0.2,
-  metalness: 0,
-  clearcoat: 1,
-  clearcoatRoughness: 0.05,
-});
-// En planet som kule av paneler (mønsteret står i panels i config): hvite
-// topper, mørke sider og en mørk kjerne under, som synes i fugene. Sola
+// Det røde i mekanikken (colors.accent): blank lakk, brukt på ringene ved stolpene.
+const lacquer = (color) => new THREE.MeshPhysicalMaterial({ color, roughness: 0.2, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05 });
+const redLacquer = lacquer(colors.accent);
+// Fargen på hver kule (colors.bodies), i den samme satengmatte lakken som
+// hjulene. Ett materiale per navn; kuler uten egen farge blir hvite.
+const bodyMaterials = {};
+const bodyMaterial = (name) => {
+  if (!colors.bodies[name]) return material;
+  return (bodyMaterials[name] ??= new THREE.MeshPhysicalMaterial({
+    color: colors.bodies[name], roughness: look.roughness, metalness: 0,
+    clearcoat: look.gloss, clearcoatRoughness: look.glossRoughness,
+  }));
+};
+// En planet som kule av paneler (mønsteret står i panels i config): toppene
+// i fargen fra colors.bodies, mørke sider og en mørk kjerne under, som synes i fugene. Sola
 // bruker den samme kula med andre materialer.
 // Med mønsteret 'plexusA', 'plexusB' eller 'plexusC' blir kula en plexus-kule
 // (plexus.js) i stedet. Andre tall i panels[name] erstatter dem i plexus i config.
 const plexusUpdates = []; // flytter nodene i plexus-kulene, se animasjonen nederst
-function addPlanetSphere(parent, radius, name, topMaterial = material, coreMaterial = seamMaterial) {
+function addPlanetSphere(parent, radius, name, topMaterial = bodyMaterial(name), coreMaterial = seamMaterial) {
   const group = new THREE.Group();
   parent.add(group);
   const { pattern, ...overrides } = panels[name] ?? {};
@@ -246,38 +252,39 @@ function addArm(parent, {
     parent.add(red);
   }
 }
-// Sola: en kule av buede paneler i rødt, som planetene. To varianter i config:
-// 'lacquer' er blank rød lakk med mørke fuger. 'glass' er rødt glass med en
-// glødende kjerne og et rødt lys i midten, så den lyser innenfra og fugene gløder.
+// Sola: en kule av buede paneler, som planetene, i fargen colors.bodies.sun.
+// To varianter i config: 'lacquer' er blank lakk med mørke fuger. 'glass' er
+// glass med en glødende kjerne og et lys i midten, så den lyser innenfra og fugene gløder.
 function addSun() {
   if (accent.sunStyle !== 'lacquer' && accent.sunStyle !== 'glass') {
     throw new Error(`Ukjent solstil '${accent.sunStyle}'. Velg 'lacquer' eller 'glass'.`);
   }
   if (accent.sunStyle === 'lacquer') {
-    addPlanetSphere(scene, bodies.sunRadius, 'sun', redLacquer).position.y = bodies.height;
+    addPlanetSphere(scene, bodies.sunRadius, 'sun', lacquer(colors.bodies.sun)).position.y = bodies.height;
     return;
   }
+  const sunColor = colors.bodies.sun;
   const glass = new THREE.MeshPhysicalMaterial({
-    color: accent.red,
+    color: sunColor,
     roughness: 0.15,
     metalness: 0,
     transmission: 0.6,      // slipper lyset fra kjernen gjennom
     thickness: 1.5,
     ior: 1.5,
-    attenuationColor: accent.red,
+    attenuationColor: sunColor,
     attenuationDistance: 3,
-    emissive: accent.red,
+    emissive: sunColor,
     emissiveIntensity: 0.35 * accent.glow,
   });
   const glowCore = new THREE.MeshStandardMaterial({
-    color: accent.red,
-    emissive: accent.red,
+    color: sunColor,
+    emissive: sunColor,
     emissiveIntensity: 2 * accent.glow,
   });
   const sunSphere = addPlanetSphere(scene, bodies.sunRadius, 'sun', glass, glowCore);
   sunSphere.position.y = bodies.height;
   sunSphere.children[0].castShadow = false; // glasset skal ikke stenge lyset inne i skyggekartet
-  const light = new THREE.PointLight(accent.red, 8 * accent.glow, 0, 1); // svakt rødt lys innenfra
+  const light = new THREE.PointLight(sunColor, 8 * accent.glow, 0, 1); // svakt lys innenfra i solas farge
   light.position.y = bodies.height;
   scene.add(light);
 }
@@ -425,6 +432,9 @@ addGear(driveGroup, pairGear(saturnMoons.driveTeeth, saturnMoons.tubeTeeth, driv
 // Mars: hjulene som driver månerøret og par-mars.
 addGear(driveGroup, pairGear(marsMoons.driveTeeth, marsMoons.tubeTeeth, drive.shaftRadius), heights.bottom['drive-mars']);
 addGear(driveGroup, pairGear(marsMoons.parallel.driveTeeth, marsMoons.parallel.tubeTeeth, drive.shaftRadius), heights.bottom['par-mars']);
+// Uranus og Neptun: hjulene som driver månerørene.
+addGear(driveGroup, pairGear(iceMoons.uranus.driveTeeth, iceMoons.uranus.tubeTeeth, drive.shaftRadius), heights.bottom['drive-uranus']);
+addGear(driveGroup, pairGear(iceMoons.neptune.driveTeeth, iceMoons.neptune.tubeTeeth, drive.shaftRadius), heights.bottom['drive-neptune']);
 const sprocketStyle = { spokes: 0, spokeWidth: 1, hubWidth: 1, rimWidth: 1 };
 addSprocket(driveGroup, { teeth: outerDrive.driveSprocket, holeRadius: drive.shaftRadius, ...sprocketStyle },
   driveChain.radius1, heights.driveChain, driveChain);
@@ -487,7 +497,7 @@ for (const [name, p] of Object.entries(planets)) {
   addArm(group, { length, hubRadius: tube[name].outer + 1, part: armParts.planet, y, ring: true });
   planetGroups[name] = group;
   // Saturn, Mars og Uranus står på sine egne stolper, se under.
-  if (['ringMoons', 'epicyclic', 'parallelPost'].includes(mechanismOf(name))) continue;
+  if (['ringMoons', 'epicyclic', 'parallelMoons'].includes(mechanismOf(name))) continue;
   addShaft(group, armParts.planet.postRadius, y + arm.thickness, bodies.height).position.x = length;
   addPlanetSphere(group, p.radius, name).position.set(length, bodies.height, 0);
 }
@@ -791,6 +801,29 @@ marsFrameGroup.add(marsMount);
 const mbp = marsBracket.points;
 for (let i = 0; i < mbp.length - 1; i++) addRod(marsMount, mbp[i], mbp[i + 1], marsBracket.radius);
 for (const p of mbp.slice(1, -1)) addSphere(marsMount, marsBracket.radius).position.set(p.x, p.y, p.z);
+// Føringsringen ved Neptun: et bånd med loddrette sider rundt stolpen (bredde
+// width radielt, høyde height), med midtlinjen fra neptuneMoonTrain.guidePoint.
+function guideRingGeometry(d, G) {
+  const N = 192, pos = [], idx = [];
+  const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];   // (radielt, høyde)
+  for (let k = 0; k <= N; k++) {
+    const t = (2 * Math.PI * k) / N;
+    for (const [cr, cy] of corners) {
+      const q = d.guidePoint(t, (cr * G.width) / 2, (cy * G.height) / 2);
+      pos.push(q.x, q.y, q.z);
+    }
+  }
+  for (let k = 0; k < N; k++) for (let c = 0; c < 4; c++) {
+    const a = k * 4 + c, b = k * 4 + ((c + 1) % 4);
+    idx.push(a, a + 4, b, b, a + 4, b + 4);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  const flat = g.toNonIndexed();
+  flat.computeVertexNormals();
+  return flat;
+}
 // En myk overgang: en kjegle fra 2 × radius ved `at` ned til radius, lengden L mot `toward`.
 const addFlare = (parent, at, toward, r, L) => {
   const A = new THREE.Vector3(at.x, at.y, at.z), dir = new THREE.Vector3(toward.x, toward.y, toward.z).sub(A).normalize();
@@ -939,24 +972,55 @@ addSprocket(uranusParGroup, { teeth: UPc.parallel.centerSprocket, holeRadius: ur
 const uranusGroup = planetGroups.uranus;
 const updateUranusParChain = addChain(uranusGroup, uranusParallelChain, US.parallel);
 
-// Stolpen (står stille i rommet): kjedehjulet nederst, og stolpen opp til braketten.
-const uranusPostR = armParts.planet.postRadius;
+// Månerøret drive-uranus i tårnet, med kjedehjulet rett under parallellkjedet.
+const UM = iceMoons.uranus, UMT = uranusMoonTrain;
+const uranusDriveTube = tube['drive-uranus'];
+const uranusTubeGroup = new THREE.Group();
+scene.add(uranusTubeGroup);
+addShaft(uranusTubeGroup, uranusDriveTube.outer, heights.bottom['drive-uranus'], US.driveTubeTop);
+addGear(uranusTubeGroup, pairGear(UM.tubeTeeth, UM.driveTeeth, uranusDriveTube.outer), heights.bottom['drive-uranus']);
+addSprocket(uranusTubeGroup, { teeth: UM.tubeSprocket, holeRadius: uranusDriveTube.outer, ...bigSprocketStyle },
+  uranusMoonChain.radius1, US.chain, uranusMoonChain);
+const updateUranusMoonChain = addChain(uranusGroup, uranusMoonChain, US.chain);
+
+// Hjulene ved Uranus: som ved Saturn, med en modul per par.
+const uranusGearStyle = { layDistance: UMT.LD, thickness: UM.thickness, chamfer: 0.06, backlash: 0.05 };
+const uranusGear = (teeth, otherTeeth, holeRadius, module) => smallTrainGear(uranusGearStyle, teeth, otherTeeth, holeRadius, module);
+
+// Driveakselen midt i stolperøret: kjedehjulet nederst og det koniske hjulet
+// øverst, over toppunktet P (akselen går opp gjennom det).
+const uranusShaftGroup = addGroupAt(uranusGroup, uranusLayout.post);
+addShaft(uranusShaftGroup, UM.driveShaftRadius, UMT.armTop, UMT.shaftTop);
+addSprocket(uranusShaftGroup, { teeth: UM.shaftSprocket, holeRadius: UM.driveShaftRadius, ...sprocketStyle },
+  uranusMoonChain.radius2, US.chain, uranusMoonChain);
+const uranusDriveBevel = createBevelGeometry(uranusGear(UMT.bevel.driveTeeth, 0, UM.driveShaftRadius, UMT.bevel.module), Math.abs(UMT.bevel.driveApex));
+if (UMT.bevel.driveApex < 0) uranusDriveBevel.rotateX(Math.PI);  // toppunktet under hjulet
+addMesh(uranusShaftGroup, uranusDriveBevel).position.y = UMT.bevel.driveY;
+
+// Stolperøret (står stille i rommet): kjedehjulet til parallellføringen og
+// røret rundt driveakselen opp til rett under vinkelgiren.
 const uranusFrameGroup = addGroupAt(uranusGroup, uranusLayout.post);
-addSprocket(uranusFrameGroup, { teeth: UPc.parallel.postSprocket, holeRadius: uranusPostR, ...sprocketStyle },
+addSprocket(uranusFrameGroup, { teeth: UPc.parallel.postSprocket, holeRadius: UMT.frameOuter, ...sprocketStyle },
   uranusParallelChain.radius2, US.parallel, uranusParallelChain);
-addShaft(uranusFrameGroup, uranusPostR, heights.arm.uranus + arm.thickness, US.postTop);
+addShaft(uranusFrameGroup, UMT.frameOuter, US.parallel + moonTrain.thickness, UMT.frameTop);
 const uranusMount = new THREE.Group();
 uranusMount.rotation.y = uranusAxis.direction;
 uranusFrameGroup.add(uranusMount);
-// Braketten: vannrett ut, opp, og langs polakselen inn i polen. Runde knekker,
-// og myke overganger ved stolpen og ved polen.
+// Braketten: fra siden av stolperøret vannrett ut under hjulene på
+// forlegsakselen, opp til polakselen, og langs den inn i polen. Runde knekker,
+// og myke overganger ved stolperøret og ved polen.
 const ubp = uranusBracket.points, ubr = uranusBracket.radius;
-for (let i = 0; i < ubp.length - 1; i++) addRod(uranusMount, ubp[i], ubp[i + 1], ubr);
+const ubStart = { x: UMT.frameOuter, y: ubp[0].y, z: 0 };
+addRod(uranusMount, ubStart, ubp[1], ubr);
+for (let i = 1; i < ubp.length - 1; i++) addRod(uranusMount, ubp[i], ubp[i + 1], ubr);
 for (const p of ubp.slice(1, -1)) addSphere(uranusMount, ubr).position.set(p.x, p.y, p.z);
-addFlare(uranusMount, ubp[0], ubp[1], ubr, uranusBracket.fillet);
+addFlare(uranusMount, ubStart, ubp[1], ubr, uranusBracket.fillet);
 addFlare(uranusMount, ubp[ubp.length - 1], ubp[ubp.length - 2], ubr, uranusBracket.fillet);
+// Bukken fra den vannrette delen opp til lageret ved vinkelgiren.
+const footPost = UMT.bearings.foot.post;
+addRod(uranusMount, footPost[0], footPost[1], UM.bearing.postRadius);
 
-// Alt rundt Uranus' akse, med sentrum i origo og aksen langs y.
+// Alt rundt Uranus' akse, med sentrum i origo og aksen langs y (x er x', nedover).
 const uranusTilted = new THREE.Group();
 uranusTilted.position.y = bodies.height;
 uranusTilted.rotation.z = -uranusAxis.tilt; // heller polen med akselen mot +x i uranusMount (under vannrett)
@@ -980,6 +1044,126 @@ for (const r of UT.ring.rings) {
   glass.receiveShadow = true; // glasset stenger ikke lyset helt, så det kaster ingen skygge
   uranusTilted.add(glass);
 }
+// Lagrene til forlegsakselen (står fast): i den loddrette delen av braketten og på bukken.
+for (const b of [UMT.bearings.riser, UMT.bearings.foot]) addShaft(uranusTilted, b.radius, b.s0, b.s1).position.x = UMT.LD;
+
+// Forlegsakselen med det koniske hjulet og ett hjul per måne.
+const uranusLayGroup = new THREE.Group();
+uranusLayGroup.position.x = UMT.LD;
+uranusTilted.add(uranusLayGroup);
+addShaft(uranusLayGroup, UM.shaftRadius, ...UMT.laySpan);
+const uranusLayBevel = createBevelGeometry(uranusGear(UMT.bevel.layTeeth, 0, UM.shaftRadius, UMT.bevel.module), Math.abs(UMT.bevel.layApex));
+if (UMT.bevel.layApex < 0) uranusLayBevel.rotateX(Math.PI);
+addMesh(uranusLayGroup, uranusLayBevel).position.y = UMT.bevel.layS;
+const uranusLayGears = [];
+for (const n of uranusMoonNames) {
+  const pr = UMT.pairs[n];
+  uranusLayGears.push(addGear(uranusLayGroup, uranusGear(pr.lay, pr.tube, UM.shaftRadius, pr.module), UMT.levels[`${n}Gear`] - UM.thickness / 2));
+}
+
+// Titania og Oberon: hvert rør på polakselen har hjulet ytterst, og en krage
+// med et skrått stag ned til et kort bein og månen i ekvatorplanet.
+const uranusMoonGroups = {};
+for (const n of uranusMoonNames) {
+  const mo = UMT.moons[n], t = mo.tube, pr = UMT.pairs[n], rr = UMT.rods.rodRadius;
+  const group = new THREE.Group();
+  uranusTilted.add(group);
+  uranusMoonGroups[n] = group;
+  addShaft(group, t.outer, t.s0, t.s1);
+  const gearMesh = addGear(group, uranusGear(pr.tube, pr.lay, t.outer, pr.module), UMT.levels[`${n}Gear`] - UM.thickness / 2);
+  addShaft(group, mo.rod.from.x + rr, mo.armS - UM.armThickness / 2, mo.armS + UM.armThickness / 2);   // kragen
+  addRod(group, { x: mo.rod.from.x, y: mo.rod.from.y, z: 0 }, { x: mo.rod.to.x, y: mo.rod.to.y, z: 0 }, rr, moonArmMaterial);
+  addSphere(group, rr).position.set(mo.rod.to.x, mo.rod.to.y, 0);
+  addShaft(group, UM.legRadius, 0, mo.legTop).position.x = mo.orbit;                                  // beinet
+  addPlanetSphere(group, mo.radius, n).position.set(mo.orbit, 0, 0);
+  fastParts.push({ group, gears: [gearMesh], trail: { radius: mo.orbit, y: 0, tube: mo.radius * 0.35 } });
+}
+fastParts.push({ group: uranusLayGroup, gears: uranusLayGears });
+
+// --- Neptun og Triton ---
+// Månerøret drive-neptune i tårnet, kjedet langs armen og kragen på
+// Neptun-stolpen. Kragen driver dobbelthjulet på tapp A, det øverste hjulet
+// driver mellomhjulet på tapp B (ring i colors.accent), og mellomhjulet driver
+// Tritons rør: tre inngrep, så Triton går baklengs. Triton sitter på en stav
+// som glir i en hylse ytterst på Triton-armen, og en fot på staven hviler på en
+// skrå føringsring under Neptun. Se iceMoons i config.
+const NM = iceMoons.neptune, NMT = neptuneMoonTrain, NS = heights.stack.neptune;
+const neptuneGroup = planetGroups.neptune;
+const neptuneDriveTube = tube['drive-neptune'];
+const neptuneTubeGroup = new THREE.Group();
+scene.add(neptuneTubeGroup);
+addShaft(neptuneTubeGroup, neptuneDriveTube.outer, heights.bottom['drive-neptune'], NS.tubeTop);
+addGear(neptuneTubeGroup, pairGear(NM.tubeTeeth, NM.driveTeeth, neptuneDriveTube.outer), heights.bottom['drive-neptune']);
+addSprocket(neptuneTubeGroup, { teeth: NM.tubeSprocket, holeRadius: neptuneDriveTube.outer, ...bigSprocketStyle },
+  neptuneChain.radius1, NS.chain, neptuneChain);
+const updateNeptuneChain = addChain(neptuneGroup, neptuneChain, NS.chain);
+
+const neptuneMount = addGroupAt(neptuneGroup, neptuneLayout.post);
+const neptuneGear = (teeth) => smallTrainGear({ layDistance: 1, thickness: NMT.T, chamfer: 0.04, backlash: 0.02 }, teeth, 0, NM.pinRadius, NMT.m);
+// Kragen: røret rundt stolpen med kjedehjulet og hjulet.
+const neptuneCollarGroup = new THREE.Group();
+neptuneMount.add(neptuneCollarGroup);
+addShaft(neptuneCollarGroup, NMT.tubeOuter, NMT.chainY, NMT.lowY + NMT.T);
+addSprocket(neptuneCollarGroup, { teeth: NM.collarSprocket, holeRadius: NMT.tubeOuter, ...sprocketStyle },
+  neptuneChain.radius2, NMT.chainY, neptuneChain);
+const neptuneCollarGear = addGear(neptuneCollarGroup, { ...neptuneGear(NM.collarTeeth), holeRadius: NMT.tubeOuter }, NMT.lowY);
+// Tappene og bøylen (står fast på armen).
+addShaft(neptuneMount, NM.pinRadius, NMT.armTop, NMT.pinTopA).position.set(NMT.A.x, 0, NMT.A.z);
+addShaft(neptuneMount, NM.pinRadius, NMT.pinBottomB, NMT.pinTopA).position.set(NMT.B.x, 0, NMT.B.z);
+{
+  const dx = NMT.B.x - NMT.A.x, dz = NMT.B.z - NMT.A.z, L = Math.hypot(dx, dz), y0 = NMT.bridgeY, y1 = NMT.bridgeY + NM.bridge.thickness;
+  const bar = addMesh(neptuneMount, new THREE.BoxGeometry(L, y1 - y0, NM.bridge.width));
+  bar.position.set((NMT.A.x + NMT.B.x) / 2, (y0 + y1) / 2, (NMT.A.z + NMT.B.z) / 2);
+  bar.rotation.y = -Math.atan2(dz, dx);
+  for (const q of [NMT.A, NMT.B]) addShaft(neptuneMount, NM.bridge.width / 2, y0, y1).position.set(q.x, 0, q.z);
+}
+// Dobbelthjulet på tapp A og mellomhjulet på tapp B.
+const neptuneLayGroup = new THREE.Group();
+neptuneLayGroup.position.set(NMT.A.x, 0, NMT.A.z);
+neptuneMount.add(neptuneLayGroup);
+addShaft(neptuneLayGroup, NM.pinRadius + 0.12, NMT.lowY, NMT.highY + NMT.T);
+const neptuneLayGears = [addGear(neptuneLayGroup, neptuneGear(NM.layLow), NMT.lowY), addGear(neptuneLayGroup, neptuneGear(NM.layHigh), NMT.highY)];
+const neptuneIdlerGroup = new THREE.Group();
+neptuneIdlerGroup.position.set(NMT.B.x, 0, NMT.B.z);
+neptuneMount.add(neptuneIdlerGroup);
+const neptuneIdlerGear = addGear(neptuneIdlerGroup, neptuneGear(NM.idlerTeeth), NMT.highY);
+const idlerMark = new THREE.Mesh(new THREE.TorusGeometry((NMT.m * NM.idlerTeeth) / 2 * 0.62, 0.07, 10, 48), redLacquer);
+idlerMark.rotation.x = Math.PI / 2;
+idlerMark.position.y = NMT.highY + NMT.T + 0.05;
+idlerMark.castShadow = true;
+neptuneIdlerGroup.add(idlerMark);
+// Føringsringen: nav på stolpen under ringen, eiker opp til undersiden av
+// ringen, og en smal ring med loddrette sider, løftet K × cos θ.
+const G = NM.guide;
+addShaft(neptuneMount, NMT.postR + G.hub, NMT.guideHubY - 0.3, NMT.guideHubY + 0.3);
+for (const t of NMT.spokeAngles) {
+  const start = { x: (NMT.postR + G.hub - 0.05) * Math.cos(t), y: NMT.guideHubY, z: (NMT.postR + G.hub - 0.05) * Math.sin(t) };
+  addRod(neptuneMount, start, NMT.guidePoint(t, -G.width / 2, -G.height / 2), G.spokeRadius, uranusStrutMaterial);
+}
+addMesh(neptuneMount, guideRingGeometry(NMT, G));
+// Triton: røret med hjulet og armen (dreier baklengs), hylsa ytterst på armen,
+// og staven med foten, tappen under foten og Triton, som løftes av ringen.
+const tritonGroup = new THREE.Group();
+neptuneMount.add(tritonGroup);
+addShaft(tritonGroup, NMT.tubeOuter, NMT.highY, NMT.tritonTubeTop);
+const tritonGear = addGear(tritonGroup, { ...neptuneGear(NM.tritonTeeth), holeRadius: NMT.tubeOuter }, NMT.highY);
+addMesh(tritonGroup, createArmGeometry({
+  length: NMT.orbit, hubRadius: NMT.tubeOuter + 0.1, rootHalf: 0.45, endRadius: NM.sleeveRadius,
+  fillet: 0.3, thickness: NM.armThickness, chamfer: 0.08,
+})).position.y = NMT.tritonArmY;
+addShaft(tritonGroup, NM.sleeveRadius, NMT.tritonArmTop, NMT.sleeveTop).position.x = NMT.orbit;
+const tritonSlider = new THREE.Group();
+tritonGroup.add(tritonSlider);
+const bar0 = NMT.guideY + NMT.barAbove;                       // stanga når løftet er 0
+addShaft(tritonSlider, NM.stalkRadius, bar0 - NMT.stalkBelow, bodies.height).position.x = NMT.orbit;
+addRod(tritonSlider, { x: G.radius, y: bar0, z: 0 }, { x: NMT.orbit, y: bar0, z: 0 }, NM.footRadius);
+addSphere(tritonSlider, NM.footRadius).position.set(G.radius, bar0, 0);
+addShaft(tritonSlider, NM.footRadius * 0.6, bar0 - NM.footRadius - NM.pinLength, bar0).position.x = G.radius;
+addPlanetSphere(tritonSlider, iceMoons.size.triton, 'triton').position.set(NMT.orbit, bodies.height, 0);
+fastParts.push({ group: tritonGroup, gears: [tritonGear], trail: { radius: NMT.orbit, y: bodies.height, tube: iceMoons.size.triton * 0.35 } });
+fastParts.push({ group: neptuneCollarGroup, gears: [neptuneCollarGear] });
+fastParts.push({ group: neptuneLayGroup, gears: neptuneLayGears });
+fastParts.push({ group: neptuneIdlerGroup, gears: [neptuneIdlerGear] });
 
 // --- Jordarmen: røret, det store hjulet nederst og stanga ut til jorda. ---
 const armGroup = new THREE.Group();
@@ -1099,6 +1283,8 @@ for (const [key, parent, chain, y] of [
   ['saturn', saturnGroup, saturnChain, SS.chain],
   ['mars', marsGroup, marsChain, MS.chain],
   ['moon', armGroup, moonChain, moonChainLevel],
+  ['uranus', uranusGroup, uranusMoonChain, US.chain],
+  ['neptune', neptuneGroup, neptuneChain, NS.chain],
 ]) {
   const over = plateGap + 2 * plateThickness;
   const band = createSmoothChain(parent, chain, y - over, moonTrain.thickness + 2 * over, chain.rollerRadius * 1.25, chainMaterial);
@@ -1162,6 +1348,18 @@ renderer.setAnimationLoop((time) => {
   uranusParGroup.rotation.y = a.uranusParTubeAngle;
   updateUranusParChain(a.uranusParChainOffset);
   uranusFrameGroup.rotation.y = a.uranusFrameAngle;
+  uranusTubeGroup.rotation.y = a.uranusTubeAngle;
+  updateUranusMoonChain(a.uranusChainOffset);
+  uranusShaftGroup.rotation.y = a.uranusShaftAngle;
+  uranusLayGroup.rotation.y = a.uranusLayAngle;
+  for (const n of uranusMoonNames) uranusMoonGroups[n].rotation.y = a.uranusMoonAngles[n];
+  neptuneTubeGroup.rotation.y = a.neptuneTubeAngle;
+  updateNeptuneChain(a.neptuneChainOffset);
+  neptuneCollarGroup.rotation.y = a.neptuneCollarAngle;
+  neptuneLayGroup.rotation.y = a.neptuneLayAngle;
+  neptuneIdlerGroup.rotation.y = a.neptuneIdlerAngle;
+  tritonGroup.rotation.y = a.tritonAngle;
+  tritonSlider.position.y = NMT.lift(a.tritonAngle);
   pinionGroup.rotation.y = a.pinionAngle;
   updateMoonChain(a.moonChainOffset);
   updateParallelChain(a.parallelChainOffset);
@@ -1175,6 +1373,8 @@ renderer.setAnimationLoop((time) => {
   chainOffsets.saturn = a.saturnChainOffset;
   chainOffsets.mars = a.marsChainOffset;
   chainOffsets.moon = a.moonChainOffset;
+  chainOffsets.uranus = a.uranusChainOffset;
+  chainOffsets.neptune = a.neptuneChainOffset;
   updateBlur();
 
   controls.update();

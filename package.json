@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "node scripts/check.mjs"
+    "check": "node scripts/check.mjs quick",
+    "check:full": "node scripts/check.mjs"
   },
   "devDependencies": {
     "vite": "^8.3.6"

@@ -59,6 +59,17 @@ for (const [name, [l0, period]] of Object.entries(martian)) {
   meanLongitude[name] = [l0, (360 / period) * 36525];
 }
 
+// Uranus' og Neptuns måner: middelelementer fra JPL (epoke J2000, i Laplace-planet),
+// som for Saturn og Mars. Lavpresisjon. Triton går baklengs, så lengden minker.
+const iceMoons = {
+  titania: [99.8 + 284.4 + 24.6, 8.706234],
+  oberon: [279.8 + 104.4 + 283.1, 13.463239],
+  triton: [177.608 + 0.0 + 352.257, -5.876854],
+};
+for (const [name, [l0, period]] of Object.entries(iceMoons)) {
+  meanLongitude[name] = [l0, (360 / period) * 36525];
+}
+
 // Mars' nordpol (IAU 2015: rektascensjon og deklinasjon ved J2000, med
 // endring per århundre), regnet om til lengde på ekliptikken. Mars' ekvator
 // har sin oppstigende knute på ekliptikken 90° forbi.

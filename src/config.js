@@ -396,6 +396,71 @@ export const uranusPost = {
   hub: { radius: 0.55, length: 0.5 },      // navet på polakselen som stagene går ut fra
 };
 
+// Månene til Uranus og Neptun. Brukes bare av prøvesiden moons.html (to
+// alternativer for Uranus, A og B, og samme Neptun i begge) til du har valgt.
+// Modellen leser ikke disse tallene ennå.
+// Drivet er det samme som ved Jupiter og Saturn: et månerør i tårnet (fra
+// mellomakselen, 3 runder per år) og ett kjede langs armen. Alt annet sitter ved planeten.
+export const iceMoons = {
+  periods: { titania: 8.706234, oberon: 13.463239, triton: 5.876854 },  // sidereale omløpstider i dager (bare målet)
+  size: { titania: 0.16, oberon: 0.16, triton: 0.2 },
+  // Uranus, som Saturn snudd på siden: kjedet går til en driveaksel inni
+  // stolpen (stolpen blir et rør rundt den), en vinkelgir på toppen av stolpen
+  // fører drivet over i en forlegsaksel parallell med Uranus' akse, og ett
+  // hjulpar per måne går opp til rørene på polakselen.
+  //   månerøret: 3 × driveTeeth / tubeTeeth runder per år
+  //   driveakselen (sett fra stolpen, som står stille i rommet):
+  //     (månerøret − Uranus) × tubeSprocket / shaftSprocket + Uranus
+  //   forlegsakselen: driveakselen × bevel.driveTeeth / bevel.layTeeth
+  //   månen: forlegsakselen × steps[måne][0] / steps[måne][1]
+  uranus: {
+    driveTeeth: 19, tubeTeeth: 39, tubeSprocket: 115, shaftSprocket: 12, chainPitch: 1.0,  // kjedehjulet ved sentrum må være større enn drive-uranus (radius 16,5)
+    bevel: { driveTeeth: 30, layTeeth: 12, module: 0.15 },
+    // Fra polakselen til forlegsakselen (under den). Månene går utenfor ringene
+    // og ned forbi toppen av stolpen, så vinkelgiren må ligge under dem.
+    layDistance: { A: 6.0, B: 7.7 },
+    // Hvor hjulet på driveakselen ligger i vinkelgiren: 'above' er over
+    // toppunktet (driveakselen går opp gjennom det), og bare det gir riktig
+    // retning på månene. Hjulet ligger da høyere, så vinkelgiren må ligge så
+    // lavt (layDistance) at Oberon går klar over den. A er bare på prøvesiden.
+    bevelSide: { A: 'below', B: 'above' },
+    steps: { titania: [35, 29], oberon: [32, 41] },  // [hjulet på forlegsakselen, hjulet på månerøret], nær 1 : 1
+    thickness: 0.4,       // hjulene
+    tubeWall: 0.3,        // månerørene på polakselen
+    shaftRadius: 0.4,     // forlegsakselen
+    driveShaftRadius: 0.5, frameWall: 0.3,  // driveakselen og stolperøret rundt den
+    armThickness: 0.2, armWidth: 0.2, legRadius: 0.06,  // armene (A), kragene (B), stagene (B: armWidth er tykkelsen) og beina, smalere enn månene (0,32)
+    hub: { length: 0.5, rise: 0.3 },        // navene på ringrørene (A)
+    // Lagrene til forlegsakselen: ett i den loddrette delen av braketten og ett på
+    // en bukk fra den vannrette delen (wall: veggen rundt akselen, length: lengden).
+    bearing: { wall: 0.35, length: 0.5, postRadius: 0.15 },
+  },
+  // Neptun, som Jupiter med én måne: kjedet går til en krage på stolpen.
+  // Kragen driver et dobbelthjul på en tapp (forlegsakselen), og det driver
+  // Tritons rør gjennom ett mellomhjul. Mellomhjulet (rød ring) er grunnen
+  // til at Triton går baklengs: tre inngrep i stedet for to.
+  //   kragen (sett fra armen): (månerøret − Neptun) × tubeSprocket / collarSprocket
+  //   Triton (sett fra armen): −kragen × (collarTeeth / layLow) × (layHigh / tritonTeeth)
+  neptune: {
+    driveTeeth: 41, tubeTeeth: 47, tubeSprocket: 117, collarSprocket: 10, chainPitch: 1.0,  // kjedehjulet ved sentrum må være større enn drive-neptune (radius 17,5)
+    module: 0.1,
+    collarTeeth: 39, layLow: 10, layHigh: 12, idlerTeeth: 16, tritonTeeth: 23,
+    idlerSide: 1,         // hvilken side av armen mellomhjulet står på (1 eller −1)
+    thickness: 0.5, tubeWall: 0.25, pinRadius: 0.15,
+    bridge: { width: 0.4, thickness: 0.2 },  // bøylen fra tappen til mellomhjulet
+    // Triton: banen heller tilt grader (over 90 = baklengs), knutelinjen på
+    // tvers av armen. Triton går rundt stolpen i fast avstand (orbit), på en stav
+    // som glir i en hylse ytterst på armen. En fot på staven hviler på en skrå
+    // føringsring (som jordas måne), festet på stolpen under Neptun.
+    orbit: 3.12, tilt: 130,
+    // Føringsringen er et smalt bånd med loddrette sider. Den er høy nok til at
+    // tappen under foten går klar av eikene under den der ringen stiger.
+    guide: { radius: 2.5, width: 0.12, height: 0.8, hub: 0.4, spokes: 3, spokeRadius: 0.06 },
+    armThickness: 0.4, sleeveRadius: 0.2, stalkRadius: 0.1, footRadius: 0.1,
+    pinLength: 0.8,       // tappen under foten som hviler på ringen (lang nok til at foten går klar av ringen der den stiger)
+  },
+};
+
 // Planetene (unntatt jorda): hver har sitt eget rør med et hjul nederst og en
 // arm øverst. Omløpstiden følger av tanntallene:
 //   driveTeeth: hjulet sitter på mellomakselen.
@@ -415,7 +480,9 @@ export const uranusPost = {
 //   'moonDrive' = et månerør drevet fra mellomakselen og et kjede langs armen (se jupiterMoons).
 //   'ringMoons' = Saturns dreiende ringbånd med månene, og stolpen som holder retningen (se saturnMoons).
 //   'epicyclic' = Mars' planetgir med kardang og gaffel (se marsMoons).
-//   'parallelPost' = en stolpe som står stille i rommet, med par-røret og kjedet (Uranus, se uranusPost).
+//   'parallelMoons' = en stolpe som står stille i rommet, med par-røret og kjedet (uranusPost), og
+//     Titania og Oberon drevet fra et månerør og et kjede (Uranus, se iceMoons.uranus).
+//   'idlerMoon' = Triton, drevet fra et månerør og et kjede gjennom et mellomhjul (Neptun, se iceMoons.neptune).
 export const planets = {
   mercury: { period: 0.2408, driveTeeth: 29, tubeTeeth: 21, armLength: 'auto', radius: planetSize('mercury') },
   venus:   { period: 0.6152, driveTeeth: 19, tubeTeeth: 35, armLength: 'auto', radius: planetSize('venus') },
@@ -435,9 +502,12 @@ export const planets = {
   uranus:  {
     period: 84.0205, counterTeeth: 10, tubeTeeth: 48, armLength: 'auto', radius: planetSize('uranus'),
     ring: uranusRing,  // ringene og hellingen står i uranusRing
-    mechanism: 'parallelPost',  // stolpen holder retningen i rommet, se uranusPost
+    mechanism: 'parallelMoons',  // stolpen holder retningen i rommet (uranusPost), og Titania og Oberon (iceMoons.uranus)
   },
-  neptune: { period: 164.79, counterTeeth: 12, tubeTeeth: 113, armLength: 'auto', radius: planetSize('neptune') },
+  neptune: {
+    period: 164.79, counterTeeth: 12, tubeTeeth: 113, armLength: 'auto', radius: planetSize('neptune'),
+    mechanism: 'idlerMoon',  // Triton, drevet gjennom et mellomhjul (iceMoons.neptune)
+  },
 };
 
 // Månehjulverket på jordarmen. Et fast hjul driver en pinion på armen. Det
@@ -518,7 +588,7 @@ export const tilt = {
 export const bodies = {
   sunRadius: 6,
   earthRadius: planetSize('earth'),
-  height: 55.1, // høyden på sentrum av sola og alle planetene (feilmelding hvis den er for lav; var 45,5 før Uranus og Neptun)
+  height: 61.0, // høyden på sentrum av sola og alle planetene (feilmelding hvis den er for lav; 45,5 før Uranus og Neptun, 55,1 før månene deres)
   moonRadius: moonSize('moon'),
   moonOrbit: 4,       // avstanden fra jorda til månen (lavere gir for liten føringsring under jorda)
 };
@@ -558,6 +628,9 @@ export const panels = {
   // Iapetus: uregelmessige fasetter, og panelene på siden som vender framover
   // (fartsretningen) i mørkt metall. split: 'leading' = den ledende halvdelen er mørk.
   iapetus:   { pattern: 'facets', subdivisions: 30, split: 'leading' },
+  titania:  { pattern: 'quads', subdivisions: 1 },    // Uranus' måner
+  oberon:   { pattern: 'quads', subdivisions: 1 },
+  triton:   { pattern: 'quads', subdivisions: 1 },    // Neptuns måne
   uranus:  { pattern: 'triangles', subdivisions: 2 },  // 80 trekanter
   neptune: { pattern: 'rhombi',    subdivisions: 2 },  // 120 ruter
   // Sola: fire like paneler fra et tetraeder, der hver kant er en S-kurve (som
@@ -587,9 +660,38 @@ export const blur = {
 };
 
 // Rødt brukes sparsomt: sola, og en tynn ring der hver planetstolpe møter armen.
+// Fargene. accent er det røde i mekanikken (ringene ved stolpene, mellomhjulet
+// ved Neptun). bodies er én farge per kule, sola inkludert: toppen av panelene
+// får fargen i den samme blanke lakken som før (look), og fugene er mørkt
+// metall som før. Iapetus beholder den mørke halvdelen (panels.iapetus.split).
+export const colors = {
+  accent: '#f3f595',
+  bodies: {
+    sun: '#f3f595',       // glasset og lyset inni (accent.sunStyle)
+    mercury: '#a8a29a',   // grå
+    venus: '#e8d9a8',     // blek gul
+    earth: '#6f93c4',     // blå
+    moon: '#cbc8c1',      // lys grå
+    mars: '#c06a43',      // rustrød
+    phobos: '#8e8174', deimos: '#a39888',      // gråbrune
+    jupiter: '#d9b88f',   // beige
+    io: '#e6d46e',        // svovelgul
+    europa: '#e3d8c0',    // lys krem
+    ganymede: '#a79a88',  // gråbrun
+    callisto: '#6f665d',  // mørk brun
+    saturn: '#e6d3a0',    // blek gul
+    enceladus: '#f4f6f7', // hvit
+    titan: '#d49a52',     // oransje
+    iapetus: '#d3cab8',   // lys beige
+    uranus: '#a9dde2',    // lys turkis
+    titania: '#bcb2a6', oberon: '#a1968a',     // gråbrune
+    neptune: '#5577c9',   // blå
+    triton: '#d9c7c1',    // rosagrå
+  },
+};
+
 export const accent = {
-  red: '#f3f595',         // fargen på det røde
-  sunStyle: 'glass',    // 'lacquer' = blank rød lakk, 'glass' = rødt glass med lys innenfra
+  sunStyle: 'glass',    // 'lacquer' = blank lakk, 'glass' = glass med lys innenfra (fargen er colors.bodies.sun)
   glow: 1,                // hvor sterkt glasssola lyser innenfra (bare for 'glass')
   ringWidth: 0.16,        // tykkelsen på den røde ringen rundt planetstolpene
 };
