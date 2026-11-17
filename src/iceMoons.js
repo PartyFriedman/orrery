@@ -1,18 +1,15 @@
-// Månene til Uranus og Neptun som ren matematikk (uten three.js). Modellen
-// bruker B (mechanism.js regner ut uranusMoonTrain og neptuneMoonTrain med
-// funksjonene her), og prøvesiden moons.html viser A ved siden av. Tallene står
-// i iceMoons i config.js. Filen bruker ikke mechanism.js, så mechanism.js kan
-// bruke den; det den trenger derfra (uranusTrain, armParts, høydene ved armen)
-// sendes inn.
+// Månene til Uranus og Neptun som ren matematikk (uten three.js).
+// mechanism.js regner ut uranusMoonTrain og neptuneMoonTrain med funksjonene
+// her. Tallene står i iceMoons i config.js. Filen bruker ikke mechanism.js, så
+// mechanism.js kan bruke den; det den trenger derfra (uranusTrain, armParts,
+// høydene ved armen) sendes inn.
 //
-// Uranus (to alternativer, A og B): drivet er som ved Saturn, snudd på siden.
-// Kjedet langs armen driver en aksel inni stolpen, en vinkelgir på toppen av
-// stolpen fører drivet over i en forlegsaksel parallell med Uranus' akse, og
-// ett hjulpar per måne går opp til et rør på polakselen.
-//   A: rørene bærer ringene δ og ε (med egne stag), og ringene bærer månene.
-//   B: rørene bærer månene på skrå stag med et kort bein ned i ekvatorplanet,
-//      utenfor ringene. Ringene holdes av navet og stagene som i dag.
-// Neptun (lik i begge): som ved Jupiter, med én måne og ett mellomhjul.
+// Uranus: drivet er som ved Saturn, snudd på siden. Kjedet langs armen driver
+// en aksel inni stolpen, en vinkelgir på toppen av stolpen fører drivet over i
+// en forlegsaksel parallell med Uranus' akse, og ett hjulpar per måne går opp
+// til et rør på polakselen. Rørene bærer månene på skrå stag med et kort bein
+// ned i ekvatorplanet, utenfor ringene. Ringene holdes av navet og stagene.
+// Neptun: som ved Jupiter, med én måne og ett mellomhjul.
 //
 // Alle punkter er i stolpens koordinater, som uranusBracket i mechanism.js:
 // x den veien Uranus' akse heller (ved Neptun: utover langs armen), y høyde,
@@ -26,6 +23,7 @@
 // stille. Se scripts/clearance3d.mjs.
 import { planets, uranusRing, uranusPost, iceMoons as IM, bodies, spacing, arm, armStyle, accent, moonTrain } from './config.js';
 import { thinRingLayout } from './ringLayout.js';
+import { segmentDistance } from './segments.js';
 
 const gap = spacing.gap;
 const deg = (d) => (d * Math.PI) / 180;
@@ -34,19 +32,6 @@ const tipOf = (m, z) => (m * z) / 2 + m;
 const rootOf = (m, z) => (m * z) / 2 - 1.25 * m;
 const sprocketRadius = (teeth, pitch) => (teeth * pitch) / (2 * Math.PI);
 const sprocketEdge = (teeth, pitch) => sprocketRadius(teeth, pitch) + pitch * 0.3 * 1.3;
-const yearDays = 365.25636;
-// Den korteste avstanden mellom to linjestykker pq og rt i planet ({ x, y }):
-// 0 hvis de krysser, ellers den minste avstanden fra et endepunkt til det andre stykket.
-const pointToSeg = (p, a, b) => {
-  const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
-  const k = l2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)) : 0;
-  return Math.hypot(p.x - a.x - k * dx, p.y - a.y - k * dy);
-};
-const segDist2 = (p, q, r, t) => {
-  const side = (a, b, c) => Math.sign((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
-  if (side(p, q, r) * side(p, q, t) < 0 && side(r, t, p) * side(r, t, q) < 0) return 0;
-  return Math.min(pointToSeg(p, r, t), pointToSeg(q, r, t), pointToSeg(r, p, q), pointToSeg(t, p, q));
-};
 const H = bodies.height;
 
 // Høydene rundt armen ved en planet som får et kjede til (som Saturn og Jupiter).
@@ -56,31 +41,29 @@ export const firstChainAbove = (armTop) => armTop + Math.max(armStyle.hubRise + 
 const UR = uranusRing, UP = uranusPost, UM = IM.uranus;
 const tilt = deg(UR.tilt);
 const c = Math.cos(tilt), sn = Math.sin(tilt);
-export const uranusTilt = tilt;
 // Fra aksens koordinater (x', s, z) til stolpen.
-export const fromTilted = (xp, s, z = 0) => ({ x: xp * c + s * sn, y: H - xp * sn + s * c, z });
+const fromTilted = (xp, s, z = 0) => ({ x: xp * c + s * sn, y: H - xp * sn + s * c, z });
 // Et punkt i avstanden rho fra aksen, i vinkelen ang rundt den (0 = x', nedover).
-export const aroundAxis = (rho, s, ang) => fromTilted(rho * Math.cos(ang), s, -rho * Math.sin(ang));
-export const uranusAxisDir = { x: sn, y: c, z: 0 };
+const aroundAxis = (rho, s, ang) => fromTilted(rho * Math.cos(ang), s, -rho * Math.sin(ang));
+const uranusAxisDir = { x: sn, y: c, z: 0 };
 
-export function uranusDesign(variant, train, armParts) {
+export function uranusDesign(train, armParts) {
   const R = planets.uranus.radius;
   const ring = thinRingLayout(R, UR);
   const r = UP.bracket.radius;                 // polakselen og braketten
-  const T = UM.thickness, w = UM.tubeWall, LD = UM.layDistance[variant];
+  const T = UM.thickness, w = UM.tubeWall, LD = UM.layDistance;
   const poleS = train.poleS;
   const filletEnd = poleS + UP.bracket.fillet;
   const half = UR.thickness / 2;
 
   // Vinkelgiren. Driveakselen står loddrett, forlegsakselen parallelt med
   // aksen, og toppunktet P er der de møtes. Hjulet på forlegsakselen ligger
-  // mellom P og polakselen. Hjulet på driveakselen ligger enten under P
-  // ('below': vinkelen mellom aksene er 180° − helningen) eller over P
-  // ('above': driveakselen går opp gjennom P, og vinkelen er helningen). Bare
-  // 'above' får månene til å gå samme vei som Uranus dreier: med 'below'
-  // dreier forlegsakselen samme vei som driveakselen, og månerørene motsatt.
-  const B = UM.bevel, above = UM.bevelSide[variant] === 'above';
-  const sigma = above ? tilt : Math.PI - tilt;
+  // mellom P og polakselen. Hjulet på driveakselen ligger over P (driveakselen
+  // går opp gjennom P), så vinkelen mellom aksene er helningen. Bare slik går
+  // månene samme vei som Uranus dreier: med hjulet under P ville forlegsakselen
+  // dreid samme vei som driveakselen, og månerørene motsatt.
+  const B = UM.bevel;
+  const sigma = tilt;
   const delta1 = Math.atan2(Math.sin(sigma), B.layTeeth / B.driveTeeth + Math.cos(sigma));
   const delta2 = sigma - delta1;
   const r1 = pitchRadius(B.module, B.driveTeeth), r2 = pitchRadius(B.module, B.layTeeth);
@@ -89,11 +72,10 @@ export function uranusDesign(variant, train, armParts) {
   // P: der forlegsakselen (x' = LD) krysser loddlinjen gjennom stolpen (x = 0).
   const sP = (-LD * c) / sn;
   const P = fromTilted(LD, sP);
-  bevel.driveY = above ? P.y + bevel.drop1 : P.y - bevel.drop1;   // midten av hjulet på driveakselen
-  bevel.driveApex = above ? -bevel.drop1 : bevel.drop1;           // fra midten av hjulet til P, loddrett
+  bevel.driveY = P.y + bevel.drop1;                               // midten av hjulet på driveakselen
+  bevel.driveApex = -bevel.drop1;                                 // fra midten av hjulet til P, loddrett
   bevel.layS = sP + bevel.drop2;                                  // midten av hjulet på forlegsakselen
   bevel.layApex = -bevel.drop2;                                   // fra midten av hjulet til P, langs aksen
-  bevel.above = above;
 
   // Hjulparene: hvert par når over layDistance med sin egen modul.
   const pairs = {};
@@ -104,73 +86,53 @@ export function uranusDesign(variant, train, armParts) {
   // Rørene på polakselen og det som sitter på dem, langs aksen fra polen og ut.
   // Det innerste røret er lengst og har hjulet sitt ytterst.
   const tubes = {}, levels = {};
-  let s;
-  let bRods = null;
-  if (variant === 'B') {
-    // Det faste navet med stagene til ring 6 står som i modellen i dag. Utenfor
-    // navet: Titania på det innerste røret, Oberon på røret utenpå. Hvert rør
-    // har en krage med et skrått stag ned til et punkt rett over månen, og et
-    // kort bein ned til månen i ekvatorplanet, utenfor ringene. Stagene holder
-    // seg innenfor månebanen, så Uranus ikke blir bredere enn banene. Så
-    // hjulene, Oberons først.
-    const aT = UM.armThickness, hub = train.hub, rodR = UM.armWidth / 2;
-    const size = IM.size;
-    const orbitT = ring.outer + uranusRing.spokeWidth / 2 + gap + size.titania;   // klar av endene på eikene
-    const orbitO = orbitT + size.titania + gap + size.oberon;
-    // Rørene starter så langt ut at de går klar av stagene fra det faste navet.
-    tubes.titania = { inner: r, outer: r + w, s0: hub.s1 + 0.15 };
-    tubes.oberon = { inner: r + w, outer: r + 2 * w };
-    levels.titaniaArm = hub.s1 + gap + aT / 2;
-    const corner = { x: ring.outer, y: half };                  // ytterkanten av ε, på siden mot stagene
-    const pd = (p, q, x) => segDist2(p, q, x, x);
-    // Titania: det laveste punktet over månen der staget går 0,3 klar av ringene.
-    const startT = { x: tubes.titania.outer + 0.2, y: levels.titaniaArm };
-    let hT = size.titania;
-    while (pd(startT, { x: orbitT, y: hT }, corner) < gap + rodR) hT += 0.02;
-    const rodT = [startT, { x: orbitT, y: hT }];
-    // Oberon: kragen så nær Titanias som mulig, og staget så lavt som mulig, men
-    // klar av Titanias stag, bein og måne, og av ringene.
-    const okO = (sO, hO) => {
-      const a0 = { x: tubes.oberon.outer + 0.2, y: sO }, a1 = { x: orbitO, y: hO };
-      return segDist2(a0, a1, rodT[0], rodT[1]) >= gap + 2 * rodR
-        && pd(a0, a1, { x: orbitT, y: 0 }) >= gap + rodR + size.titania
-        && segDist2(a0, a1, { x: orbitT, y: 0 }, { x: orbitT, y: hT }) >= gap + rodR + UM.legRadius
-        && pd(a0, a1, corner) >= gap + rodR;
-    };
-    let sO = levels.titaniaArm + aT + gap, hO = null;
-    for (let k = 0; k < 200 && hO === null; k++, sO += 0.05) {
-      for (let h = size.oberon; h < 3; h += 0.02) if (okO(sO, h)) { hO = h; break; }
-    }
-    if (hO === null) throw new Error('iceMoons: Oberons stag finner ikke plass i B.');
-    sO -= 0.05;
-    levels.oberonArm = sO;
-    tubes.oberon.s0 = sO - aT / 2;
-    bRods = {
-      rodRadius: rodR,
-      titania: { from: rodT[0], to: rodT[1], orbit: orbitT },
-      oberon: { from: { x: tubes.oberon.outer + 0.2, y: sO }, to: { x: orbitO, y: hO }, orbit: orbitO },
-    };
-    levels.oberonGear = levels.oberonArm + aT / 2 + gap + T / 2;
-    levels.titaniaGear = levels.oberonGear + T + gap;
-    tubes.oberon.s1 = levels.oberonGear + T / 2;
-    tubes.titania.s1 = levels.titaniaGear + T / 2;
-    s = levels.titaniaGear + T / 2;
-  } else {
-    // A: det faste navet (stagene til ring 6) står som før. Utenfor det:
-    // navet til δ (Oberon) på det innerste røret, navet til ε (Titania) på røret
-    // utenpå, og hjulene, ε først.
-    const hub = train.hub, L = UM.hub.length;
-    tubes.oberon = { inner: r, outer: r + w, s0: hub.s1 + 0.15, ring: 'δ' };  // klar av stagene fra det faste navet
-    levels.oberonHub = hub.s1 + gap + L / 2;
-    tubes.titania = { inner: r + w, outer: r + 2 * w, s0: levels.oberonHub + L / 2 + gap, ring: 'ε' };
-    levels.titaniaHub = tubes.titania.s0 + L / 2;
-    levels.titaniaGear = levels.titaniaHub + L / 2 + gap + T / 2;
-    levels.oberonGear = levels.titaniaGear + T + gap;
-    tubes.titania.s1 = levels.titaniaGear + T / 2;
-    tubes.oberon.s1 = levels.oberonGear + T / 2;
-    s = levels.oberonGear + T / 2;
+  // Det faste navet med stagene til ring 6 står fast. Utenfor navet: Titania
+  // på det innerste røret, Oberon på røret utenpå. Hvert rør har en krage med
+  // et skrått stag ned til et punkt rett over månen, og et kort bein ned til
+  // månen i ekvatorplanet, utenfor ringene. Stagene holder seg innenfor
+  // månebanen, så Uranus ikke blir bredere enn banene. Så hjulene, Oberons først.
+  const aT = UM.armThickness, hub = train.hub, rodR = UM.armWidth / 2;
+  const size = IM.size;
+  const orbitT = ring.outer + uranusRing.spokeWidth / 2 + gap + size.titania;   // klar av endene på eikene
+  const orbitO = orbitT + size.titania + gap + size.oberon;
+  // Rørene starter så langt ut at de går klar av stagene fra det faste navet.
+  tubes.titania = { inner: r, outer: r + w, s0: hub.s1 + 0.15 };
+  tubes.oberon = { inner: r + w, outer: r + 2 * w };
+  levels.titaniaArm = hub.s1 + gap + aT / 2;
+  const corner = { x: ring.outer, y: half };                  // ytterkanten av ε, på siden mot stagene
+  const pd = (p, q, x) => segmentDistance(p, q, x, x);
+  // Titania: det laveste punktet over månen der staget går 0,3 klar av ringene.
+  const startT = { x: tubes.titania.outer + 0.2, y: levels.titaniaArm };
+  let hT = size.titania;
+  while (pd(startT, { x: orbitT, y: hT }, corner) < gap + rodR) hT += 0.02;
+  const rodT = [startT, { x: orbitT, y: hT }];
+  // Oberon: kragen så nær Titanias som mulig, og staget så lavt som mulig, men
+  // klar av Titanias stag, bein og måne, og av ringene.
+  const okO = (sO, hO) => {
+    const a0 = { x: tubes.oberon.outer + 0.2, y: sO }, a1 = { x: orbitO, y: hO };
+    return segmentDistance(a0, a1, rodT[0], rodT[1]) >= gap + 2 * rodR
+      && pd(a0, a1, { x: orbitT, y: 0 }) >= gap + rodR + size.titania
+      && segmentDistance(a0, a1, { x: orbitT, y: 0 }, { x: orbitT, y: hT }) >= gap + rodR + UM.legRadius
+      && pd(a0, a1, corner) >= gap + rodR;
+  };
+  let sO = levels.titaniaArm + aT + gap, hO = null;
+  for (let k = 0; k < 200 && hO === null; k++, sO += 0.05) {
+    for (let h = size.oberon; h < 3; h += 0.02) if (okO(sO, h)) { hO = h; break; }
   }
-  const elbowS = s + gap + r;
+  if (hO === null) throw new Error('iceMoons: Oberons stag finner ikke plass i B.');
+  sO -= 0.05;
+  levels.oberonArm = sO;
+  tubes.oberon.s0 = sO - aT / 2;
+  const bRods = {
+    rodRadius: rodR,
+    titania: { from: rodT[0], to: rodT[1], orbit: orbitT },
+    oberon: { from: { x: tubes.oberon.outer + 0.2, y: sO }, to: { x: orbitO, y: hO }, orbit: orbitO },
+  };
+  levels.oberonGear = levels.oberonArm + aT / 2 + gap + T / 2;
+  levels.titaniaGear = levels.oberonGear + T + gap;
+  tubes.oberon.s1 = levels.oberonGear + T / 2;
+  tubes.titania.s1 = levels.titaniaGear + T / 2;
+  const elbowS = levels.titaniaGear + T / 2 + gap + r;
   const elbow = fromTilted(0, elbowS);
   const lastGear = Math.max(levels.titaniaGear, levels.oberonGear);
   const laySpan = [bevel.layS - T / 2, lastGear + T / 2 + 0.1];
@@ -206,7 +168,6 @@ export function uranusDesign(variant, train, armParts) {
   // vannrette delen opp til et lager like ved vinkelgiren.
   const BR = UM.bearing, bearingR = UM.shaftRadius + BR.wall;
   const sRiser = (elbow.x - LD * c) / sn;      // der forlegsakselen treffer den loddrette delen
-  const firstLay = Math.min(levels.titaniaGear, levels.oberonGear) - T / 2;
   const sFoot = bevel.layS + T / 2 + gap + BR.length / 2 + 0.4;   // like ved vinkelgiren
   if (sRiser - BR.length - r < lastGear + T / 2 + gap) throw new Error('iceMoons.uranus: lageret i braketten går inn i hjulene på forlegsakselen.');
   const footTop = fromTilted(LD + bearingR + BR.postRadius - 0.02, sFoot);
@@ -227,37 +188,16 @@ export function uranusDesign(variant, train, armParts) {
   laySpan[1] = sRiser;
 
   const design = {
-    variant, train, armParts, R, ring, r, T, LD, poleS, filletEnd, half, bevel, P, sP, pairs, tubes, levels, elbowS, elbow, laySpan,
+    train, armParts, R, ring, r, T, LD, poleS, filletEnd, half, bevel, P, sP, pairs, tubes, levels, elbowS, elbow, laySpan,
     frameOuter, frameTop, bracket, bearings, shaftTop: bevel.driveY + T / 2,
   };
 
-  // Månene og det som bærer dem.
-  const size = IM.size;
-  if (variant === 'B') {
-    // Månene går i ekvatorplanet utenfor ringene, på bein ned fra stagene.
-    design.rods = bRods;
-    design.moons = {
-      titania: { orbit: bRods.titania.orbit, radius: size.titania, s: 0, armS: levels.titaniaArm, legTop: bRods.titania.to.y, rod: bRods.titania, tube: tubes.titania },
-      oberon: { orbit: bRods.oberon.orbit, radius: size.oberon, s: 0, armS: levels.oberonArm, legTop: bRods.oberon.to.y, rod: bRods.oberon, tube: tubes.oberon },
-    };
-  } else {
-    // A: ε bærer Titania på en arm rett ut i ringplanet; δ bærer Oberon på et
-    // ledd ut på den frie siden (mot −s) og en arm over ε og Titania.
-    const eps = ring.rings.find((x) => x.name === 'ε'), del = ring.rings.find((x) => x.name === 'δ');
-    const aT = UM.armThickness;
-    const titaniaOrbit = ring.outer + uranusRing.spokeWidth / 2 + gap + size.titania;
-    const lift = Math.max(size.titania, aT / 2) + gap + aT / 2;
-    const oberonOrbit = titaniaOrbit + size.titania + gap + size.oberon;
-    design.moons = {
-      titania: { orbit: titaniaOrbit, radius: size.titania, s: 0, ring: eps, from: eps.outer - 0.1, tube: tubes.titania },
-      oberon: { orbit: oberonOrbit, radius: size.oberon, s: -lift, ring: del, from: del.middle, tube: tubes.oberon },
-    };
-    const hubR = (t) => t.outer + UM.hub.rise;
-    design.ringHubs = {
-      oberon: { s: levels.oberonHub, inner: tubes.oberon.outer, outer: hubR(tubes.oberon), ring: del },
-      titania: { s: levels.titaniaHub, inner: tubes.titania.outer, outer: hubR(tubes.titania), ring: eps },
-    };
-  }
+  // Månene går i ekvatorplanet utenfor ringene, på bein ned fra stagene.
+  design.rods = bRods;
+  design.moons = {
+    titania: { orbit: bRods.titania.orbit, radius: size.titania, s: 0, armS: levels.titaniaArm, legTop: bRods.titania.to.y, rod: bRods.titania, tube: tubes.titania },
+    oberon: { orbit: bRods.oberon.orbit, radius: size.oberon, s: 0, armS: levels.oberonArm, legTop: bRods.oberon.to.y, rod: bRods.oberon, tube: tubes.oberon },
+  };
 
   // Hvor langt alt rekker ut fra stolpen, sett ovenfra (høydene ved armen
   // betyr ikke noe for det, så her brukes foreløpige høyder).
@@ -269,7 +209,7 @@ export function uranusDesign(variant, train, armParts) {
 // Høydene ved Uranus-armen: månekjedet nederst (til driveakselen) og
 // parallellkjedet over (til stolperøret), som ved Saturn. heights i
 // mechanism.js regner dem på samme måte.
-export function uranusArmLevels(armY) {
+function uranusArmLevels(armY) {
   const chainY = firstChainAbove(armY + arm.thickness);
   const parallelY = chainY + moonTrain.thickness + spacing.chainGap;
   return { armY, chainY, parallelY, chainTop: parallelY + moonTrain.thickness + 0.3 };
@@ -443,39 +383,25 @@ export function uranusParts(d) {
     add('forlegg', `hjul for ${moon}`, L, rect(s - T / 2, s + T / 2, UM.shaftRadius, tipOf(p.module, p.lay)), { id: `lay-${moon}` });
   }
 
-  // Ringene. I B står alle stille; i A står 6, α og β stille.
+  // Ringene står stille.
   const ring = d.ring;
-  const fixedRings = d.variant === 'B' ? ring.rings : ring.rings.filter((x) => !['δ', 'ε'].includes(x.name));
-  for (const x of fixedRings) add('ringer', `ring ${x.name}`, U, rect(-d.half, d.half, x.inner, x.outer), { glass: true });
-  const spokeOuter = fixedRings.at(-1).outer;
+  for (const x of ring.rings) add('ringer', `ring ${x.name}`, U, rect(-d.half, d.half, x.inner, x.outer), { glass: true });
+  const spokeOuter = ring.rings.at(-1).outer;
   train.azimuths.forEach((ang, k) => {
     add('ringer', `eik ${k + 1}`, null, cap(aroundAxis(ring.inner, 0, ang), aroundAxis(spokeOuter, 0, ang), uranusRing.spokeWidth / 2));
   });
 
   // Månene med rørene, hjulene og det de bærer (hver sin kropp).
-  const aT = UM.armThickness, aW = UM.armWidth;
+  const aT = UM.armThickness;
   for (const [moon, mo] of Object.entries(d.moons)) {
     const t = mo.tube, p = d.pairs[moon], s = d.levels[`${moon}Gear`], body = moon === 'titania' ? 'Titania' : 'Oberon';
     add(body, 'rør', U, rect(t.s0, t.s1, t.inner, t.outer), { tube: true, shaft: true });
     add(body, 'hjul', U, rect(s - T / 2, s + T / 2, t.outer, tipOf(p.module, p.tube)), { mesh: [`lay-${moon}`] });
     add(body, moon, U, seg(mo.s, mo.orbit, mo.s, mo.orbit, mo.radius));
-    if (d.variant === 'B') {
-      const rr = d.rods.rodRadius;
-      add(body, 'krage', U, rect(mo.armS - aT / 2, mo.armS + aT / 2, t.outer, mo.rod.from.x + rr));
-      add(body, 'stag', U, seg(mo.rod.from.y, mo.rod.from.x, mo.rod.to.y, mo.rod.to.x, rr));
-      add(body, 'bein', U, rect(0, mo.legTop, mo.orbit - UM.legRadius, mo.orbit + UM.legRadius));
-    } else {
-      const hub = d.ringHubs[moon];
-      add(body, 'nav', U, rect(hub.s - UM.hub.length / 2, hub.s + UM.hub.length / 2, hub.inner, hub.outer));
-      add(body, 'stag', U, seg(hub.s, hub.outer - 0.05, d.half, hub.ring.middle, uranusRing.struts.width / 2));
-      add(body, `ring ${hub.ring.name}`, U, rect(-d.half, d.half, hub.ring.inner, hub.ring.outer), { glass: true });
-      if (mo.s === 0) {
-        add(body, 'arm', U, rect(-aT / 2, aT / 2, mo.from, mo.orbit));
-      } else {
-        add(body, 'ledd', U, rect(mo.s - aT / 2, -d.half, mo.from - UM.legRadius, mo.from + UM.legRadius));
-        add(body, 'arm', U, rect(mo.s - aT / 2, mo.s + aT / 2, mo.from - aW / 2, mo.orbit));
-      }
-    }
+    const rr = d.rods.rodRadius;
+    add(body, 'krage', U, rect(mo.armS - aT / 2, mo.armS + aT / 2, t.outer, mo.rod.from.x + rr));
+    add(body, 'stag', U, seg(mo.rod.from.y, mo.rod.from.x, mo.rod.to.y, mo.rod.to.x, rr));
+    add(body, 'bein', U, rect(0, mo.legTop, mo.orbit - UM.legRadius, mo.orbit + UM.legRadius));
   }
   // Det faste navet og stagene til ring 6, som i dag.
   const hub = train.hub;
@@ -600,85 +526,3 @@ export function partReach(part) {
   return best;
 }
 
-// --------------------------------------------------------- Armene ---
-// Armlengdene pakkes som i mechanism.js: Uranus og Neptun er de to ytterste,
-// og hver arm er så kort at det den rekker over går reachGap klar av naboen innenfor.
-function packArms(uranusReach, neptuneReach, saturnOuter) {
-  const gapU = planets.uranus.reachGap ?? spacing.reachGap, gapN = planets.neptune.reachGap ?? spacing.reachGap;
-  const uranus = Math.ceil((saturnOuter + gapU + uranusReach) * 10) / 10;
-  const neptune = Math.ceil((uranus + uranusReach + gapN + neptuneReach) * 10) / 10;
-  return { uranus, neptune, maxRadius: neptune + neptuneReach };
-}
-
-// --------------------------------------------------------- Farten ---
-// Runder per år, sett fra stolpen (Uranus: står stille i rommet; Neptun: står på armen).
-export function uranusRates() {
-  const tube = (3 * UM.driveTeeth) / UM.tubeTeeth;
-  const wU = 1 / planets.uranus.period;
-  const shaft = (tube - wU) * (UM.tubeSprocket / UM.shaftSprocket) + wU;
-  const lay = shaft * (UM.bevel.driveTeeth / UM.bevel.layTeeth);
-  const moons = Object.fromEntries(Object.entries(UM.steps).map(([n, [zl, zt]]) => [n, lay * (zl / zt)]));
-  return { tube, shaft, lay, moons };
-}
-export function neptuneRates() {
-  const tube = (3 * NM.driveTeeth) / NM.tubeTeeth;
-  const wN = 1 / planets.neptune.period;
-  const collar = (tube - wN) * (NM.tubeSprocket / NM.collarSprocket);
-  const lay = -collar * (NM.collarTeeth / NM.layLow);
-  const idler = -lay * (NM.layHigh / NM.idlerTeeth);
-  const triton = -idler * (NM.idlerTeeth / NM.tritonTeeth);
-  return { tube, collar, lay, idler, triton, tritonInSpace: triton + wN };
-}
-
-// --------------------------------------------------------- Delelister ---
-const uranusDriveParts = [
-  'hjul på mellomakselen', 'månerøret drive-uranus', 'hjul nederst på månerøret', 'kjedehjul på månerøret', 'kjede langs armen',
-  'kjedehjul på driveakselen', 'driveaksel inni stolpen', 'konisk hjul på driveakselen', 'konisk hjul på forlegsakselen', 'forlegsaksel',
-  'hjul på forlegsakselen (Titania)', 'hjul på forlegsakselen (Oberon)', 'lager i braketten', 'lagerbukk med stolpe',
-];
-const partLists = {
-  A: [
-    ...uranusDriveParts,
-    'rør til ε (Titania)', 'rør til δ (Oberon)', 'hjul på ε-røret', 'hjul på δ-røret', 'nav på ε-røret', 'nav på δ-røret',
-    '3 stag til ε', '3 stag til δ', 'arm fra ε', 'ledd og arm fra δ', 'Titania', 'Oberon',
-  ],
-  B: [
-    ...uranusDriveParts,
-    'Titania-rør', 'Oberon-rør', 'hjul på Titania-røret', 'hjul på Oberon-røret', 'krage og stag til Titania', 'krage og stag til Oberon',
-    'bein til Titania', 'bein til Oberon', 'Titania', 'Oberon',
-  ],
-  neptune: [
-    'hjul på mellomakselen', 'månerøret drive-neptune', 'hjul nederst på månerøret', 'kjedehjul på månerøret', 'kjede langs armen',
-    'krage med kjedehjul og hjul', 'tapp med dobbelthjul', 'bøyle med tapp', 'mellomhjul med rød ring',
-    'Tritons rør med hjul', 'Triton-arm', 'hylse', 'stav', 'fot', 'Triton',
-    'nav på stolpen', 'føringsring', '3 eiker',
-  ],
-};
-// Antall deler: "3 stag" teller som 3.
-const countOf = (list) => list.reduce((n, name) => n + (Number(name.match(/^(\d+) /)?.[1]) || 1), 0);
-export const removed = { A: [], B: [] };
-
-// --------------------------------------------------------- Samlet ---
-// Til prøvesiden og checkMoons: B og Neptun er modellens (fra mechanism.js),
-// A regnes her med de samme høydene ved armen. model er mechanism.js.
-export function iceMoonDesigns(model) {
-  const neptune = model.neptuneMoonTrain;
-  const result = { neptune, rates: { uranus: uranusRates(), neptune: neptuneRates() } };
-  const us = model.heights.stack.uranus;
-  for (const v of ['A', 'B']) {
-    const uranus = v === 'B' ? model.uranusMoonTrain
-      : attachUranusArm(uranusDesign('A', model.uranusTrain, model.armParts), { armY: model.heights.arm.uranus, chainY: us.chain, parallelY: us.parallel, chainTop: us.chainTop });
-    const arms = v === 'B'
-      ? { uranus: model.armLengths.uranus, neptune: model.armLengths.neptune, maxRadius: model.reach.neptune.outer }
-      : packArms(uranus.reach, neptune.reach, model.reach.saturn.outer);
-    result[v] = {
-      uranus, arms,
-      parts: { uranus: partLists[v], neptune: partLists.neptune, removed: removed[v] },
-      count: { uranus: countOf(partLists[v]) - countOf(removed[v]), neptune: countOf(partLists.neptune) },
-    };
-  }
-  // «I dag» er modellen slik den er nå (med B).
-  result.today = { uranus: model.armLengths.uranus, neptune: model.armLengths.neptune, maxRadius: model.reach.neptune.outer, uranusReach: model.uranusMoonTrain.reach };
-  result.yearDays = yearDays;
-  return result;
-}

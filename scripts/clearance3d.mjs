@@ -1,5 +1,5 @@
-// 3D-verktøyet for avstandssjekkene (brukt av check.mjs for Saturn, Mars og
-// Uranus, og av checkMoons.mjs for månene til Uranus og Neptun).
+// 3D-verktøyet for avstandssjekkene i check.mjs (Saturn, Mars, Uranus, Neptun
+// og jorda).
 //
 // Sett fra en stolpe som står stille i rommet dreier hver del om sin egen akse,
 // så hver del er et omdreiningslegeme: en profil i planet gjennom aksen
@@ -8,15 +8,8 @@
 // profilplanet; ellers fra punkter på overflaten av den ene til den andre.
 
 // Den korteste avstanden mellom to linjestykker i planet (pq og rs).
-export function segDist(p, q, r, s) {
-  const d1 = { x: q.x - p.x, y: q.y - p.y }, d2 = { x: s.x - r.x, y: s.y - r.y }, w0 = { x: p.x - r.x, y: p.y - r.y };
-  const a = d1.x * d1.x + d1.y * d1.y, b = d1.x * d2.x + d1.y * d2.y, c = d2.x * d2.x + d2.y * d2.y;
-  const dd = d1.x * w0.x + d1.y * w0.y, e = d2.x * w0.x + d2.y * w0.y;
-  const clamp = (x) => Math.max(0, Math.min(1, x));
-  let sc = a > 0 ? clamp(-dd / a) : 0, tc = c > 0 ? clamp((b * sc + e) / c) : 0;
-  sc = a > 0 ? clamp((b * tc - dd) / a) : 0;
-  return Math.hypot(w0.x + sc * d1.x - tc * d2.x, w0.y + sc * d1.y - tc * d2.y);
-}
+import { segmentDistance as segDist } from '../src/segments.js';
+export { segDist };
 // To deler i inngrep (hjul mot hjul, kjede rundt kjedehjul) regnes ikke mot hverandre.
 export const meshes = (a, b) => (a.mesh ?? []).includes(b.id) || (b.mesh ?? []).includes(a.id);
 
@@ -34,16 +27,16 @@ export const makeAxis = (o, d) => {
 };
 export const rect = (s0, s1, r0, r1) => ({ kind: 'rect', s0, s1, r0: Math.max(0, r0), r1 });
 export const line = (s0, r0, s1, r1, w) => ({ kind: 'seg', a: { s: s0, r: r0 }, b: { s: s1, r: r1 }, w });
-export const toMer = (ax, p) => { const q = sub(p, ax.o), s = dot(q, ax.d); return { s, r: len(sub(q, mul(ax.d, s))) }; };
-export const merDist = (sh, m) => {
+const toMer = (ax, p) => { const q = sub(p, ax.o), s = dot(q, ax.d); return { s, r: len(sub(q, mul(ax.d, s))) }; };
+const merDist = (sh, m) => {
   if (sh.kind === 'rect') return Math.hypot(Math.max(sh.s0 - m.s, 0, m.s - sh.s1), Math.max(sh.r0 - m.r, 0, m.r - sh.r1));
   return segDist({ x: m.s, y: m.r }, { x: m.s, y: m.r }, { x: sh.a.s, y: sh.a.r }, { x: sh.b.s, y: sh.b.r }) - sh.w;
 };
-export const capDist = (c, p) => {
+const capDist = (c, p) => {
   const ab = sub(c.b, c.a), k = Math.max(0, Math.min(1, dot(sub(p, c.a), ab) / dot(ab, ab)));
   return len(sub(p, plus(c.a, mul(ab, k)))) - c.w;
 };
-export const pointDist = (part, p) => (part.shape.kind === 'cap' ? capDist(part.shape, p) : merDist(part.shape, toMer(part.ax, p)));
+const pointDist = (part, p) => (part.shape.kind === 'cap' ? capDist(part.shape, p) : merDist(part.shape, toMer(part.ax, p)));
 // Punkter i profilplanet langs kanten av en form.
 export const outline = (sh) => {
   const pts = [];
@@ -66,7 +59,7 @@ export const outline = (sh) => {
   }
   return pts;
 };
-export const surface = (part) => {
+const surface = (part) => {
   if (part.pts) return part.pts;
   const pts = [];
   if (part.shape.kind === 'cap') {
@@ -109,7 +102,7 @@ export const distance = (a, b) => {
 // mellom dem i radius (og dekker hele høyden der de ligger side om side), er
 // det den delen som ligger inntil, ikke de to. Et hjul på et rør skal for
 // eksempel ikke måles mot akselen inni røret.
-export const shielded = (parts, a, b) => {
+const shielded = (parts, a, b) => {
   if (!(a.ax && a.ax === b.ax && a.shape.kind === 'rect' && b.shape.kind === 'rect')) return false;
   const [inner, outer] = a.shape.r1 <= b.shape.r0 ? [a, b] : b.shape.r1 <= a.shape.r0 ? [b, a] : [null, null];
   if (!inner) return false;
@@ -120,7 +113,7 @@ export const shielded = (parts, a, b) => {
     && x.shape.s0 <= s0 + 1e-9 && x.shape.s1 >= s1 - 1e-9);
 };
 // Den minste klaringen per par av kropper fra siste kjøring av run3D.
-export let lastMinimum = {};
+let lastMinimum = {};
 export function run3D(letter, title, parts, skip = () => false) {
   const min = {};
   let fail = 0;

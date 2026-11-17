@@ -2,7 +2,7 @@
 // materiale som modellen (look og panels i config.js). Åpnes på /orrery/panels.html
 // med `npm run dev`. Kulene dreier sakte; klikk for å stoppe eller starte dem.
 import * as THREE from 'three';
-import { panels } from './config.js';
+import { bodyLooks } from './config.js';
 import { createPanelGeometry } from './panels.js';
 import { createStage } from './testStage.js';
 
@@ -25,8 +25,7 @@ const stage = createStage({ count: samples.length, radius, columns: 4, spacing: 
 
 const spins = samples.map((sample) => {
   const { geometry, coreRadius, count } = createPanelGeometry({
-    radius, shape: panels.shape, seamWidth: panels.seamWidth, seamDepth: panels.seamDepth,
-    pattern: sample.pattern, subdivisions: sample.subdivisions,
+    radius, ...bodyLooks.defaults, pattern: sample.pattern, subdivisions: sample.subdivisions,
   });
   const spin = new THREE.Group();
   spin.rotation.x = 0.35; // litt vippet, så polene synes

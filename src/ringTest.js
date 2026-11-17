@@ -7,10 +7,11 @@
 // Tallene står i saturnRing i config.js. Klikk stopper og starter; dra for å snu.
 // ?t=15 i adressen starter 15 sekunder ut i runden, og &stop står stille der.
 import * as THREE from 'three';
-import { panels, planets, planetSize, bodies, look, saturnRing as S } from './config.js';
+import { planets, planetSize, bodies, look, saturnRing as S } from './config.js';
 import { createPanelGeometry } from './panels.js';
 import { ringLayout, createAnnulus, createGlassMaterials } from './ring.js';
-import { createRenderer, createLitScene, createMaterials } from './testStage.js';
+import { createRenderer, createLitScene } from './scene.js';
+import { createMaterials, lookOf } from './materials.js';
 import { reach as armReach, armLengths } from './mechanism.js';
 
 const degrees = THREE.MathUtils.degToRad;
@@ -45,7 +46,7 @@ function addRing(parent, inner, outer, thickness, material) {
 
 function addSaturn(parent) {
   const { geometry, coreRadius } = createPanelGeometry({
-    radius: R, shape: panels.shape, seamWidth: panels.seamWidth, seamDepth: panels.seamDepth, ...panels.saturn,
+    radius: R, ...lookOf('saturn'),
   });
   const mesh = new THREE.Mesh(geometry, [base.white, base.metal]);
   mesh.castShadow = true;

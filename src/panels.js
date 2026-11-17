@@ -331,7 +331,7 @@ const regionPatterns = {
     return [{ center: new THREE.Vector3(0, 1, 0), outline }, { center: new THREE.Vector3(0, -1, 0), outline }];
   },
 };
-export const panelPatterns = [...Object.keys(patterns), ...Object.keys(regionPatterns), 'trionda'];
+const panelPatterns = [...Object.keys(patterns), ...Object.keys(regionPatterns), 'trionda'];
 
 // --- Trionda: fire like paneler fra et tetraeder, med S-formede kanter ---
 // Tetraederets fire hjørner på kula. Hver kant byttes ut med en S-kurve.
@@ -392,7 +392,7 @@ function checkTrionda(amplitude, bulge) {
     }
   }
   if (closest < 0.02) {
-    throw new Error('Solmønsteret (trionda) krysser seg selv: gjør amplitude eller bulge mindre i panels.sun.');
+    throw new Error('Solmønsteret (trionda) krysser seg selv: gjør amplitude eller bulge mindre i bodyLooks.sun.');
   }
 }
 
@@ -427,7 +427,7 @@ export function inside(q, poly) {
 // bare én trekant og blir aldri byttet, så omrisset holder seg. Earcut lager
 // lange, smale trekanter; etter dette blir de omtrent like store som avstanden
 // mellom punktene, og da følger de kula når de legges ut på den.
-export function delaunayFlip(points, faces) {
+function delaunayFlip(points, faces) {
   const cross = (a, b, c) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
   const tris = faces.map(([a, b, c]) => (cross(points[a], points[b], points[c]) > 0 ? [a, b, c] : [a, c, b]));
   const inCircle = (a, b, c, d) => {

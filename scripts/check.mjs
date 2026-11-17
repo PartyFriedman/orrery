@@ -33,7 +33,7 @@
 // Avslutter med feilkode hvis noe er galt. Skriver tiden den brukte til slutt.
 
 import {
-  segDist, meshes, v, sub, plus, mul, dot, cross, len, unit, makeAxis, rect, line, distance, run3D, toCheckParts, checkMounts,
+  segDist, meshes, v, sub, plus, mul, unit, makeAxis, rect, line, distance, run3D, toCheckParts, checkMounts,
 } from './clearance3d.mjs';
 
 const src = new URL('../src/', import.meta.url);
@@ -61,7 +61,7 @@ const {
   jupiterChain, jupiterLayout, jupiterTrain: JT, worldAngleOf,
   saturnTrain: ST, saturnChain, saturnParallelChain, saturnLayout, saturnAxis, saturnBracket, saturnToPost, inputPerYear,
   marsTrain: MT, marsChain, marsParallelChain, marsLayout, marsAxis, marsBracket, marsToPost,
-  uranusTrain: UT, uranusParallelChain, uranusLayout, uranusAxis, uranusBracket, uranusToPost,
+  uranusTrain: UT, uranusParallelChain, uranusLayout, uranusAxis, uranusBracket,
   uranusMoonTrain: UMT, uranusMoonChain, uranusMoonNames, neptuneMoonTrain: NMT, neptuneChain, neptuneLayout,
 } = M;
 const mMoons = planets.mars.moons;
@@ -1186,7 +1186,7 @@ problems += Object.values(minB).filter((r) => r.gap < 0.3).length;
 // driveakselen om loddlinjen, forlegsakselen om sin akse, og rørene til
 // Titania og Oberon (med krage, stag, bein og måne) om Uranus' akse. Braketten,
 // lagrene, polakselen, navet, ringene og kula står stille. Formene står i
-// iceMoons.js (uranusParts), de samme som prøvesiden moons.html bruker.
+// iceMoons.js (uranusParts).
 {
   const fParts = toCheckParts(I.uranusParts(UMT));
   const gaps = [];

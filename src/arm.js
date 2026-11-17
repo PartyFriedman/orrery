@@ -15,7 +15,7 @@ function tangentPoint(p, c, r, side) {
 // med radius endRadius. Kantene er rette linjer som tangerer den runde enden.
 // Inn mot navet bøyer kantene seg ut og møter navsirkelen på skrå, så
 // overgangen blir myk. Kurven tangerer både armkanten og navsirkelen.
-export function createArmShape({ length, hubRadius, rootHalf, endRadius, fillet }) {
+function createArmShape({ length, hubRadius, rootHalf, endRadius, fillet }) {
   const tip = new THREE.Vector2(length, 0);
   const root = new THREE.Vector2(hubRadius, rootHalf);
   const flankEnd = tangentPoint(root, tip, endRadius, -1);
