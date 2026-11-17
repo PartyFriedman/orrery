@@ -398,7 +398,7 @@ function checkTrionda(amplitude, bulge) {
 
 // Stereografisk projeksjon rundt et punkt c på kula, og tilbake. Den tåler store
 // paneler (opp mot en halvkule) uten å strekke dem ut.
-function stereographic(c) {
+export function stereographic(c) {
   const e1 = new THREE.Vector3(1, 0, 0).cross(c);
   if (e1.lengthSq() < 0.1) e1.set(0, 1, 0).cross(c);
   e1.normalize();
@@ -413,7 +413,7 @@ function stereographic(c) {
 }
 
 // Er punktet q innenfor mangekanten (2D)?
-function inside(q, poly) {
+export function inside(q, poly) {
   let hit = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     const a = poly[i], b = poly[j];
@@ -427,7 +427,7 @@ function inside(q, poly) {
 // bare én trekant og blir aldri byttet, så omrisset holder seg. Earcut lager
 // lange, smale trekanter; etter dette blir de omtrent like store som avstanden
 // mellom punktene, og da følger de kula når de legges ut på den.
-function delaunayFlip(points, faces) {
+export function delaunayFlip(points, faces) {
   const cross = (a, b, c) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
   const tris = faces.map(([a, b, c]) => (cross(points[a], points[b], points[c]) > 0 ? [a, b, c] : [a, c, b]));
   const inCircle = (a, b, c, d) => {
@@ -494,7 +494,7 @@ function triondaOutlines(amplitude, bulge, inset) {
 // innover langs halveringslinjen mellom de to kantbitene ved punktet. Projeksjonen
 // forstørrer med 1 / (1 + p · c), så flyttet skaleres med det og fugen blir like
 // bred på kula overalt. Spisse hjørner (som båtene ved polene) blir riktige.
-function insetRegion({ center, outline }, inset) {
+export function insetRegion({ center, outline }, inset) {
   const proj = stereographic(center);
   let points = outline.map(proj.to);
   let source = outline;
