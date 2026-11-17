@@ -90,7 +90,7 @@ const J2000 = Date.UTC(2000, 0, 1, 12); // JD 2451545,0
 // Ett år i modellen er én runde for jorda: 365,256 dager.
 export const daysPerYear = (36525 * 360) / meanLongitude.earth[1];
 
-export const centuriesSinceJ2000 = (date) => (date.getTime() - J2000) / MS_PER_DAY / 36525;
+const centuriesSinceJ2000 = (date) => (date.getTime() - J2000) / MS_PER_DAY / 36525;
 
 // Middellengden i radianer (ikke begrenset til én runde).
 export function longitudeAt(name, date) {

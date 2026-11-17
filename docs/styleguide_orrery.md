@@ -22,5 +22,9 @@
 ## Cogs
 - The arms in the cogs meet the edge with a smooth fillet
 
+## Struts
+- All struts, spokes and brackets in the mechanism are white lacquer, the
+  same material as the gears. No strut has its own colour or metalness.
+
 ## Sun, Planets and moons
 - The planets and moons have geometrical patterns and colors/textures that approximate the real world objects and a glossy finish. Leave options in config.js for me to play around with

@@ -208,7 +208,8 @@ export const saturnRing = {
   rim: { color: '#ffffff', strength: 0.35, sharpness: 3 },  // sharpness: høyere = smalere kant
   // Stagene under ringen: hvert bånd bæres av sine egne stag fra et nav på den
   // skrå akselen, som en paraply. Navene ligger så stagene går klar av kula.
-  struts: { count: 3, width: 0.16, color: look.gearColor, metalness: 0.6, roughness: 0.45 },
+  // Stagene er hvite som hjulene (look).
+  struts: { count: 3, width: 0.16 },
   mix: {
     glassBands: 2,      // antall bånd innenfra som er glass (2 = alt innenfor spalten, 1 = bare C-ringen)
     gapColor: '#303538', gapMetalness: 0.6, gapRoughness: 0.45,  // den mørke spalten (som fugene)
@@ -272,10 +273,6 @@ export const saturnMoons = {
   armWidth: 0.5,
   legRadius: 0.15,      // de korte leddene opp fra båndene
   armLift: { titan: 0, iapetus: 0 },  // ekstra høyde over det som trengs, for hvert lag
-  // Materialet på månearmene, leddene og føttene. Standard er satengmatt hvitt
-  // som hjulene. Mørkt metall som i fugene: color '#303538', metalness 0.6,
-  // roughness 0.45, gloss 0.
-  armMaterial: { color: '#f4f6f7', metalness: 0, roughness: 0.4, gloss: 0.7 },
 };
 
 // Fobos og Deimos, med planetgir. Månene går i Mars' ekvatorplan (tilt), som
@@ -338,7 +335,6 @@ export const marsMoons = {
   postRadius: 0.06,     // stolpene opp til månene
   jointRadius: 0.3,     // kryssleddet
   bracket: { radius: 0.2, fillet: 0.35 },  // den knekte braketten, og hvor langt de myke overgangene går
-  armMaterial: { color: '#f4f6f7', metalness: 0, roughness: 0.4, gloss: 0.7 },  // månearmer og stolper
 };
 
 // Uranus' ringer: tynne ringer av mørkt glass i ekvatorplanet, som ligger nesten
@@ -371,7 +367,7 @@ export const uranusRing = {
   rim: { color: '#ffffff', strength: 0.35, sharpness: 3 },  // kantlys (strength 0 = av)
   // Ringene bæres av stag fra et nav på polakselen ut til den innerste ringen,
   // og tynne eiker i ringplanet binder ringene sammen.
-  struts: { count: 3, width: 0.1, color: '#303538', metalness: 0.6, roughness: 0.45 },
+  struts: { count: 3, width: 0.1 },   // hvite som hjulene (look)
   spokeWidth: 0.08,     // eikene i ringplanet
 };
 
@@ -396,9 +392,7 @@ export const uranusPost = {
   hub: { radius: 0.55, length: 0.5 },      // navet på polakselen som stagene går ut fra
 };
 
-// Månene til Uranus og Neptun. Brukes bare av prøvesiden moons.html (to
-// alternativer for Uranus, A og B, og samme Neptun i begge) til du har valgt.
-// Modellen leser ikke disse tallene ennå.
+// Månene til Uranus og Neptun (geometrien regnes ut i iceMoons.js).
 // Drivet er det samme som ved Jupiter og Saturn: et månerør i tårnet (fra
 // mellomakselen, 3 runder per år) og ett kjede langs armen. Alt annet sitter ved planeten.
 export const iceMoons = {
@@ -416,21 +410,16 @@ export const iceMoons = {
   uranus: {
     driveTeeth: 19, tubeTeeth: 39, tubeSprocket: 115, shaftSprocket: 12, chainPitch: 1.0,  // kjedehjulet ved sentrum må være større enn drive-uranus (radius 16,5)
     bevel: { driveTeeth: 30, layTeeth: 12, module: 0.15 },
-    // Fra polakselen til forlegsakselen (under den). Månene går utenfor ringene
-    // og ned forbi toppen av stolpen, så vinkelgiren må ligge under dem.
-    layDistance: { A: 6.0, B: 7.7 },
-    // Hvor hjulet på driveakselen ligger i vinkelgiren: 'above' er over
-    // toppunktet (driveakselen går opp gjennom det), og bare det gir riktig
-    // retning på månene. Hjulet ligger da høyere, så vinkelgiren må ligge så
-    // lavt (layDistance) at Oberon går klar over den. A er bare på prøvesiden.
-    bevelSide: { A: 'below', B: 'above' },
+    // Fra polakselen til forlegsakselen (under den). Hjulet på driveakselen ligger
+    // over toppunktet i vinkelgiren (bare det gir riktig retning på månene), så
+    // vinkelgiren må ligge så lavt at Oberon går klar over den.
+    layDistance: 7.7,
     steps: { titania: [35, 29], oberon: [32, 41] },  // [hjulet på forlegsakselen, hjulet på månerøret], nær 1 : 1
     thickness: 0.4,       // hjulene
     tubeWall: 0.3,        // månerørene på polakselen
     shaftRadius: 0.4,     // forlegsakselen
     driveShaftRadius: 0.5, frameWall: 0.3,  // driveakselen og stolperøret rundt den
-    armThickness: 0.2, armWidth: 0.2, legRadius: 0.06,  // armene (A), kragene (B), stagene (B: armWidth er tykkelsen) og beina, smalere enn månene (0,32)
-    hub: { length: 0.5, rise: 0.3 },        // navene på ringrørene (A)
+    armThickness: 0.2, armWidth: 0.2, legRadius: 0.06,  // kragene, stagene (armWidth er tykkelsen) og beina, smalere enn månene (0,32)
     // Lagrene til forlegsakselen: ett i den loddrette delen av braketten og ett på
     // en bukk fra den vannrette delen (wall: veggen rundt akselen, length: lengden).
     bearing: { wall: 0.35, length: 0.5, postRadius: 0.15 },
@@ -534,40 +523,20 @@ export const moonTrain = {
 };
 
 // Jorda roterer, drevet med ekte hjulverk: én omdreining per siderisk døgn
-// (365,256 + 1 omdreininger per år i rommet). Modellen bruker ruta `model`
-// (A: P + V + G1 + F1); prøvesiden earth.html viser alle rutene, så de kan sammenlignes.
-// Stolpen under jorda blir et rør (stolperøret, på parallellhjulet) med en
-// driveaksel inni. Jorda sitter på sin egen skrå aksel (spindelen), som går i et
-// lager under sørpolen.
-// Driveakselen drives på en av to måter (source):
-//   P: fra pinionakselen på jordarmen (går 5 runder per år sett fra armen): et
-//      kjede ut til en forlegsaksel ved jordstolpen, og et tannhjulspar derfra
-//      til driveakselen. Tårnet endres ikke.
-//   T: fra et eget dagrør i tårnet (et hjulpar fra mellomakselen) og et kjede
-//      rett til driveakselen, som månene til Jupiter, Saturn og Mars. Gir et nytt
-//      rør og et nytt plan i tårnet.
-// Fra den loddrette driveakselen til den skrå jordaksen (top):
-//   V: ett vinkelgir med toppunktet i jordas sentrum (aksene møtes bare der).
-//      Begge hjulene ligger under jorda; hjulet på spindelen sitter et stykke
-//      under sørpolen.
-//   K: et dobbelt kryssledd (to ledd à 11,72°, jevn fart) på toppen av
-//      stolperøret gjør driveakselen om til en skrå aksel parallell med jordaksen,
-//      og et tannhjulspar går derfra til spindelen. Med T trengs et mellomhjul
-//      (rød ring, som ved Neptun), ellers går jorda baklengs.
+// (365,256 + 1 omdreininger per år i rommet). Stolpen under jorda er et rør
+// (stolperøret, på parallellhjulet) med en driveaksel inni. Jorda sitter på sin
+// egen skrå aksel (spindelen), som går i et lager under sørpolen.
+// Drivet (P): fra pinionakselen på jordarmen (går 5 runder per år sett fra
+// armen): et kjede ut til en forlegsaksel ved jordstolpen, og et tannhjulspar
+// derfra til driveakselen. Tårnet endres ikke.
+// Fra den loddrette driveakselen til den skrå jordaksen (V): ett vinkelgir med
+// toppunktet i jordas sentrum (aksene møtes bare der). Begge hjulene ligger
+// under jorda; hjulet på spindelen sitter et stykke under sørpolen.
 // Omdreininger per år (sett fra stolperøret, som står stille i rommet):
-//   P: driveakselen −(5 × pinionSprocket/laySprocket × layGear/shaftGear − 1)
-//   T: dagrøret 3 × driveTeeth/tubeTeeth; driveakselen (dagrøret − 1) × tubeSprocket/shaftSprocket + 1
-//   jorda: driveakselen × (V: shaftTeeth/earthTeeth, K: bigTeeth/smallTeeth), med fortegnet som gir prograd rotasjon
-// cells er rutene på prøvesiden: hvert valg kan blandes fritt (T + V går ikke:
-// da går jorda baklengs). Modellen kan bare bruke P (T krever et nytt rør i tårnet).
+//   driveakselen −(5 × pinionSprocket/laySprocket × layGear/shaftGear − 1)
+//   jorda: driveakselen × shaftTeeth/earthTeeth, motsatt vei (prograd rotasjon)
 export const earthDay = {
   siderealDay: 0.99726968,  // bare målet: dager per omdreining i rommet
-  model: 'A',               // ruta modellen bruker
-  cells: {
-    A: { source: 'P', top: 'V', guide: 'G1', follower: 'F1' },
-    B: { source: 'T', top: 'K', guide: 'G2', follower: 'F2' },
-    C: { source: 'P', top: 'K', guide: 'G3', follower: 'F1' },
-  },
   P: {
     pinionSprocket: 39,   // kjedehjulet på pinionakselen
     laySprocket: 8,       // kjedehjulet på forlegsakselen ved jordstolpen
@@ -576,68 +545,34 @@ export const earthDay = {
     shaftGear: 10,        // tannhjulet på driveakselen
     module: 0.15,
   },
-  T: {
-    driveTeeth: 45,       // hjulet på mellomakselen
-    tubeTeeth: 11,        // hjulet nederst på dagrøret
-    tubeSprocket: 82,     // kjedehjulet øverst på dagrøret, over jordarmen
-    shaftSprocket: 8,     // kjedehjulet nederst på driveakselen
-    chainPitch: 0.8,      // finere kjede, så kjedehjulet ved sentrum går klar av pinionakselen
-  },
-  V: { shaftTeeth: 40, earthTeeth: 14, module: 0.08, faceWidth: 0.3 },   // brukes med P
-  K: {
-    P: { bigTeeth: 40, smallTeeth: 14, module: 0.09 },                   // uten mellomhjul
-    T: { bigTeeth: 44, smallTeeth: 14, idlerTeeth: 17, module: 0.075 }, // med mellomhjul
-    idlerSide: 1,         // hvilken side mellomhjulet står på (1 eller −1)
-    thickness: 0.3,       // tannhjulene ved jorda
-    jointRadius: 0.26,    // kryssleddet
-    plateThickness: 0.2,  // platen som holder lagrene til spindelen og den skrå akselen
-  },
+  V: { shaftTeeth: 40, earthTeeth: 14, module: 0.08, faceWidth: 0.3 },   // vinkelgiret
   driveShaftRadius: 0.3,  // driveakselen inni stolperøret
   frameWall: 0.25,        // veggen i stolperøret
   spindleRadius: 0.15,    // jordas aksel
   bearing: { wall: 0.14, length: 0.6 },   // lageret til spindelen
   bracket: { radius: 0.14, fillet: 0.3 }, // braketten fra stolperøret til lageret
-  shaftGearThickness: 0.6, // hjulparet ved foten av stolpen (P) og kjedehjulene
+  shaftGearThickness: 0.6, // hjulparet ved foten av stolpen og kjedehjulene
 };
 
 // Månebanens helning: en føringsring på stolperøret under jorda, og en fot på
-// månestaven som følger den. Modellen bruker den ringen og foten ruta earthDay.model har.
-// Ringen er et snitt mellom en sylinder (radius) og et skrått plan, som ved
-// Neptun, så kontaktpunktet alltid ligger i samme avstand fra stolpen og staven
-// løftes like mye som ringen. Høyden regnes ut: så lavt som mulig over månearmen.
-//   G1: smal ring med loddrette sider, på tynne stag fra et nav (som ved Neptun)
-//   G2: rund ring på skrå stag
-//   G3: skrå skive med tre vinduer (taumelskive), uten stag
-//   F1: gaffel med to ruller, én oppå og én under ringen (på G3: kuler)
-//   F2: glidesko som griper rundt ringen (åpen innover, der stagene sitter)
+// månestaven som følger den. Ringen er et snitt mellom en sylinder (radius) og
+// et skrått plan, som ved Neptun, så kontaktpunktet alltid ligger i samme
+// avstand fra stolpen og staven løftes like mye som ringen. Høyden regnes ut:
+// så lavt som mulig over månearmen.
+//   ring: smal ring med loddrette sider, på tynne stag fra et nav (som ved Neptun)
+//   follower: gaffel med to ruller, én oppå og én under ringen
 export const moonGuide = {
   radius: 3.0,            // fra jordstolpen til kontaktpunktet
   strutAzimuths: [90, 210, 330],  // grader rundt fra retningen jordaksen heller mot (unngår braketten og drivet)
   strutRadius: 0.05,
   hub: { radius: 0.3, height: 0.4 },  // navet på stolperøret (radius utenpå røret)
-  G1: { width: 0.14, height: 0.6 },  // høyden må være minst ca. 0,58, så akslene til rullene går klar av stagene
-  G2: { tube: 0.1 },
-  G3: { thickness: 0.14, edge: 0.18, windows: 3, chamfer: 0.03 },  // edge: så langt skiva går utenfor kontaktpunktet
-  F1: { rollerRadius: 0.09, rollerWidth: 0.12, barWidth: 0.12, axleRadius: 0.03 },
-  F2: { wall: 0.05, clearance: 0.03, length: 0.45, opening: 110 },  // opening: grader åpent innover
-  footRadius: 0.08,       // stanga fra staven inn til gaffelen eller skoen
+  ring: { width: 0.14, height: 0.6 },  // høyden må være minst ca. 0,58, så akslene til rullene går klar av stagene
+  follower: { rollerRadius: 0.09, rollerWidth: 0.12, barWidth: 0.12, axleRadius: 0.03 },
+  footRadius: 0.08,       // stanga fra staven inn til gaffelen
   pinRadius: 0.11,        // månestaven
   sleeveRadius: 0.28,     // hylsa ytterst på månearmen
   tubeWall: 0.25,         // månerøret rundt stolperøret
   arm: { thickness: 0.4, rootHalf: 0.55, fillet: 0.3, chamfer: 0.08 },  // månearmen, smal og uten krage
-};
-
-// Landmassene på jorda, med fargene earth (havet), earthLand og earthIce i
-// colors.bodies. Konturene står i landmasses.js. Modellen bruker den som står i
-// panels.earth (pattern 'continents', style 'S1', 'S2' eller 'S3').
-//   S1: innlagte kontinenter: ett buet panel per kontinent i flukt med havet, med en mørk fuge rundt
-//   S2: opphøyde kontinenter: plater som står height opp fra havet, med fas
-//   S3: fasetter (lavpoly): uregelmessige trekanter farget etter land, hav og is
-//       (subdivisions = antall hjørner; flere gir en mer gjenkjennelig kystlinje)
-export const earthSurface = {
-  seamWidth: 0.04,        // fugen rundt kontinentene (S1)
-  S2: { height: 0.06, chamfer: 0.025 },
-  S3: { subdivisions: 500, seamWidth: 0.025, seamDepth: 0.06 },
 };
 
 // Jupiters fire måner. Månene går for fort til et fast hjul ved sentrum, så de
@@ -700,52 +635,71 @@ export const bodies = {
   moonOrbit: 4,       // avstanden fra jorda til månen (lavere gir for liten føringsring under jorda)
 };
 
-// Planetene og månen er kuler av paneler med smale, mørke fuger imellom, og
-// hver har sitt eget mønster. Sola beholder sin glatte form foreløpig.
+// Utseendet til sola, planetene og månene: én blokk per kule.
+//   color: fargen på toppen av panelene, i satengmatt lakk med klarlakk oppå
+//   roughness: 0 = speil, 1 = helt matt; gloss: klarlakk-glansen (0 = ingen, 1 = full);
+//   glossRoughness: hvor myk glansen er (lav = skarpere refleksjoner)
+//   pattern: mønsteret, og tallene som hører til det (se under)
+//   shape: 'curved' = panelene følger kula (rund silhuett), 'flat' = flate plater
+//   seamWidth og seamDepth: bredden på fugene og hvor dypt de går ned til den mørke kjernen
+// En kule som ikke har en verdi selv, får den fra defaults. Fugene og kjernen
+// er mørkt metall (look.seam*). Kuler uten blokk blir hvite.
 // Mønstre: 'triangles' (geodesiske trekanter), 'quads' (firkanter fra en kube),
 // 'kites' (drager), 'rhombi' (ruter), 'pentagons' (femkanter med ringer rundt),
-// 'bands' (breddebånd, med en mangekant over hver pol) og 'hexagons'
-// (sekskanter, med de 12 femkantene en kule må ha; spart til Saturn).
-// Nyere (se panels.js og testsiden panels.html): 'facets' (uregelmessige
-// trekanter; subdivisions = antall hjørner, f.eks. 30 for få og store),
-// 'boats', 'spiral', 'caps', 'volleyball', 'woven' og 'seam'.
-// Plexus-kuler i stedet for paneler: 'plexusA', 'plexusB' og 'plexusC' (se plexus under).
-// subdivisions: hvor mange biter hver grunnflate deles i langs kanten.
-export const panels = {
-  shape: 'curved',    // 'curved' = panelene følger kula (rund silhuett), 'flat' = flate plater
-  seamWidth: 0.04,    // bredden på fugene
-  seamDepth: 0.12,    // hvor dypt fugene går ned til den mørke kjernen
-  // seamWidth og seamDepth kan også settes på hver kule under, for eksempel
-  // bredere fuger på sola og store planeter. Da gjelder den verdien for den kula.
-  mercury: { pattern: 'kites',     subdivisions: 1 },  // 60 drager
-  venus:   { pattern: 'rhombi',    subdivisions: 2 },  // 120 ruter
-  earth:   { pattern: 'continents', style: 'S2' },  // landmasser (se earthSurface): S1 innlagte, S2 opphøyde, S3 fasetter
-  mars:    { pattern: 'quads',     subdivisions: 3, amplitude: 0.32, bulge: 0.8, seamWidth: 0.01 },  // 54 firkanter
-  moon:    { pattern: 'pentagons', subdivisions: 1 },  // 12 femkanter med en ring av trapeser rundt (72 paneler)
-  jupiter: { pattern: 'bands',     subdivisions: 3 },  // 7 bånd à 16 firkanter, og en 16-kant over hver pol
-  io:       { pattern: 'quads', subdivisions: 1 },     // Jupiters måner: 6 firkanter hver
-  europa:   { pattern: 'quads', subdivisions: 1 },
-  ganymede: { pattern: 'quads', subdivisions: 1 },
-  callisto: { pattern: 'quads', subdivisions: 1 },
-  phobos:   { pattern: 'quads', subdivisions: 1 },     // Mars' måner
-  deimos:   { pattern: 'quads', subdivisions: 1 },
-  saturn:  { pattern: 'hexagons',  subdivisions: 3 },  // 80 sekskanter og 12 femkanter
-  enceladus: { pattern: 'quads', subdivisions: 1 },    // Saturns måner
-  titan:     { pattern: 'quads', subdivisions: 1 },
+// 'bands' (breddebånd, med en mangekant over hver pol), 'hexagons' (sekskanter,
+// med de 12 femkantene en kule må ha), 'facets' (uregelmessige trekanter;
+// subdivisions = antall hjørner, f.eks. 30 for få og store), og 'boats',
+// 'spiral', 'caps', 'volleyball', 'woven' og 'seam' (se panels.js og testsiden
+// panels.html). subdivisions: hvor mange biter hver grunnflate deles i langs kanten.
+// Plexus-kuler i stedet for paneler: 'plexusA', 'plexusB' og 'plexusC' (se plexus
+// under); andre tall i blokka erstatter dem i plexus for den ene kula.
+// Jorda har 'continents': havet i color, land og is som plater som står height
+// opp, med fas (konturene står i landmasses.js).
+export const bodyLooks = {
+  defaults: {
+    roughness: 0.4, gloss: 0.70, glossRoughness: 0.3,   // som hjulene (look)
+    shape: 'curved', seamWidth: 0.04, seamDepth: 0.12,
+  },
+  // Sola: style 'glass' er glass med en glødende kjerne og et lys i midten, så
+  // den lyser innenfra; 'lacquer' er blank lakk (lacquer). glow ganger hele
+  // gløden: glowParts er hvor sterkt glasset, kjernen og lyset inni lyser.
+  // Mønsteret 'trionda': fire like paneler fra et tetraeder, der hver kant er en
+  // S-kurve. amplitude er hvor langt S-en svinger ut (andel av kantlengden), og
+  // bulge gjør hver bue bredere ytterst (0 gir rolige bølger, rundt 1 tydelige
+  // armer; for store verdier gir en feilmelding). Fugebredden følger solradiusen.
+  sun: {
+    color: '#f3f595', style: 'glass', glow: 1,
+    glass: { roughness: 0.15, transmission: 0.6, thickness: 1.5, ior: 1.5, attenuationDistance: 3 },
+    glowParts: { surface: 0.35, core: 2, light: 8 },
+    lacquer: { roughness: 0.2, gloss: 1, glossRoughness: 0.05 },
+    pattern: 'plexusA', amplitude: 0.32, bulge: 0.2, seamWidth: 0.01 * bodies.sunRadius,
+  },
+  mercury:   { color: '#a8a29a', pattern: 'kites', subdivisions: 1 },      // grå, 60 drager
+  venus:     { color: '#e8d9a8', pattern: 'rhombi', subdivisions: 2 },     // blek gul, 120 ruter
+  earth: {
+    color: '#6f93c4', land: '#8f9a6a', ice: '#f4f6f7',   // havet blått, landet dempet oliven, isen (Antarktis og Grønland) hvit
+    pattern: 'continents', height: 0.06, chamfer: 0.025,  // hvor høyt platene står over havet, og fasen langs kanten
+  },
+  moon:      { color: '#cbc8c1', pattern: 'pentagons', subdivisions: 1 },  // lys grå, 12 femkanter med en ring av trapeser rundt (72 paneler)
+  mars:      { color: '#c06a43', pattern: 'quads', subdivisions: 3, seamWidth: 0.01 },  // rustrød, 54 firkanter
+  phobos:    { color: '#8e8174', pattern: 'quads', subdivisions: 1 },      // gråbrun
+  deimos:    { color: '#a39888', pattern: 'quads', subdivisions: 1 },      // gråbrun
+  jupiter:   { color: '#d9b88f', pattern: 'bands', subdivisions: 3 },      // beige, 7 bånd à 16 firkanter, og en 16-kant over hver pol
+  io:        { color: '#e6d46e', pattern: 'quads', subdivisions: 1 },      // svovelgul, 6 firkanter
+  europa:    { color: '#e3d8c0', pattern: 'quads', subdivisions: 1 },      // lys krem
+  ganymede:  { color: '#a79a88', pattern: 'quads', subdivisions: 1 },      // gråbrun
+  callisto:  { color: '#6f665d', pattern: 'quads', subdivisions: 1 },      // mørk brun
+  saturn:    { color: '#e6d3a0', pattern: 'hexagons', subdivisions: 3 },   // blek gul, 80 sekskanter og 12 femkanter
+  enceladus: { color: '#f4f6f7', pattern: 'quads', subdivisions: 1 },      // hvit
+  titan:     { color: '#d49a52', pattern: 'quads', subdivisions: 1 },      // oransje
   // Iapetus: uregelmessige fasetter, og panelene på siden som vender framover
   // (fartsretningen) i mørkt metall. split: 'leading' = den ledende halvdelen er mørk.
-  iapetus:   { pattern: 'facets', subdivisions: 30, split: 'leading' },
-  titania:  { pattern: 'quads', subdivisions: 1 },    // Uranus' måner
-  oberon:   { pattern: 'quads', subdivisions: 1 },
-  triton:   { pattern: 'quads', subdivisions: 1 },    // Neptuns måne
-  uranus:  { pattern: 'triangles', subdivisions: 2 },  // 80 trekanter
-  neptune: { pattern: 'rhombi',    subdivisions: 2 },  // 120 ruter
-  // Sola: fire like paneler fra et tetraeder, der hver kant er en S-kurve (som
-  // Trionda-ballen). amplitude er hvor langt S-en svinger ut (andel av
-  // kantlengden). bulge gjør hver bue bredere ytterst: 0 gir rolige bølger,
-  // rundt 1 gir tydelige armer. For store verdier gir en feilmelding.
-  // Fugebredden på sola følger solradiusen (0,1 ved radius 10).
-sun:     { pattern: 'plexusA', amplitude: 0.32, bulge: 0.2, seamWidth: 0.01 * bodies.sunRadius },
+  iapetus:   { color: '#d3cab8', pattern: 'facets', subdivisions: 30, split: 'leading' },  // lys beige
+  uranus:    { color: '#a9dde2', pattern: 'triangles', subdivisions: 2 },  // lys turkis, 80 trekanter
+  titania:   { color: '#bcb2a6', pattern: 'quads', subdivisions: 1 },      // gråbrun
+  oberon:    { color: '#a1968a', pattern: 'quads', subdivisions: 1 },      // gråbrun
+  neptune:   { color: '#5577c9', pattern: 'rhombi', subdivisions: 2 },     // blå, 120 ruter
+  triton:    { color: '#d9c7c1', pattern: 'quads', subdivisions: 1 },      // rosagrå
 };
 
 // Raske deler (månene, Saturns bånd og stag, hjulene og kjedene ved månene)
@@ -766,51 +720,21 @@ export const blur = {
   fanMaxAngle: 45,    // grader: vifta blir aldri bredere enn dette
 };
 
-// Rødt brukes sparsomt: sola, og en tynn ring der hver planetstolpe møter armen.
-// Fargene. accent er det røde i mekanikken (ringene ved stolpene, mellomhjulet
-// ved Neptun). bodies er én farge per kule, sola inkludert: toppen av panelene
-// får fargen i den samme blanke lakken som før (look), og fugene er mørkt
-// metall som før. Iapetus beholder den mørke halvdelen (panels.iapetus.split).
-export const colors = {
-  accent: '#f3f595',
-  bodies: {
-    sun: '#f3f595',       // glasset og lyset inni (accent.sunStyle)
-    mercury: '#a8a29a',   // grå
-    venus: '#e8d9a8',     // blek gul
-    earth: '#6f93c4',     // blå (havet når jorda har landmasser)
-    earthLand: '#8f9a6a', // dempet oliven (landmassene)
-    earthIce: '#f4f6f7',  // hvit (Antarktis og Grønland)
-    moon: '#cbc8c1',      // lys grå
-    mars: '#c06a43',      // rustrød
-    phobos: '#8e8174', deimos: '#a39888',      // gråbrune
-    jupiter: '#d9b88f',   // beige
-    io: '#e6d46e',        // svovelgul
-    europa: '#e3d8c0',    // lys krem
-    ganymede: '#a79a88',  // gråbrun
-    callisto: '#6f665d',  // mørk brun
-    saturn: '#e6d3a0',    // blek gul
-    enceladus: '#f4f6f7', // hvit
-    titan: '#d49a52',     // oransje
-    iapetus: '#d3cab8',   // lys beige
-    uranus: '#a9dde2',    // lys turkis
-    titania: '#bcb2a6', oberon: '#a1968a',     // gråbrune
-    neptune: '#5577c9',   // blå
-    triton: '#d9c7c1',    // rosagrå
-  },
-};
-
+// Fargen som skiller seg ut i mekanikken (blank lakk): de tynne ringene der
+// planetstolpene møter armene, og mellomhjulet ved Neptun.
 export const accent = {
-  sunStyle: 'glass',    // 'lacquer' = blank lakk, 'glass' = glass med lys innenfra (fargen er colors.bodies.sun)
-  glow: 1,                // hvor sterkt glasssola lyser innenfra (bare for 'glass')
-  ringWidth: 0.16,        // tykkelsen på den røde ringen rundt planetstolpene
+  color: '#f3f595',
+  roughness: 0.2, gloss: 1, glossRoughness: 0.05,  // blank lakk
+  ringWidth: 0.16,        // tykkelsen på ringen rundt planetstolpene
 };
-
 
 // Plexus-kuler. Vises på testsiden plexus.html, og på en kule i modellen når den
-// har pattern 'plexusA', 'plexusB' eller 'plexusC' i panels over. Tallene her
+// har pattern 'plexusA', 'plexusB' eller 'plexusC' i bodyLooks over. Tallene her
 // gjelder en kule med radius plexus.radius; på andre kuler skaleres nodene og
-// stengene med radiusen. Tall i panels erstatter dem her for den ene kula, for
-// eksempel jupiter: { pattern: 'plexusB', nodes: 50 }.
+// stengene med radiusen. Tall i bodyLooks erstatter dem her for den ene kula, for
+// eksempel jupiter: { color: '#d9b88f', pattern: 'plexusB', nodes: 50 }.
+// Uten nodeSize (eller edgeWidth) får kula ingen noder (eller stenger), bare
+// fasettene og kjernen.
 // A og B: noder spredt uregelmessig på kula og bundet sammen i trekanter. Nodene
 // er små kuler i hvit lakk, kantene tynne stenger i mørkt metall. Noen fasetter
 // er fylt, resten åpne, og inni ligger en fasettert kjerne. Nodene driver sakte

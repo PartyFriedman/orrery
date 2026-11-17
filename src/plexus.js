@@ -1,5 +1,5 @@
 // Plexus-kuler. Brukes på testsiden plexus.html og på kuler i modellen som har
-// mønsteret 'plexusA', 'plexusB' eller 'plexusC' i panels i config.js.
+// mønsteret 'plexusA', 'plexusB' eller 'plexusC' i bodyLooks i config.js.
 //   A og B: noder spredt uregelmessig på kula, bundet sammen i trekanter (ikke
 //     geodesisk). Nodene er små kuler, kantene stenger, noen fasetter er fylt, og
 //     inni ligger en fasettert kjerne. Nodene driver sakte rundt hvert sitt
@@ -17,7 +17,8 @@ export const plexusPatterns = { plexusA: 'A', plexusB: 'B', plexusC: 'C' };
 
 // Lager plexus-kula i `parent` og gir tilbake en funksjon som flytter nodene
 // til tiden `time` (sekunder). overrides: tall som erstatter dem i config.
-// materials: { white, metal } som nodene og fyllet, og stengene og kjernen får.
+// materials: { white, metal, core } som nodene og fyllet, stengene, og kjernen
+// får (core er valgfri; uten den får kjernen metal).
 export function createPlexus(parent, pattern, radius, materials, overrides = {}) {
   const variant = plexusPatterns[pattern];
   if (!variant) throw new Error(`Ukjent plexus-mønster '${pattern}'. Velg mellom: ${Object.keys(plexusPatterns).join(', ')}.`);
@@ -35,7 +36,7 @@ function addPlexus(parent, settings, R, scale, materials) {
   const fillMaterial = materials.white.clone();
   fillMaterial.side = THREE.DoubleSide;
   fillMaterial.flatShading = true;
-  const coreMaterial = materials.metal.clone();
+  const coreMaterial = (materials.core ?? materials.metal).clone();
   coreMaterial.flatShading = true;
 
   const rand = random(settings.seed);
@@ -62,13 +63,15 @@ function addPlexus(parent, settings, R, scale, materials) {
   });
   const positions = anchors.map(() => new THREE.Vector3());
 
+  // Nodene og stengene lages bare når de har en størrelse (nodeSize, edgeWidth
+  // i config). Uten blir kula bare fasettene og kjernen.
   const nodeSize = settings.nodeSize * scale, edgeWidth = settings.edgeWidth * scale;
-  const nodeMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(nodeSize, 16, 12), materials.white, nodes.length);
-  const edgeMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(edgeWidth, edgeWidth, 1, 8), materials.metal, edges.length);
+  const nodeMesh = nodeSize > 0 ? new THREE.InstancedMesh(new THREE.SphereGeometry(nodeSize, 16, 12), materials.white, nodes.length) : null;
+  const edgeMesh = edgeWidth > 0 ? new THREE.InstancedMesh(new THREE.CylinderGeometry(edgeWidth, edgeWidth, 1, 8), materials.metal, edges.length) : null;
   const fillGeometry = new THREE.BufferGeometry();
   fillGeometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(filled.length * 9), 3));
   const fillMesh = new THREE.Mesh(fillGeometry, fillMaterial);
-  for (const m of [nodeMesh, edgeMesh, fillMesh]) {
+  for (const m of [nodeMesh, edgeMesh, fillMesh].filter(Boolean)) {
     m.castShadow = true;
     m.receiveShadow = true;
     m.frustumCulled = false;
@@ -91,26 +94,29 @@ function addPlexus(parent, settings, R, scale, materials) {
         .addScaledVector(n.u, reach * Math.sin(2 * Math.PI * n.f1 * time + n.a1))
         .addScaledVector(n.v, reach * Math.sin(2 * Math.PI * n.f2 * time + n.a2))
         .setLength(R);
+      if (!nodeMesh) return;
       placer.position.copy(positions[i]);
       placer.quaternion.identity();
       placer.scale.set(1, 1, 1);
       placer.updateMatrix();
       nodeMesh.setMatrixAt(i, placer.matrix);
     });
-    edges.forEach(([a, b], i) => {
-      direction.subVectors(positions[b], positions[a]);
-      placer.position.copy(positions[a]).add(positions[b]).multiplyScalar(0.5);
-      placer.scale.set(1, direction.length(), 1);
-      placer.quaternion.setFromUnitVectors(up, direction.normalize());
-      placer.updateMatrix();
-      edgeMesh.setMatrixAt(i, placer.matrix);
-    });
+    if (edgeMesh) {
+      edges.forEach(([a, b], i) => {
+        direction.subVectors(positions[b], positions[a]);
+        placer.position.copy(positions[a]).add(positions[b]).multiplyScalar(0.5);
+        placer.scale.set(1, direction.length(), 1);
+        placer.quaternion.setFromUnitVectors(up, direction.normalize());
+        placer.updateMatrix();
+        edgeMesh.setMatrixAt(i, placer.matrix);
+      });
+      edgeMesh.instanceMatrix.needsUpdate = true;
+    }
+    if (nodeMesh) nodeMesh.instanceMatrix.needsUpdate = true;
     const attr = fillGeometry.attributes.position;
     filled.forEach((f, i) => f.forEach((n, k) => attr.setXYZ(i * 3 + k, positions[n].x, positions[n].y, positions[n].z)));
     attr.needsUpdate = true;
     fillGeometry.computeVertexNormals(); // uten indekser: én normal per fasett
-    nodeMesh.instanceMatrix.needsUpdate = true;
-    edgeMesh.instanceMatrix.needsUpdate = true;
   };
   update(0);
   return update;

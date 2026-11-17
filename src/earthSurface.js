@@ -1,20 +1,17 @@
-// Jorda med landmasser, i tre utgaver (earthSurface i config.js, konturene i
-// landmasses.js). Brukes av prøvesiden earth.html.
-//   S1: innlagte kontinenter: ett buet panel per kontinent i flukt med havet,
-//       med en mørk fuge rundt
-//   S2: opphøyde kontinenter: plater som står opp fra havet, med fas
-//   S3: fasetter (lavpoly): uregelmessige trekanter farget etter land, hav og is
+// Jorda med landmasser: opphøyde kontinenter, plater som står opp fra havet,
+// med fas (bodyLooks.earth i config.js, konturene i landmasses.js).
 // Kula ligger med nordpolen langs +y og lengde 0 langs +x, østover mot −z (som
 // lonLat i panels.js). createSpinBlur lager den glatte kula mot flimring: fargene
 // smurt ut langs hver breddegrad, slik en globus ser ut når den spinner.
 import * as THREE from 'three';
 import { landmasses } from './landmasses.js';
-import { stereographic, inside, insetRegion, createPanelGeometry } from './panels.js';
-import { spread, triangulate, random } from './scatter.js';
-import { earthSurface as ES, colors, look, panels } from './config.js';
+import { stereographic, inside, insetRegion } from './panels.js';
+import { lookOf, lacquer } from './materials.js';
+
+const earth = lookOf('earth');   // fargene på havet, landet og isen, lakken og platene
 
 const rad = Math.PI / 180;
-export const unitOf = (lon, lat) => new THREE.Vector3(
+const unitOf = (lon, lat) => new THREE.Vector3(
   Math.cos(lat * rad) * Math.cos(lon * rad), Math.sin(lat * rad), -Math.cos(lat * rad) * Math.sin(lon * rad),
 );
 
@@ -36,7 +33,7 @@ const regions = landmasses.map(({ name, kind, outline }) => {
 });
 
 // Hva som ligger i retningen v (enhetsvektor): 'land', 'ice' eller 'sea'.
-export function surfaceKind(v) {
+function surfaceKind(v) {
   for (const r of regions) {
     if (v.dot(r.center) < r.cosMax) continue;
     if (inside(r.proj.to(v), r.flat)) return r.kind;
@@ -44,16 +41,12 @@ export function surfaceKind(v) {
   return 'sea';
 }
 
-// Materialene: samme satengmatte lakk som kulene i modellen, i fargene fra colors.bodies.
-const lacquer = (color) => new THREE.MeshPhysicalMaterial({
-  color, roughness: look.roughness, metalness: 0, clearcoat: look.gloss, clearcoatRoughness: look.glossRoughness,
-});
+// Materialene: samme satengmatte lakk som kulene i modellen.
 export function createSurfaceMaterials() {
   return {
-    sea: lacquer(colors.bodies.earth),
-    land: lacquer(colors.bodies.earthLand),
-    ice: lacquer(colors.bodies.earthIce),
-    seam: new THREE.MeshPhysicalMaterial({ color: look.seamColor, metalness: look.seamMetalness, roughness: look.seamRoughness }),
+    sea: lacquer(earth.color, earth),
+    land: lacquer(earth.land, earth),
+    ice: lacquer(earth.ice, earth),
   };
 }
 
@@ -67,9 +60,16 @@ function fillRegion({ center, outline }, radius, pos, nor) {
   const proj = stereographic(center);
   const flat = outline.map(proj.to);
   const sphere = outline.map((p) => p.clone());
-  let tris = THREE.ShapeUtils.triangulateShape(flat, []).map(([a, b, c]) => [a, b, c]);
-  const key = (i, j) => (i < j ? `${i},${j}` : `${j},${i}`);
-  const len = (i, j) => sphere[i].distanceTo(sphere[j]) * radius;
+  const tris = THREE.ShapeUtils.triangulateShape(flat, []).map(([a, b, c]) => [a, b, c]);
+  // Kantene får et tall som nøkkel, og lengden huskes, så den regnes ut én gang per kant.
+  const key = (i, j) => (i < j ? i * 0x200000 + j : j * 0x200000 + i);
+  const lengths = new Map();
+  const len = (i, j) => {
+    const k = key(i, j);
+    let l = lengths.get(k);
+    if (l === undefined) lengths.set(k, (l = sphere[i].distanceTo(sphere[j]) * radius));
+    return l;
+  };
   const mids = new Map();
   const midOf = (i, j) => {
     const k = key(i, j);
@@ -81,32 +81,49 @@ function fillRegion({ center, outline }, radius, pos, nor) {
     }
     return mids.get(k);
   };
+  // En trekant der ingen kant er for lang, deles aldri mer (bare for lange kanter
+  // deles), så bare de andre gås gjennom i hver runde. Hver trekant er en node
+  // i et tre, og de to halvdelene erstatter den på samme plass, så rekkefølgen
+  // på trekantene blir den samme som om hele lista ble gått gjennom hver gang.
+  const isLong = (t) => len(t[0], t[1]) > fillStep || len(t[1], t[2]) > fillStep || len(t[2], t[0]) > fillStep;
+  const roots = tris.map((t) => ({ t, kids: null }));
+  let active = roots.filter((n) => isLong(n.t));
   for (let pass = 0; pass < 60; pass++) {
     // Den lengste kanten i hver trekant som er for lang.
-    const want = new Map();
-    for (const t of tris) {
+    const want = new Set();
+    for (const { t } of active) {
       let best = null, bl = fillStep;
       for (let e = 0; e < 3; e++) { const l = len(t[e], t[(e + 1) % 3]); if (l > bl) { bl = l; best = key(t[e], t[(e + 1) % 3]); } }
-      if (best) want.set(best, true);
+      if (best !== null) want.add(best);
     }
     if (!want.size) break;
     const next = [];
-    for (const t of tris) {
+    for (const node of active) {
       // Del trekanten langs den første kanten som skal deles (resten tas i neste runde).
+      const t = node.t;
       let done = false;
       for (let e = 0; e < 3 && !done; e++) {
         const a = t[e], b = t[(e + 1) % 3], c = t[(e + 2) % 3];
-        if (want.has(key(a, b))) { const m = midOf(a, b); next.push([a, m, c], [m, b, c]); done = true; }
+        if (want.has(key(a, b))) {
+          const m = midOf(a, b);
+          node.kids = [{ t: [a, m, c], kids: null }, { t: [m, b, c], kids: null }];
+          for (const kid of node.kids) if (isLong(kid.t)) next.push(kid);
+          done = true;
+        }
       }
-      if (!done) next.push(t);
+      if (!done) next.push(node);
     }
-    tris = next;
+    active = next;
   }
-  for (const t of tris) for (const i of t) {
-    const u = sphere[i];
-    pos.push(u.x * radius, u.y * radius, u.z * radius);
-    nor.push(u.x, u.y, u.z);
-  }
+  const emit = (node) => {
+    if (node.kids) { emit(node.kids[0]); emit(node.kids[1]); return; }
+    for (const i of node.t) {
+      const u = sphere[i];
+      pos.push(u.x * radius, u.y * radius, u.z * radius);
+      nor.push(u.x, u.y, u.z);
+    }
+  };
+  for (const node of roots) emit(node);
 }
 // Et bånd mellom to like lange, lukkede kurver (enhetsvektorer) i hver sin radius.
 function ribbon(inner, rIn, outer, rOut, pos) {
@@ -160,87 +177,27 @@ const outward = (pos) => {
   return pos;
 };
 
-// Kula med landmasser. style: 'S1', 'S2' eller 'S3'.
-export function createEarthSurface(style, radius, materials = createSurfaceMaterials()) {
+// Kula med landmasser: havet som en glatt kule, og land og is som plater som
+// står height opp, med fas: toppen krympet chamfer inn, og en skrå kant ned til havet.
+export function createEarthSurface(radius, materials = createSurfaceMaterials()) {
   const group = new THREE.Group();
-  const seam = ES.seamWidth;
-  if (style === 'S1' || style === 'S2') {
-    const sea = new THREE.Mesh(new THREE.SphereGeometry(radius, 96, 48), materials.sea);
-    sea.receiveShadow = true;
-    sea.castShadow = true;
-    group.add(sea);
-    for (const kind of ['land', 'ice']) {
-      const tops = [], tn = [], sides = [];
-      for (const r of regions.filter((x) => x.kind === kind)) {
-        if (style === 'S1') {
-          // Panelet krympet en halv fuge inn, og en mørk fuge rundt, i flukt med havet.
-          const land = insetRegion(r, seam / 2 / radius);
-          const wide = insetRegion(r, -seam / 2 / radius);
-          fillRegion(land, radius + 0.008, tops, tn);
-          ribbon(land.outline, radius + 0.004, wide.outline, radius + 0.004, sides);
-        } else {
-          // Platen står height opp, med fas: toppen krympet chamfer inn, og en skrå kant ned til havet.
-          const { height, chamfer } = ES.S2;
-          const topRegion = insetRegion(r, chamfer / radius);
-          fillRegion(topRegion, radius + height, tops, tn);
-          ribbon(topRegion.outline, radius + height, insetRegion(r, 0).outline, radius - 0.01, sides);
-        }
-      }
-      group.add(meshOf(outwardWith(tops, tn), tn, materials[kind]));
-      const s = outward(sides);
-      group.add(meshOf(s, flatNormals(s), style === 'S1' ? materials.seam : materials[kind]));
+  const sea = new THREE.Mesh(new THREE.SphereGeometry(radius, 96, 48), materials.sea);
+  sea.receiveShadow = true;
+  sea.castShadow = true;
+  group.add(sea);
+  const { height, chamfer } = earth;
+  for (const kind of ['land', 'ice']) {
+    const tops = [], tn = [], sides = [];
+    for (const r of regions.filter((x) => x.kind === kind)) {
+      const topRegion = insetRegion(r, chamfer / radius);
+      fillRegion(topRegion, radius + height, tops, tn);
+      ribbon(topRegion.outline, radius + height, insetRegion(r, 0).outline, radius - 0.01, sides);
     }
-    return group;
+    group.add(meshOf(outwardWith(tops, tn), tn, materials[kind]));
+    const s = outward(sides);
+    group.add(meshOf(s, flatNormals(s), materials[kind]));
   }
-  if (style === 'S3') {
-    // Fasettene fra panels.js, med toppene sortert etter hva som ligger midt i fasetten.
-    const n = Math.max(6, Math.round(ES.S3.subdivisions));
-    const { geometry, coreRadius } = createPanelGeometry({
-      radius, pattern: 'facets', subdivisions: n, seamWidth: ES.S3.seamWidth, seamDepth: ES.S3.seamDepth, shape: panels.shape,
-    });
-    const points = spread(n, random(n));
-    const facets = triangulate(points).map((f) => {
-      let [a, b, c] = f.map((i) => points[i]);
-      if (b.clone().sub(a).cross(c.clone().sub(a)).dot(a) < 0) [b, c] = [c, b];
-      const center = a.clone().add(b).add(c).normalize();
-      return { a, b, c, ab: a.clone().cross(b), bc: b.clone().cross(c), ca: c.clone().cross(a), center, cos: Math.min(a.dot(center), b.dot(center), c.dot(center)) - 1e-3, kind: surfaceKind(center) };
-    });
-    const pos = geometry.attributes.position.array, nor = geometry.attributes.normal.array;
-    const topGroup = geometry.groups.find((x) => x.materialIndex === 0);
-    const buckets = { sea: [], land: [], ice: [] }, bucketN = { sea: [], land: [], ice: [] };
-    const v = new THREE.Vector3();
-    for (let t = topGroup.start; t < topGroup.start + topGroup.count; t += 3) {
-      v.set(0, 0, 0);
-      for (let k = 0; k < 3; k++) v.x += pos[(t + k) * 3], v.y += pos[(t + k) * 3 + 1], v.z += pos[(t + k) * 3 + 2];
-      v.normalize();
-      let kind = 'sea';
-      for (const f of facets) {
-        if (v.dot(f.center) < f.cos) continue;
-        if (v.dot(f.ab) >= -1e-6 && v.dot(f.bc) >= -1e-6 && v.dot(f.ca) >= -1e-6) { kind = f.kind; break; }
-      }
-      for (let k = 0; k < 9; k++) { buckets[kind].push(pos[t * 3 + k]); bucketN[kind].push(nor[t * 3 + k]); }
-    }
-    const sideGroup = geometry.groups.find((x) => x.materialIndex === 1);
-    const sidePos = Array.from(pos.slice(sideGroup.start * 3, (sideGroup.start + sideGroup.count) * 3));
-    const sideNor = Array.from(nor.slice(sideGroup.start * 3, (sideGroup.start + sideGroup.count) * 3));
-    const all = [...buckets.sea, ...buckets.land, ...buckets.ice, ...sidePos];
-    const allN = [...bucketN.sea, ...bucketN.land, ...bucketN.ice, ...sideNor];
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(all, 3));
-    g.setAttribute('normal', new THREE.Float32BufferAttribute(allN, 3));
-    let start = 0;
-    [['sea', 0], ['land', 2], ['ice', 3]].forEach(([k, mi]) => { const c = buckets[k].length / 3; g.addGroup(start, c, mi); start += c; });
-    g.addGroup(start, sidePos.length / 3, 1);
-    const mesh = new THREE.Mesh(g, [materials.sea, materials.seam, materials.land, materials.ice]);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    group.add(mesh);
-    const core = new THREE.Mesh(new THREE.SphereGeometry(coreRadius, 48, 24), materials.seam);
-    core.receiveShadow = true;
-    group.add(core);
-    return group;
-  }
-  throw new Error(`earthSurface: ukjent overflate '${style}'. Velg 'S1', 'S2' eller 'S3'.`);
+  return group;
 }
 
 // Mot flimring: en glatt kule over jorda med fargene smurt ut langs hver
@@ -249,7 +206,7 @@ export function createEarthSurface(style, radius, materials = createSurfaceMater
 // formene i blur.js: update(delta, f) med f fra 0 til 1.
 export function createSpinBlur(parent, radius) {
   const bands = 90, around = 180;
-  const sea = new THREE.Color(colors.bodies.earth), land = new THREE.Color(colors.bodies.earthLand), ice = new THREE.Color(colors.bodies.earthIce);
+  const sea = new THREE.Color(earth.color), land = new THREE.Color(earth.land), ice = new THREE.Color(earth.ice);
   const rowColor = [];
   for (let i = 0; i <= bands; i++) {
     const lat = -90 + (180 * i) / bands;
@@ -270,7 +227,7 @@ export function createSpinBlur(parent, radius) {
   }
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colorsArr, 3));
   const material = new THREE.MeshPhysicalMaterial({
-    vertexColors: true, roughness: look.roughness, metalness: 0, clearcoat: look.gloss, clearcoatRoughness: look.glossRoughness,
+    vertexColors: true, roughness: earth.roughness, metalness: 0, clearcoat: earth.gloss, clearcoatRoughness: earth.glossRoughness,
     transparent: true, opacity: 0,
   });
   const mesh = new THREE.Mesh(geometry, material);

@@ -13,7 +13,8 @@ import {
 import { longitudeAt, addYears, marsPoleLongitude, uranusPoleLongitude } from './ephemeris.js';
 import { ringLayout, thinRingLayout } from './ringLayout.js';
 import { uranusDesign, neptuneDesign, attachUranusArm, attachNeptuneArm, firstChainAbove } from './iceMoons.js';
-import { earthDesign, ratesFor, gmst } from './earthDesign.js';
+import { earthDesign, earthRates, gmst } from './earthDesign.js';
+import { segmentDistance } from './segments.js';
 
 const { gap, chainGap, reachGap, moonGap } = spacing;
 const pitchRadius = (module, teeth) => (module * teeth) / 2;
@@ -29,7 +30,7 @@ export const pairModule = (teeth1, teeth2) => (2 * drive.distance) / (teeth1 + t
 // Det samme for et hjul (2) som griper inn i et ringhjul med innvendige tenner
 // (1), når hjul 2 står i retning `direction` fra midten av ringhjulet. De
 // dreier samme vei.
-export function internalMeshAngle(angle1, teeth1, teeth2, direction) {
+function internalMeshAngle(angle1, teeth1, teeth2, direction) {
   return direction - Math.PI / teeth2 + (teeth1 / teeth2) * (angle1 - direction);
 }
 
@@ -262,25 +263,15 @@ export const jupiterTrain = (() => {
 // under Saturns sentrum, der den loddrette driveakselen og forlegsakselen
 // møtes (toppen av kjeglene til vinkelgiren).
 const SM = saturnMoons;
-export const saturnMoonNames = planets.saturn.moons;
+const saturnMoonNames = planets.saturn.moons;
 const saturnTilt = degrees(saturnRing.tilt);
-const segDist2 = (p, q, r, s) => {
-  const d1 = { x: q.x - p.x, y: q.y - p.y }, d2 = { x: s.x - r.x, y: s.y - r.y }, w0 = { x: p.x - r.x, y: p.y - r.y };
-  const a = d1.x * d1.x + d1.y * d1.y, b = d1.x * d2.x + d1.y * d2.y, c = d2.x * d2.x + d2.y * d2.y;
-  const dd = d1.x * w0.x + d1.y * w0.y, e = d2.x * w0.x + d2.y * w0.y;
-  const clamp = (x) => Math.max(0, Math.min(1, x));
-  let sc = a > 0 ? clamp(-dd / a) : 0;
-  const tc = c > 0 ? clamp((b * sc + e) / c) : 0;
-  sc = a > 0 ? clamp((b * tc - dd) / a) : 0;
-  return Math.hypot(w0.x + sc * d1.x - tc * d2.x, w0.y + sc * d1.y - tc * d2.y);
-};
 // Avstanden fra et linjestykke til et rektangel { x0, x1, y0, y1 } i planet (0 hvis de overlapper).
 const segRectDist = (p, q, r) => {
   const inside = (u) => u.x >= r.x0 && u.x <= r.x1 && u.y >= r.y0 && u.y <= r.y1;
   if (inside(p) || inside(q)) return 0;
   const c = [{ x: r.x0, y: r.y0 }, { x: r.x1, y: r.y0 }, { x: r.x1, y: r.y1 }, { x: r.x0, y: r.y1 }];
   let best = Infinity;
-  for (let i = 0; i < 4; i++) best = Math.min(best, segDist2(p, q, c[i], c[(i + 1) % 4]));
+  for (let i = 0; i < 4; i++) best = Math.min(best, segmentDistance(p, q, c[i], c[(i + 1) % 4]));
   return best;
 };
 export const saturnTrain = (() => {
@@ -361,9 +352,9 @@ export const saturnTrain = (() => {
     const clear = (s) => {
       const p = { x: hubRadius - 0.05, y: s }, q = { x: attach, y: bandBottom };
       const need = gap + strutR + 0.01;
-      if (segDist2(p, q, { x: 0, y: 0 }, { x: 0, y: 0 }) < R + need) return false;      // kula
+      if (segmentDistance(p, q, { x: 0, y: 0 }, { x: 0, y: 0 }) < R + need) return false;      // kula
       for (const o of obstacles) {
-        const d = o.rect ? segRectDist(p, q, o.rect) : segDist2(p, q, o.a, o.b) - strutR;
+        const d = o.rect ? segRectDist(p, q, o.rect) : segmentDistance(p, q, o.a, o.b) - strutR;
         if (d < need) return false;
       }
       return true;
@@ -440,7 +431,7 @@ const chainEnd = (teeth) => sprocketRadius(teeth, moonTrain.chainPitch) + moonTr
 // nedover treffer den loddlinjen gjennom stolpen i K, og der sitter kryssleddet
 // på toppen av stolpen.
 const MM = marsMoons;
-export const marsMoonNames = planets.mars.moons;
+const marsMoonNames = planets.mars.moons;
 const marsTilt = degrees(MM.tilt);
 export const marsTrain = (() => {
   const R = planets.mars.radius;
@@ -545,7 +536,7 @@ export const uranusTrain = (() => {
   const strutR = UR.struts.width / 2;
   const hub = { radius: UP.hub.radius, length: UP.hub.length };
   const attach = { rho: ring.rings[0].middle, s: half };
-  const strutClear = (s) => segDist2({ x: s, y: hub.radius - 0.05 }, { x: attach.s, y: attach.rho }, { x: 0, y: 0 }, { x: 0, y: 0 })
+  const strutClear = (s) => segmentDistance({ x: s, y: hub.radius - 0.05 }, { x: attach.s, y: attach.rho }, { x: 0, y: 0 }, { x: 0, y: 0 })
     >= R + gap + strutR;
   hub.s = poleS + UP.bracket.fillet + hub.length / 2;
   while (!strutClear(hub.s)) {
@@ -605,7 +596,7 @@ export const uranusTrain = (() => {
 // Høydene ved armene settes når heights er regnet ut.
 const UM = IM.uranus, NM = IM.neptune, UB = UM.bevel;
 export const uranusMoonNames = ['titania', 'oberon'];
-export const uranusMoonTrain = uranusDesign('B', uranusTrain, armParts);
+export const uranusMoonTrain = uranusDesign(uranusTrain, armParts);
 export const neptuneMoonTrain = neptuneDesign(armParts);
 
 // Hvor langt hjulverket ved Saturn (rundt den skrå aksen) rekker ut, sett ovenfra.
@@ -819,18 +810,15 @@ export const moonChain = makeChain('Månekjedet', layout.pinion, layout.earth, d
 // står hjulet under jorda stille i rommet, uansett hvor armen er.
 export const parallelChain = makeChain('Parallellkjedet', layout.center, layout.earth, parallelSprocket.teeth, parallelSprocket.teeth);
 
-// Jordrotasjonen (earthDay i config, ruta earthDay.model): et kjede fra et
+// Jordrotasjonen (earthDay i config): et kjede fra et
 // kjedehjul på pinionakselen til en forlegsaksel ved jordstolpen, og et
 // tannhjulspar derfra til driveakselen inni stolperøret. Forlegsakselen står
 // like langt innenfor stolpen som tannhjulsparet når.
-const earthCell = ED.cells[ED.model];
-if (!earthCell) throw new Error(`earthDay.model: finner ikke ruta '${ED.model}' i earthDay.cells.`);
-if (earthCell.source !== 'P') throw new Error('earthDay.model: modellen har bare drivet fra pinionakselen (P). Drivet fra et dagrør i tårnet (T) finnes bare på prøvesiden.');
 const EP = ED.P;
 export const earthLayDistance = (EP.module * (EP.layGear + EP.shaftGear)) / 2;
 export const earthDayChain = makeChain('Dagkjedet (jordrotasjonen)', layout.pinion, { x: armLengths.earth - earthLayDistance, y: 0 },
   EP.pinionSprocket, EP.laySprocket, EP.chainPitch);
-export const earthRate = ratesFor(earthCell);
+const earthRate = earthRates();
 
 // Kjedet over Jupiter-armen: fra kjedehjulet på månerøret ved sentrum til
 // kjedehjulet på kragen ved Jupiter-stolpen (i armens koordinatsystem).
@@ -840,6 +828,21 @@ export const jupiterLayout = {
 };
 export const jupiterChain = makeChain('Kjedet til Jupiters måner', layout.center, jupiterLayout.post,
   J.tubeSprocket, J.collarSprocket, J.chainPitch);
+
+// Et kjedehjul må være større enn røret eller akselen det sitter på (radius er
+// kjedehjulets radius, hole det det sitter på).
+function checkSprocketFits(chain, radius, hole, message) {
+  if (radius - chain.rollerRadius * 1.1 < hole + 0.2) throw new Error(message);
+}
+// Parallellføringen: en stolpe står stille i rommet når
+//   (parDrive/parTube − planetDrive/planetTube) × centerSprocket/postSprocket = −planetDrive/planetTube,
+// der planetDrive/planetTube er planetens hjulpar i tårnet og parDrive/parTube
+// par-rørets. Sjekkes eksakt med heltall: (a·d − c·b) · e = −c · b · f.
+function checkParallel(planetDrive, planetTube, parDrive, parTube, centerSprocket, postSprocket, message) {
+  const lhs = (parDrive * planetTube - planetDrive * parTube) * centerSprocket;
+  const rhs = -planetDrive * parTube * postSprocket;
+  if (!planetDrive || lhs !== rhs) throw new Error(message);
+}
 {
   // Forlegsakselen står inne i kjedesløyfa og må gå klar av kjedet.
   let nearest = Infinity;
@@ -852,13 +855,8 @@ export const jupiterChain = makeChain('Kjedet til Jupiters måner', layout.cente
   if (jupiterTrain.layToChain < 0.3) {
     throw new Error('Forlegsakselen ved Jupiter går for nær kjedet: endre jupiterMoons.layDistance eller kjedehjulene.');
   }
-  const root = (chain, r) => r - chain.rollerRadius * 1.1;
-  if (root(jupiterChain, jupiterChain.radius1) < tube['drive-jupiter'].outer + 0.2) {
-    throw new Error('Kjedehjulet på månerøret er for lite til røret: øk jupiterMoons.tubeSprocket.');
-  }
-  if (root(jupiterChain, jupiterChain.radius2) < jupiterTrain.collar.outer + 0.2) {
-    throw new Error('Kjedehjulet på kragen ved Jupiter er for lite til kragen: øk jupiterMoons.collarSprocket.');
-  }
+  checkSprocketFits(jupiterChain, jupiterChain.radius1, tube['drive-jupiter'].outer, 'Kjedehjulet på månerøret er for lite til røret: øk jupiterMoons.tubeSprocket.');
+  checkSprocketFits(jupiterChain, jupiterChain.radius2, jupiterTrain.collar.outer, 'Kjedehjulet på kragen ved Jupiter er for lite til kragen: øk jupiterMoons.collarSprocket.');
 }
 
 // Kjedene langs Saturn-armen (i armens koordinatsystem): månekjedet fra
@@ -873,25 +871,12 @@ export const saturnParallelChain = makeChain('Parallellkjedet til Saturn', layou
   SP.centerSprocket, SP.postSprocket, SM.chainPitch);
 {
   const sat = planets.saturn;
-  // (a/b − c/d) · e/f = −c/d  ⇔  (a·d − c·b) · e = −c · b · f
-  const lhs = (SP.layTeeth * sat.tubeTeeth - sat.layTeeth * SP.tubeTeeth) * SP.centerSprocket;
-  const rhs = -sat.layTeeth * SP.tubeTeeth * SP.postSprocket;
-  if (!sat.layTeeth || lhs !== rhs) {
-    throw new Error('saturnMoons.parallel: tanntallene gjør ikke at Saturn-stolpen står stille i rommet. Det må gjelde: (parallel.layTeeth/parallel.tubeTeeth − saturn.layTeeth/saturn.tubeTeeth) × centerSprocket/postSprocket = −saturn.layTeeth/saturn.tubeTeeth.');
-  }
-  const root = (chain, r) => r - chain.rollerRadius * 1.1;
-  if (root(saturnChain, saturnChain.radius1) < tube['drive-saturn'].outer + 0.2) {
-    throw new Error('Kjedehjulet på månerøret til Saturn er for lite til røret: øk saturnMoons.tubeSprocket.');
-  }
-  if (root(saturnParallelChain, saturnParallelChain.radius1) < tube['par-saturn'].outer + 0.2) {
-    throw new Error('Kjedehjulet på par-saturn er for lite til røret: øk saturnMoons.parallel.centerSprocket (og tanntallene i tårnet så det går opp).');
-  }
-  if (root(saturnChain, saturnChain.radius2) < SM.driveShaftRadius + 0.2) {
-    throw new Error('Kjedehjulet på driveakselen ved Saturn er for lite til akselen: øk saturnMoons.shaftSprocket.');
-  }
-  if (root(saturnParallelChain, saturnParallelChain.radius2) < SM.driveShaftRadius + SM.frameWall + 0.2) {
-    throw new Error('Kjedehjulet nederst på Saturn-stolpen er for lite til stolpen: øk saturnMoons.parallel.postSprocket.');
-  }
+  checkParallel(sat.layTeeth, sat.tubeTeeth, SP.layTeeth, SP.tubeTeeth, SP.centerSprocket, SP.postSprocket,
+    'saturnMoons.parallel: tanntallene gjør ikke at Saturn-stolpen står stille i rommet. Det må gjelde: (parallel.layTeeth/parallel.tubeTeeth − saturn.layTeeth/saturn.tubeTeeth) × centerSprocket/postSprocket = −saturn.layTeeth/saturn.tubeTeeth.');
+  checkSprocketFits(saturnChain, saturnChain.radius1, tube['drive-saturn'].outer, 'Kjedehjulet på månerøret til Saturn er for lite til røret: øk saturnMoons.tubeSprocket.');
+  checkSprocketFits(saturnParallelChain, saturnParallelChain.radius1, tube['par-saturn'].outer, 'Kjedehjulet på par-saturn er for lite til røret: øk saturnMoons.parallel.centerSprocket (og tanntallene i tårnet så det går opp).');
+  checkSprocketFits(saturnChain, saturnChain.radius2, SM.driveShaftRadius, 'Kjedehjulet på driveakselen ved Saturn er for lite til akselen: øk saturnMoons.shaftSprocket.');
+  checkSprocketFits(saturnParallelChain, saturnParallelChain.radius2, SM.driveShaftRadius + SM.frameWall, 'Kjedehjulet nederst på Saturn-stolpen er for lite til stolpen: øk saturnMoons.parallel.postSprocket.');
 }
 
 // Kjedene langs Mars-armen, som ved Saturn: månekjedet til driveakselen og
@@ -904,25 +889,12 @@ export const marsParallelChain = makeChain('Parallellkjedet til Mars', layout.ce
   MP.centerSprocket, MP.postSprocket, MM.chainPitch);
 {
   const mars = planets.mars;
-  // (x/y − c/b) · e/f = −c/b  ⇔  (x·b − c·y) · e = −c · y · f
-  const lhs = (MP.driveTeeth * mars.tubeTeeth - mars.driveTeeth * MP.tubeTeeth) * MP.centerSprocket;
-  const rhs = -mars.driveTeeth * MP.tubeTeeth * MP.postSprocket;
-  if (!mars.driveTeeth || lhs !== rhs) {
-    throw new Error('marsMoons.parallel: tanntallene gjør ikke at Mars-stolpen står stille i rommet. Det må gjelde: (parallel.driveTeeth/parallel.tubeTeeth − mars.driveTeeth/mars.tubeTeeth) × centerSprocket/postSprocket = −mars.driveTeeth/mars.tubeTeeth.');
-  }
-  const root = (chain, r) => r - chain.rollerRadius * 1.1;
-  if (root(marsChain, marsChain.radius1) < tube['drive-mars'].outer + 0.2) {
-    throw new Error('Kjedehjulet på månerøret til Mars er for lite til røret: øk marsMoons.tubeSprocket.');
-  }
-  if (root(marsParallelChain, marsParallelChain.radius1) < tube['par-mars'].outer + 0.2) {
-    throw new Error('Kjedehjulet på par-mars er for lite til røret: øk marsMoons.parallel.centerSprocket (og tanntallene i tårnet så det går opp).');
-  }
-  if (root(marsChain, marsChain.radius2) < MM.driveShaftRadius + 0.2) {
-    throw new Error('Kjedehjulet på driveakselen ved Mars er for lite til akselen: øk marsMoons.shaftSprocket.');
-  }
-  if (root(marsParallelChain, marsParallelChain.radius2) < MM.driveShaftRadius + MM.frameWall + 0.2) {
-    throw new Error('Kjedehjulet nederst på Mars-stolpen er for lite til stolpen: øk marsMoons.parallel.postSprocket.');
-  }
+  checkParallel(mars.driveTeeth, mars.tubeTeeth, MP.driveTeeth, MP.tubeTeeth, MP.centerSprocket, MP.postSprocket,
+    'marsMoons.parallel: tanntallene gjør ikke at Mars-stolpen står stille i rommet. Det må gjelde: (parallel.driveTeeth/parallel.tubeTeeth − mars.driveTeeth/mars.tubeTeeth) × centerSprocket/postSprocket = −mars.driveTeeth/mars.tubeTeeth.');
+  checkSprocketFits(marsChain, marsChain.radius1, tube['drive-mars'].outer, 'Kjedehjulet på månerøret til Mars er for lite til røret: øk marsMoons.tubeSprocket.');
+  checkSprocketFits(marsParallelChain, marsParallelChain.radius1, tube['par-mars'].outer, 'Kjedehjulet på par-mars er for lite til røret: øk marsMoons.parallel.centerSprocket (og tanntallene i tårnet så det går opp).');
+  checkSprocketFits(marsChain, marsChain.radius2, MM.driveShaftRadius, 'Kjedehjulet på driveakselen ved Mars er for lite til akselen: øk marsMoons.shaftSprocket.');
+  checkSprocketFits(marsParallelChain, marsParallelChain.radius2, MM.driveShaftRadius + MM.frameWall, 'Kjedehjulet nederst på Mars-stolpen er for lite til stolpen: øk marsMoons.parallel.postSprocket.');
 }
 
 // Parallellkjedet langs Uranus-armen, som ved Saturn: fra par-uranus til
@@ -941,44 +913,16 @@ export const neptuneChain = makeChain('Kjedet til Triton', layout.center, neptun
   NM.tubeSprocket, NM.collarSprocket, NM.chainPitch);
 {
   const ur = planets.uranus;
-  // (x/y − c/b) · e/f = −c/b  ⇔  (x·b − c·y) · e = −c · y · f
-  const lhs = (UPP.counterTeeth * ur.tubeTeeth - ur.counterTeeth * UPP.tubeTeeth) * UPP.centerSprocket;
-  const rhs = -ur.counterTeeth * UPP.tubeTeeth * UPP.postSprocket;
-  if (!ur.counterTeeth || lhs !== rhs) {
-    throw new Error('uranusPost.parallel: tanntallene gjør ikke at Uranus-stolpen står stille i rommet. Det må gjelde: (parallel.counterTeeth/parallel.tubeTeeth − uranus.counterTeeth/uranus.tubeTeeth) × centerSprocket/postSprocket = −uranus.counterTeeth/uranus.tubeTeeth.');
-  }
-  const root = (chain, r) => r - chain.rollerRadius * 1.1;
-  if (root(uranusParallelChain, uranusParallelChain.radius1) < tube['par-uranus'].outer + 0.2) {
-    throw new Error('Kjedehjulet på par-uranus er for lite til røret: øk uranusPost.parallel.centerSprocket (og tanntallene i tårnet så det går opp).');
-  }
-  if (root(uranusMoonChain, uranusMoonChain.radius1) < tube['drive-uranus'].outer + 0.2) {
-    throw new Error('Kjedehjulet på drive-uranus er for lite til røret: øk iceMoons.uranus.tubeSprocket (og tanntallene, så månene går riktig).');
-  }
-  if (root(neptuneChain, neptuneChain.radius1) < tube['drive-neptune'].outer + 0.2) {
-    throw new Error('Kjedehjulet på drive-neptune er for lite til røret: øk iceMoons.neptune.tubeSprocket (og tanntallene, så Triton går riktig).');
-  }
-  if (root(uranusParallelChain, uranusParallelChain.radius2) < uranusMoonTrain.frameOuter + 0.2) {
-    throw new Error('Kjedehjulet nederst på Uranus-stolpen er for lite til stolpen: øk uranusPost.parallel.postSprocket.');
-  }
+  checkParallel(ur.counterTeeth, ur.tubeTeeth, UPP.counterTeeth, UPP.tubeTeeth, UPP.centerSprocket, UPP.postSprocket,
+    'uranusPost.parallel: tanntallene gjør ikke at Uranus-stolpen står stille i rommet. Det må gjelde: (parallel.counterTeeth/parallel.tubeTeeth − uranus.counterTeeth/uranus.tubeTeeth) × centerSprocket/postSprocket = −uranus.counterTeeth/uranus.tubeTeeth.');
+  checkSprocketFits(uranusParallelChain, uranusParallelChain.radius1, tube['par-uranus'].outer, 'Kjedehjulet på par-uranus er for lite til røret: øk uranusPost.parallel.centerSprocket (og tanntallene i tårnet så det går opp).');
+  checkSprocketFits(uranusMoonChain, uranusMoonChain.radius1, tube['drive-uranus'].outer, 'Kjedehjulet på drive-uranus er for lite til røret: øk iceMoons.uranus.tubeSprocket (og tanntallene, så månene går riktig).');
+  checkSprocketFits(neptuneChain, neptuneChain.radius1, tube['drive-neptune'].outer, 'Kjedehjulet på drive-neptune er for lite til røret: øk iceMoons.neptune.tubeSprocket (og tanntallene, så Triton går riktig).');
+  checkSprocketFits(uranusParallelChain, uranusParallelChain.radius2, uranusMoonTrain.frameOuter, 'Kjedehjulet nederst på Uranus-stolpen er for lite til stolpen: øk uranusPost.parallel.postSprocket.');
 }
 
 // Runder månen går rundt jorda per runde armen tar (månefaser per år).
 export const moonPerYear = (fixed.teeth / pinion.teeth) * (driveSprocket.teeth / moonSprocket.teeth);
-
-// Hvor mange ganger røret går rundt per omdreining av mellomakselen.
-// Motakselen drives fra Saturn-røret (to inngrep, så rørene går samme vei).
-const tubeRate = (p) => {
-  if (p.counterTeeth) return tubeRate(planets.saturn) * (counterDrive.saturnTeeth / counterDrive.shaftTeeth) * (p.counterTeeth / p.tubeTeeth);
-  return p.layTeeth
-    ? (outerDrive.driveSprocket / outerDrive.idlerLarge) * (outerDrive.idlerSmall / outerDrive.laySprocket) * (p.layTeeth / p.tubeTeeth)
-    : p.driveTeeth / p.tubeTeeth;
-};
-
-// Omløpstiden i år for en planet, slik tanntallene gir den. Mellomakselen går
-// bigGear/smallGear ganger per år.
-export function planetPeriod(name) {
-  return (smallGear.teeth / bigGear.teeth) / tubeRate(planets[name]);
-}
 
 const directionFrom = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
 const driveToCenter = directionFrom(layout.drive, layout.center);
@@ -1190,8 +1134,8 @@ export const saturnBandOf = { enceladus: 'A', titan: 'B', iapetus: 'C' };
 // sett ovenfra fra Saturn: lengden i verden, og omvendt.
 // (inPlane deler på cos(tilt), så den stemmer også når helningen er over 90°,
 // som for Uranus. Under 90° gir den det samme som før.)
-export const projected = (axis, psi) => axis.poleWorld + Math.atan2(Math.sin(psi), Math.cos(psi) * Math.cos(axis.tilt));
-export const inPlane = (axis, world) => {
+const projected = (axis, psi) => axis.poleWorld + Math.atan2(Math.sin(psi), Math.cos(psi) * Math.cos(axis.tilt));
+const inPlane = (axis, world) => {
   const phi = world - axis.poleWorld;
   return Math.atan2(Math.sin(phi), Math.cos(phi) / Math.cos(axis.tilt));
 };
@@ -1269,7 +1213,7 @@ for (const name of uranusMoonNames) {
 // vårjevndøgnsretningen på startdatoen. Vårjevndøgnsretningen ligger i jordas
 // ekvatorplan, 90° før retningen aksen heller mot; i den skrå gruppa er det −90°.
 phases.earthSpin = 0;
-export const earthSpinTarget = gmst(startDate) - Math.PI / 2;
+const earthSpinTarget = gmst(startDate) - Math.PI / 2;
 phases.earthSpin = wrap(earthSpinTarget - anglesWith(0, phases).earthSpin);
 
 export const anglesAt = (input) => anglesWith(input, phases);
@@ -1481,9 +1425,8 @@ export const heights = (() => {
   return h;
 })();
 
-// Jordstolpen: rotasjonen, føringsringen og foten (earthDesign.js, ruta
-// earthDay.model). Gir feilmelding hvis bodies.height er for lav til det som står under jorda.
-export const earthTrain = earthDesign(ED.model, {
+// Jordstolpen: rotasjonen, føringsringen og foten (earthDesign.js). Gir feilmelding hvis bodies.height er for lav til det som står under jorda.
+export const earthTrain = earthDesign({
   heights, armLengths, layout, tube, armParts, H: bodies.height,
   node: moonRing.node - earthAxis.direction, dayChain: earthDayChain,
 });
@@ -1503,7 +1446,6 @@ const tiltedToPost = (tiltAngle) => (x, s, z = 0) => ({
 });
 export const saturnToPost = tiltedToPost(saturnTilt);
 export const marsToPost = tiltedToPost(marsTilt);
-export const uranusToPost = tiltedToPost(uranusTilt);
 
 // Braketten ved Mars (knekt): fra toppen av stolperøret vannrett ut til siden
 // (+z, motsatt av mellomhjulet og på tvers av drivakselen), rett opp, og

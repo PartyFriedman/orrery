@@ -4,7 +4,7 @@ import * as THREE from 'three';
 const involute = (angle) => Math.tan(angle) - angle;
 
 // Lager det flate omrisset av ett tannhjul (tenner, hull og eiker).
-export function createGearShape({
+function createGearShape({
   teeth,
   module,
   pressureAngle,
@@ -81,7 +81,7 @@ export function createGearShape({
 
 // Lager det flate omrisset av et kjedehjul: runde seter der rullene i kjedet
 // ligger, med tenner imellom som smalner av utover.
-export function createSprocketShape({
+function createSprocketShape({
   teeth,
   pitchRadius,   // der midten av rullene ligger
   rollerRadius,
@@ -227,7 +227,9 @@ export function extrudeFlat(shape, thickness, chamferSetting = 0) {
     // enn tannprofilen (og tennene dermed ikke kan overlappe).
     bevelOffset: -chamfer,
     bevelSegments: 1, // ett trinn = en ren, skrå flate (ikke avrundet)
-    curveSegments: 48,
+    // Buene (hull, eikevinduer, armender) får 2 × curveSegments punkter hver;
+    // et helt hull får da 48 hjørner, finere enn akslene (32) som går gjennom.
+    curveSegments: 24,
   });
 
   // Legg hjulet flatt, med undersiden på y = 0.
