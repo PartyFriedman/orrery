@@ -12,6 +12,18 @@ export const time = {
   start: 2,           // farten når siden åpnes (0 = står stille)
 };
 
+// Fokus: klikk eller trykk på en planet eller måne, så glir kameraet over til
+// den og følger den. Man kan fortsatt dreie og zoome rundt den. Klikk på sola
+// gir tilbake til utgangspunktet.
+export const focus = {
+  glide: 1.2,         // sekunder: overgangen til et nytt fokus (og tilbake)
+  fill: 0.3,          // hvor stor del av den korteste skjermsiden kula fyller
+  size: { saturn: 2.2, uranus: 2.1 }, // valgfritt: kula regnes så mange ganger større (ringene hører med)
+  hitRadius: 22,      // piksler: minste treffområde rundt en kule, så små måner kan treffes med en finger
+  clickMove: 8,       // piksler: flytter pekeren seg lenger, er det et dra og ikke et klikk
+  clickTime: 500,     // millisekunder: holdes den lenger, er det ikke et klikk
+};
+
 // Inngangen: mellomakselen driver alt. All bevegelse følger av tanntallene.
 export const drive = {
   distance: 40,      // avstanden fra mellomakselen (og forlegsakselen) til sentrum; alle hjulpar og begge kjedene nederst må nå over den
@@ -684,7 +696,7 @@ export const bodyLooks = {
   mars:      { color: '#c06a43', pattern: 'quads', subdivisions: 3, seamWidth: 0.01 },  // rustrød, 54 firkanter
   phobos:    { color: '#8e8174', pattern: 'quads', subdivisions: 1 },      // gråbrun
   deimos:    { color: '#a39888', pattern: 'quads', subdivisions: 1 },      // gråbrun
-  jupiter:   { color: '#d9b88f', pattern: 'bands', subdivisions: 3 },      // beige, 7 bånd à 16 firkanter, og en 16-kant over hver pol
+  jupiter:   { color: '#d9b88f', pattern: 'pentagons', subdivisions: 1 },      // beige, 7 bånd à 16 firkanter, og en 16-kant over hver pol
   io:        { color: '#e6d46e', pattern: 'quads', subdivisions: 1 },      // svovelgul, 6 firkanter
   europa:    { color: '#e3d8c0', pattern: 'quads', subdivisions: 1 },      // lys krem
   ganymede:  { color: '#a79a88', pattern: 'quads', subdivisions: 1 },      // gråbrun
@@ -723,7 +735,7 @@ export const blur = {
 // Fargen som skiller seg ut i mekanikken (blank lakk): de tynne ringene der
 // planetstolpene møter armene, og mellomhjulet ved Neptun.
 export const accent = {
-  color: '#f3f595',
+  color: '#9c2611',
   roughness: 0.2, gloss: 1, glossRoughness: 0.05,  // blank lakk
   ringWidth: 0.16,        // tykkelsen på ringen rundt planetstolpene
 };

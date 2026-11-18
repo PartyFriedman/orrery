@@ -28,6 +28,9 @@ import {
 } from './mechanism.js';
 import { daysPerYear } from './ephemeris.js';
 import { createTimeControl } from './timeControl.js';
+import { createFocus } from './focus.js';
+import { createPicking } from './picking.js';
+import { createFocusPanel } from './focusPanel.js';
 
 // Hvor langt ut og opp modellen rekker, så kamera og lys kan tilpasses.
 const reach = Math.max(...Object.values(armReach).map((r) => r.outer));
@@ -54,6 +57,7 @@ function fitCamera() {
   camera.position.copy(cameraDirection).multiplyScalar(distance).add(cameraTarget);
 }
 fitCamera();
+const home = { target: cameraTarget.clone(), position: camera.position.clone() }; // startbildet (focus.js)
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.copy(cameraTarget);
@@ -109,11 +113,15 @@ const turnsWith = (group, key) => {
 // Sola bruker den samme kula med andre materialer.
 // Med mønsteret 'plexusA', 'plexusB' eller 'plexusC' blir kula en plexus-kule
 // (plexus.js) i stedet. Andre tall i blokka erstatter dem i plexus i config.
+// Alle kulene, sola inkludert, havner også i spheres (navn: gruppe og radius),
+// så de kan velges med klikk (picking.js) og kameraet kan følge dem (focus.js).
 const plexusUpdates = []; // flytter nodene i plexus-kulene, se animasjonen nederst
+const spheres = {};
 let earthSurfaceMaterials = null;
 function addPlanetSphere(parent, radius, name, topMaterial = bodyMaterial(name), coreMaterial = mat.metal) {
   const group = new THREE.Group();
   parent.add(group);
+  spheres[name] = { object: group, radius };
   const { pattern, ...overrides } = bodyLooks[name] ?? {};
   if (pattern === 'continents') {
     // Jorda med landmasser (earthSurface.js), i fargene til havet, landet og isen.
@@ -1025,6 +1033,16 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// Fokus: klikk eller trykk på en kule, så glir kameraet over til den og følger
+// den (focus.js), og navnet vises øverst (focusPanel.js). Sola gir tilbake til
+// startbildet.
+const cameraFocus = createFocus({ camera, controls, bodies: spheres, home });
+const focusPanel = createFocusPanel();
+createPicking(camera, renderer.domElement, spheres, (name) => {
+  cameraFocus.select(name);
+  focusPanel.show(cameraFocus.selected);
+});
+
 // Animasjon: tiden går med farten fra glidebryteren, og inngangsvinkelen
 // følger av den. Hver del får vinkelen mekanismen regner ut fra tanntallene.
 const timeControl = createTimeControl();
@@ -1055,6 +1073,8 @@ renderer.setAnimationLoop((time) => {
   // også når tiden står stille, så sporene forsvinner.
   updateBlur();
 
+  // Kameraet følger kroppen i fokus, etter at delene har fått sine vinkler.
+  cameraFocus.update(seconds);
   controls.update();
   renderer.render(scene, camera);
 });
