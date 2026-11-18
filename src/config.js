@@ -721,6 +721,8 @@ export const bodyLooks = {
   oberon:    { color: '#a1968a', pattern: 'quads', subdivisions: 1 },      // gråbrun
   neptune:   { color: '#5577c9', pattern: 'rhombi', subdivisions: 2 },     // blå, 120 ruter
   triton:    { color: '#d9c7c1', pattern: 'quads', subdivisions: 1 },      // rosagrå
+  // Planeten på testsiden trisolaris.html (se trisolaris under).
+  trisolaris: { color: '#8aa6a3', pattern: 'facets', subdivisions: 30 },  // grågrønn, 56 fasetter
 };
 
 // Raske deler (månene, Saturns bånd og stag, hjulene og kjedene ved månene)
@@ -793,4 +795,55 @@ export const plexus = {
     depth: 0.08,          // hvor mye punktene ligger over og under kula (andel av radius)
     seed: 3,
   },
+};
+
+// Trisolaris: et fiktivt system på testsiden trisolaris.html (ikke i modellen).
+// Tre like soler går etter hverandre i åttetallsbanen (figureEight.js), en
+// tredjedels runde fra hverandre, og én planet går rundt alle tre.
+// Hver sol står på sin egen sleidemaskin:
+//   X-sleiden glir i x og drives av en sveiv (θ), Y-sleiden glir i z og drives
+//   av en sveiv som går dobbelt så fort (2θ, hjultoget nederst). En tapp går
+//   gjennom slissene i begge sleidene, og den følger åttetallet.
+//   Korreksjonshjulene: sveivtappen sitter eksentrisk på et lite hjul som
+//   ruller rundt et fast hjul (en episykel). Det gir 5θ på x og 4θ på z.
+// Sol B står på en stav fra maskinen sin i +z, sol A på en stav fra maskinen i
+// −z ett nivå lavere, og sol C henger ned fra en maskin over banen. Maskinen
+// over henger i et stativ med fire stolper og to bjelker. Planeten står på en
+// ring med tenner på innsiden, i høyde med solene, holdt av ruller på
+// stolpene og drevet fra den loddrette akselen ved den ene stolpen.
+// Alt drives fra én akselstreng langs gulvet med vinkelgir.
+// Mål i mm som i modellen. Nivåene, hvor maskinene og stativet står, og alle
+// moduler regnes ut (trisolarisDesign.js), med feilmelding når noe ikke passer.
+export const trisolaris = {
+  halfWidth: 15,        // halve bredden på åttetallet (halve høyden blir 0,33 av dette)
+  sunRadius: 3.2,       // solene (minste avstand mellom to soler er 0,64 · halfWidth)
+  roundTime: 30,        // sekunder per runde i åttetallet
+  variant: 'C',         // varianten siden starter med (?v=A i adressen velger en annen)
+  variants: {           // leddene på x og z: 1 og 2 er sleidene, 5 og 4 korreksjonshjulene
+    A: { x: [1], y: [2], title: 'A: to sleider', note: 'sveivene θ og 2θ' },
+    B: { x: [1], y: [2, 4], title: 'B: + 4θ', note: 'ett korreksjonshjul, på 2θ-sveiven' },
+    C: { x: [1, 5], y: [2, 4], title: 'C: + 5θ', note: 'to korreksjonshjul' },
+  },
+  clearance: 0.3,       // minste klaring mellom deler som ikke skal berøre hverandre
+  levelGap: 0.35,       // luft mellom nivåene i hver maskin (minst clearance, så delene går klar over hverandre)
+  gearThickness: 0.5,   // tannhjulene i episyklene og vinkelgirene
+  epicycles: {          // [det faste hjulet, planethjulet]: 1 + fast/planet = 5 og 2 · (1 + fast/planet) = 4
+    x5: { fixedTeeth: 64, planetTeeth: 16 },
+    y4: { fixedTeeth: 20, planetTeeth: 20 },
+  },
+  train: { xTeeth: 40, idlerTeeth: 30, yTeeth: 20, thickness: 0.6 },  // 1:2 nederst, med mellomhjul (samme retning)
+  crank: { shaftRadius: 0.35, tubeWall: 0.25, rootHalf: 1, endRadius: 0.6, thickness: 0.5, fillet: 1, chamfer: 0.1 },
+  pin: { radius: 0.25, play: 0.05 },      // tappene; slissene er 2 · (radius + play) brede
+  pinDisc: { thickness: 0.3, margin: 0.3 },  // skiva over armen med den eksentriske tappen
+  slide: { width: 1.6, thickness: 0.5, endMargin: 0.6, chamfer: 0.08 },  // endMargin: fra slissen ut til enden
+  rail: { radius: 0.2, sleeveWall: 0.15, sleeveLength: 1.4, overrun: 0.8, postRadius: 0.25 },  // skinnene og hylsene på sleidene
+  link: { width: 1.2, thickness: 0.5 },   // staven fra utgangstappen til solstolpen (A og B)
+  post: { radius: 0.3, lift: 1.5 },       // solstolpene; lift: hvor mye lenger de er enn det minste
+  plate: { thickness: 0.5, width: 1.4, legRadius: 0.5, chamfer: 0.1 },  // rammen under hver maskin (flate stenger)
+  line: { height: 1.8, radius: 0.3, bevelTeeth: 14, bevelModule: 0.18, bearingSpacing: 14 },  // akselstrengen langs gulvet
+  topBevel: { beamTeeth: 24, towerTeeth: 12, module: 0.15 },  // fra bjelkeakselen ned i maskinen over (1:2)
+  frame: { radius: 0.8, beamRadius: 0.7, hangerRadius: 0.35 },  // stativet: stolpene, bjelkene og hengerne
+  ring: { teeth: 120, pinionTeeth: 12, width: 2.4, thickness: 0.6, rollerRadius: 0.5, rollerWidth: 0.5, rollerSpread: 10 },  // rollerSpread: grader mellom rulleparene ved hver stolpe
+  planet: { radius: 1.6, postRadius: 0.2, lift: 0.6, startAngle: -50 },  // planeten (utseendet står i bodyLooks.trisolaris); startAngle: der den står ved start, i grader
+  trace: { show: true, radius: 0.05, color: '#f3f595' },  // den eksakte banen som en tynn linje
 };
