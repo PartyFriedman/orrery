@@ -1,4 +1,4 @@
-# Handoff: orrery (mekanisk solsystem i three.js) – 17.11.2026
+# Handoff: orrery (mekanisk solsystem i three.js) – 18.11.2026
 
 ## Prosjekt og status
 - Mappe: `c:\Users\oyvin\Desktop\Projects\Vibekoding\claudecode_VScode\orrery` (Vite + three.js, `npm run dev` / `npm run build`). Repo: PartyFriedman/orrery, publiseres til GitHub Pages fra `main` via `.github/workflows/deploy.yml` (base `/orrery/` i `vite.config.js`).
@@ -10,7 +10,9 @@
   - PR #11 (`Ice-Giants`): Uranus og Neptun uten måner.
   - PR #12 (`Ice-giant-moons`, commit «Add moons to ice giants»): månene til Uranus og Neptun (alternativ B), farger på kulene, `npm run check` delt i rask og full, festesjekken, og den raskere simuleringen B. `src/cord.js` er slettet og `scripts/lastCheck.json` ligger i `.gitignore`.
   - PR #13 (`earth-rotation`): jorda roterer med ekte hjulverk, har landmasser, og en føringsring med en gaffel med ruller (se Jorda).
-- Gren `cleanup` (ikke committet, 17.11): rydding og optimalisering, se Ryddingen 17.11 under. `npm run check:full` sier «Alt i orden».
+- Ryddingen 17.11 (se under) og PR #15–16 (fokus og drivvisning) er merget.
+- Testsiden trisolaris.html og flyttingen av kulekoden til `src/sphere.js` er committet («Add trisolaris test page»), og panorering i fokus også («Add right click navigation»).
+- **Ikke committet (18.11, på grenen `Microinteractioon`):** mikrointeraksjonen på kulene (se Mikrointeraksjon under). Modellen er bevist uendret når ingenting er løftet: fingeravtrykket (md5) av hele `root` bygget i Node med låst dato (geometri, materialer, matriser og lys) var likt før og etter (`9f720ec1…`), og `npm run check` sier «Alt i orden». Datoen må låses (`config.time.startDate` før model.js importeres), ellers flytter klokkeslettet matrisene.
 - `git stash list` har fortsatt `stash@{0}`: den forkastede versjonen med snorer og hjultog for månene. Den trengs ikke; slett den med `git stash drop` når brukeren vil.
 - Utseendet til hver kule står i `bodyLooks` i config (én blokk per kule: farge, lakk, mønster, og solas stil og glød), og `accent` er fargen på ringene ved stolpene.
 
@@ -22,6 +24,40 @@
 - Endret med vilje (E): alle stag er hvit lakk (stilguiden har fått regelen), sola bruker den glødende kjernen og glasset kaster ingen skygge, `segDist` er rettet (én funksjon i segments.js, brukt av mechanism.js, iceMoons.js og clearance3d.mjs), og buene på hjul, armer og kjedeplater har færre segmenter (`curveSegments` 24 og 6, før 48 og 12): ca. 23 % færre trekanter per bilde.
 - Raskere lasting: landmassene (`fillRegion`) går bare gjennom trekantene som fortsatt er for store (samme trekanter, ca. 0,6 → 0,2 s). Plexus-kuler uten `nodeSize`/`edgeWidth` lager ingen noder eller stenger (før NaN-geometri og feil i konsollen).
 - Bevist uendret: skjermbilder fra 9 vinkler og de tre testsidene var like piksel for piksel etter alt unntatt E, og `check:full` skrev det samme.
+
+## Trisolaris (testsiden trisolaris.html, 18.11)
+Et fiktivt system: tre like soler går etter hverandre i åttetallsbanen (Chenciner–Montgomery), en tredjedels runde fra hverandre, og én planet går rundt alle tre. Alle tall står i `trisolaris` i config, og planeten har `bodyLooks.trisolaris`. Brukeren valgte: to soler nedenfra og én ovenfra (banen er helt flat), variantene kan byttes, og korreksjonen er en episykel på sveiven.
+- **Banen** (`src/figureEight.js`): integreres fra startverdiene ved lasting (ca. 30 ms), og deles i Fourier-ledd. Leddene i 3θ og 6θ er null (tyngdepunktet står stille). Med halv bredde 1 er x = 1,018 sin θ − 0,0235 sin 5θ − 0,0054 sin 7θ … og z = 0,313 sin 2θ + 0,052 sin 4θ − 0,0028 sin 8θ …; halve høyden er 0,331, og minste avstand mellom to soler er 0,639.
+- **Variantene** (største feil ved halv bredde 15): A to sleider 0,86 (5,8 %), B + 4θ 0,43 (2,8 %), C + 4θ og 5θ 0,09 (0,6 %). D (7θ og 8θ) bygges ikke: nestede hjul ville fått en senteravstand lik koeffisienten (0,35 og 0,08).
+- **Sleidemaskinen** (lik for alle tre):
+  - X-tårnet (sveiv θ, armlengde a1) sveiver X-sleiden, en slisset stang langs z som glir i x. Sveivtappen og utgangstappen går i samme sliss.
+  - Y-tårnet (2θ, armlengde b2) sveiver Y-sleiden langs x, ett nivå over.
+  - Hjultoget nederst (40, mellomhjul 30, 20) gir 1:2 i samme retning.
+  - Korreksjonshjulene: et planethjul på enden av armen ruller rundt et fast hjul på tårnet (64:16 gir 5θ, 20:20 gir 4θ). Tappen sitter eksentrisk på en skive over armen.
+  - Utgangstappen går gjennom begge slissene.
+- **Hvor maskinene står** (bevist i figureEight.js-regningen og med sjekken):
+  - Sett fra en sol er naboen en tredjedel foran aldri rett i +z, og naboen bak aldri rett i −z. Ingen retning er fri for begge, så alle tre kan ikke stå nedenfra i samme plan.
+  - B står i +z, med en stav inn til sol B.
+  - A står i −z, ett nivå lavere (staven går under stolpe B), og er en tredjedel foran B.
+  - C henger opp ned rett over banen, i et stativ med fire stolper og to bjelker.
+- **Drivet:** én akselstreng langs gulvet (x = 0) med vinkelgir inn i X-tårnene i A og B. En gren går ut til den loddrette akselen ved stolpe 2, og derfra går bjelkeakselen inn i Y-tårnet i C (1:2). Sidene til vinkelgirene velges i designet så alle X-tårnene går +1.
+- **Planeten:** står på en ring med innvendige tenner (120) i høyde med solene. Ringen er drevet av en pinjong (12) på den loddrette akselen og holdt av rullepar på de to fremre stolpene. Planeten går én runde per 10 runder i åttetallet.
+- **Filene:**
+  - `src/trisolarisDesign.js`: ren matematikk med målene, nivåene, `stateAt(θ, variant)` og én delliste (`partsFor`) med tegning og bevegelse, som både tegningen og sjekken bruker. Lista har også `touching` (deler som skal berøre hverandre) og `mounts` (festene).
+  - `src/trisolarisBuild.js`: three.js fra dellista.
+  - `src/trisolarisTest.js` + `trisolaris.html`: siden. Panelet har knappene A/B/C og «Bane», med feilen, antall deler og omløpstiden til planeten. Adressen tar `?v=B`, `?t=12`, `&stop`, `&cam=x,y,z&target=x,y,z` og `&trace=0`.
+  - `src/sphere.js`: `createBodySphere` og `createSun`, felles med model.js.
+- **`npm run check:trisolaris`** (ca. 2 s; `node scripts/checkTrisolaris.mjs 3600` er tettere og tar ca. 12 s) sjekker:
+  - banen fra mekanikken mot den eksakte, per variant (stemmer med Fourier-feilen)
+  - fartene (5, 4 og 2) og dreieretningene gjennom alle vinkelgirene
+  - klaringen 0,3 mellom alle deler i 2,5D (loddrette sylindre og liggende staver), over en runde, og for ringen og planeten over hele omløpstiden til planeten
+  - festene, og antall deler per variant
+
+  Den fant og fikk rettet at planeten traff de øvre rullene ved stolpene. Nå er de trangeste klaringene 0,30 (pinjongen mot stolpe 2, planeten mot rullene). Stolpe A har minst 4,9 til noe i maskin B.
+- **Størrelsen:**
+  - Med halv bredde 15 er baneplanet i høyde 17,5. Maskinene står 13,6 fra midten, og stolpene i x = ±33,3.
+  - Planeten står 40,9 fra midten. Alt er innenfor radius 54 og 33 høyt.
+  - Delene: A 216, B 228, C 240 (uten kulene).
 
 ## Arbeidsregler (fra brukeren)
 - Svar på norsk. Forklar kort hva som endret seg.
@@ -41,12 +77,15 @@
 - `src/materials.js`, `src/scene.js`, `src/build.js`, `src/segments.js`: se Ryddingen 17.11.
 - `src/mechanism.js`: ren matematikk uten three.js. Pakker armlengder automatisk, ordner rørene, regner ut høyder, akselposisjoner og kjeder (`makeChain`), og alle vinkler fra inngangen (`anglesAt`). Har feilmeldinger når noe ikke passer.
 - `src/main.js`: renderer, scene, kamera, fokus, panelene og animasjonen.
+- `src/sphere.js`: kulene (paneler, plexus, landmasser) og sola, brukt av model.js og trisolaris.
+- `src/figureEight.js`, `src/trisolarisDesign.js`, `src/trisolarisBuild.js`, `src/trisolarisTest.js`, `trisolaris.html`, `scripts/checkTrisolaris.mjs`: se Trisolaris.
 - `src/model.js`: alle delene, i gruppen `root`, uten DOM (så `npm run check` kan bygge modellen i Node). `addGear`, `addSprocket`, `addChain`, `addArm`, `addPlanetSphere`, `addSun`, `addTowerTube`, `turnsWith`. Gir `root`, `spheres`, `plexusUpdates`, `turning` og `update(years)`.
 - `src/drives.js`: merkene for drevene (`drives`, `drivesOf`, `bodyOf`, `moonsOf`, `system`, `ALL`). `src/driveView.js`: drivvisningen (se Fokus).
 - `src/ephemeris.js`: middellengder for planetene (JPL, Standish tabell 1, også Uranus og Neptun), polene til Mars og Uranus (IAU), månen og knutelinjen (Meeus), Jupiters måner (Lieske via Meeus kap. 44, B1950 + 0,698° presesjon til J2000), og Saturns, Mars', Uranus' og Neptuns måner (JPL-middelelementer, lavpresisjon; Triton baklengs). `daysPerYear` = 365,256 (én runde for jorda).
 - `src/iceMoons.js`: geometrien for månene til Uranus og Neptun som ren matematikk (`uranusDesign`, `neptuneDesign`, `uranusParts`, `neptuneParts` for avstandssjekkene, `partReach`). Den importerer ikke `mechanism.js`; `mechanism.js` bruker den og sender inn `uranusTrain`, `armParts` og høydene ved armen.
 - `src/timeControl.js`: glidebryteren nede på siden (DOM), med dato og fart. Stilen ligger i `src/style.css`.
 - `src/focus.js`, `src/picking.js`, `src/focusPanel.js`: fokus på en kropp (se Fokus).
+- `src/bodyLift.js`: mikrointeraksjonen på kulene (se Mikrointeraksjon).
 - `src/gear.js`: evolventtannhjul, kjedehjul og `extrudeFlat`.
 - `src/arm.js`: armer som smalner av, med myk overgang inn i navet.
 - `src/panels.js`: panelkuler, med mørke fuger. Panelene er buede eller flate.
@@ -55,7 +94,7 @@
   - `delaunayFlip` retter earcut-trekanter.
 - `src/scatter.js`: uregelmessige, jevnt spredte punkter på en kule (`spread`, «best candidate»), trekantene mellom dem (`triangulate`, konvekst skall) og et tilfeldighetstall med seed (`random`). Brukes av `facets` og plexus.
 - `src/plexus.js`: plexus-kulene `plexusA`, `plexusB` og `plexusC` (`createPlexus`). `addPlanetSphere` i `main.js` bruker den når en kule har et plexus-mønster, og animasjonen kaller `plexusUpdates` med vanlig tid.
-- `src/testStage.js`: oppstillingen på panels.html og plexus.html (kamera og navn under hver kule; lys og materialer fra scene.js og materials.js).
+- `src/testStage.js`: oppstillingen på panels.html og plexus.html (kamera og navn under hver kule; lys og materialer fra scene.js og materials.js). `addSlot(tittel, undertittel, radius)` tar radiusen per plass, og `run` gir `update(time, seconds, frame)`, der `frame` er den ekte tiden per bilde (også når bevegelsen er stoppet).
 - `src/ringLayout.js`: hvor båndene og spalten i Saturns ring ligger, og Uranus' tynne ringer (`thinRingLayout`) (ren matematikk). `src/ring.js`: `createAnnulus`, glassmaterialene med kantlys (`createGlassMaterials`) og glassbåndene (`createGlassBands`), brukt av både modellen og rings.html.
 - `src/blur.js`: lysspor, vifter og glatte former for raske deler (se Utseende).
 - `panels.html` + `src/panelTest.js`, `plexus.html` + `src/plexusTest.js` og `rings.html` + `src/ringTest.js`: testsidene (se Testsider).
@@ -164,9 +203,9 @@
 
 ## Fokus og drivvisning (grenene camera-focus og Isolate-view)
 - Klikk eller trykk på en kule, så glir kameraet over til den (`focus.glide` s) og følger den. Klikk på sola gir tilbake til startbildet. Tallene står i `focus` i config.
-- `addPlanetSphere` legger hver kule i `spheres` (navn → gruppe og radius). Det er registeret for valget.
+- `addPlanetSphere` legger hver kule i `spheres` (navn → gruppe, radius og `plexus`, funksjonen som flytter nodene, ellers null). Det er registeret for valget og mikrointeraksjonen.
 - `picking.js`: et klikk er én peker, flyttet under `clickMove` px og sluppet innen `clickTime` ms (`e.timeStamp`). Treffet regnes på skjermen: kula, eller innenfor `hitRadius` px fra sentrum. Treffer pekeren selve kula, vinner den nærmeste.
-- `focus.js`: `update(seconds)` kalles etter at delene har fått vinklene og før `controls.update()`. Den flytter målet til kroppen og kameraet like langt (ingen etterslep, ingen risting). Avstanden er `r·size / sin(atan(fill·tan(fov/2)))`. Med en kropp i fokus er panorering av, `minDistance` er 1,3 r, og `camera.near` følger avstanden.
+- `focus.js`: `update(seconds)` kalles etter at delene har fått vinklene og før `controls.update()`. Den flytter målet og kameraet like langt som kroppen har flyttet seg siden forrige bilde (ingen etterslep, ingen risting). Avstanden er `r·size / sin(atan(fill·tan(fov/2)))`. Med en kropp i fokus virker panorering (høyre knapp): målet blir liggende der man drar det og følger kroppen derfra, så man kan gå langs drivverket. `minDistance` er 1,3 r, og `camera.near` følger avstanden.
 - Panelet øverst på midten viser navnet og en ×-knapp som gjør det samme som et klikk på sola (sola er ofte utenfor bildet når man er tett på). `.focus-info` er tom og klar til mer.
 - **Drivvisning** (bryteren «Drive» i panelet, `driveView` i config): bare drivet fra tårnet til kroppen som er valgt, vises som vanlig. Resten av mekanikken fades til `mechanism`, og de andre kulene dempes til `bodies` (fortsatt klikkbare). Bryteren huskes når man bytter kropp.
   - Hver del er merket med kroppene den driver, der den lages: `drives(del, ...navn)` i model.js og earthBuild.js. En del arver merket fra nærmeste forelder. Regelen: kroppens posisjon eller retning avhenger av delen, eller delen bærer en slik del. `'all'` = sentralakselen og mellomakselen.
@@ -176,6 +215,18 @@
   - `flatBar` og `bracket` i build.js gir tilbake delene, og `drives` tar også en liste.
 - Skjermbilder med låst dato og plexus-tid, og `?focus=navn`, `?drive=1`, `?show=navn` (drivvisning uten å flytte kameraet) og `?cam=x,y,z&target=x,y,z`: lappefil i scratch som i Skjermbilder. Flyttingen til model.js ga like bilder (md5) i fire vinkler. Det første bildet etter at Chrome-profilen er ny, kan avvike; ta det på nytt.
 - Test i hodeløs Chrome: input kommer bare én gang per bilde, og et bilde tar flere sekunder i swiftshader. Sett `clickTime` høyt og `glide` kort i scratch-kopien, og stopp tiden før du klikker på raske måner.
+
+## Mikrointeraksjon (grenen Microinteractioon, 18.11)
+Kulene svarer når man peker på dem (PC) eller trykker på dem (mobil). Kula og kameraet flytter seg ikke. Tallene står i `bodyLift` i config, med løftet som andel av radiusen:
+- **Paneler** (`panels`, 0,04): hvert panel flyttes rett ut langs sin egen retning (midten av panelet). Naboene peker litt ulikt, så fugene åpner seg og kjernen så vidt synes; få, store paneler åpner seg mest.
+- **Jorda** (`land`, 0,03): toppene på land og is heves, og den øvre kanten av sidene følger med, mens den nedre står fast i havet. Sidene strekkes og får nye flatenormaler mens de beveger seg. Den glatte kula mot flimring (`createSpinBlur`, synlig ved startfarten) heves like mye, så landet ikke stikker gjennom; den ligger utenfor kula og er registrert som `spheres.earth.also`.
+- **Plexus** (`plexus`, 0,05, sola i dag): nodene skyves ut fra sentrum (`open` på funksjonen fra `createPlexus`). Ved A og B følger stengene og fasettene etter, og kjernen står. Ved C ganges punktene ut, og `linkDistance` er uendret, så noen linjer slipper.
+- **Tiden:** `timeIn` (0,15 s) og `timeOut` (0,3 s). Framdriften går lineært, og det som vises er smoothstep av den, så det rykker ikke om pekeren går bort midt i. `tapHold` (0,1 s): hvor lenge kula står åpen etter et trykk.
+- **PC:** kula står åpen så lenge musepekeren er over den. `picking.update()` regner ut kula under pekeren hvert bilde, fordi planetene flytter seg under en stille peker; mens en knapp er nede, står det som det står. Håndpekeren settes samme sted.
+- **Mobil:** `onPick(navn, pointerType)`. Når det ikke var mus, åpner og lukker `bodyLift.pulse` kula i tillegg til valget.
+- **Retningene:** `geometry.userData.liftDirs` (Float32Array i samme rekkefølge som `position`) og `liftKind` (`'panels'` eller `'land'`) lages i `createPanelGeometry` og `createEarthSurface`. `liftNormals: true` på sidene ved jorda.
+- **`src/bodyLift.js`** (uten DOM): `createBodyLift(spheres)` med `hover(navn)`, `pulse(navn)` og `update(sekunder)`. Posisjonene skrives om på CPU bare mens en kule beveger seg, så skyggene følger med. Når kula er lukket, settes utgangsposisjonene (og normalene) eksakt tilbake; det er prøvd i Node for Mars, Fobos, Iapetus, jorda og Jupiter. `boundingSphere` er gjort større med løftet, så kula ikke klippes i kanten av bildet.
+- `main.js` kaller `picking.update()` og `bodyLift.update(seconds)` etter `model.update` og før plexus-oppdateringene (som leser `open`).
 
 ## Utseende
 - **Armene:** `armStyle` styrer avsmalning, overgang, nav som stikker opp og ned, og krage. En tynn rød ring der planetstolpen møter armen.
@@ -192,7 +243,7 @@
 - **Farger:**
   - `accent.color` er fargen som skiller seg ut i mekanikken (i dag `#f3f595`): ringene ved stolpene og mellomhjulet ved Neptun.
   - `bodyLooks.<kule>.color` er fargen på hver kule, sola inkludert, i dempede, ekte toner. Jorda har `color` (havet), `land` og `ice`. Fugene er mørkt metall. Kuler uten blokk blir hvite.
-  - `createBodyMaterials` i materials.js lager ett materiale per navn. panels.html, plexus.html og rings.html er hvite.
+  - `createBodyMaterials` i materials.js lager ett materiale per navn. panels.html viser kulene i fargene sine; plexus.html og rings.html er hvite.
   - Alt i mekanikken er hvit lakk, også alle stag (stilguiden). Mørkt metall: fugene og kjernene i kulene, kjedene, kula i kryssleddet ved Mars, og rullene og rulleakslene på foten ved jorda.
 - **Sola:** `bodyLooks.sun.style` er `'lacquer'` eller `'glass'`. Glass har en glødende kjerne og et lys innenfra (`glow` og `glowParts`), og glasset kaster ingen skygge.
 - **Mot flimring** (`blur` i config, `src/blur.js`): hver rask del måles hvert bilde (grader dreid siden forrige bilde). Over `threshold` (4°) tones det inn over `fade` (8°):
@@ -206,8 +257,9 @@
 
 ## Testsider
 - Åpnes med `npm run dev`:
-  - `http://localhost:5173/orrery/panels.html`: én kule per panelmønster.
-  - `http://localhost:5173/orrery/plexus.html`: plexus A, B og C.
+  - `http://localhost:5173/orrery/panels.html`: ekte kuler i modellstørrelse (radius, farge og mønster fra config): Merkur, Venus, jorda, Mars, Jupiter, Saturn, Uranus, trisolaris-planeten, månen, Io, Iapetus og Fobos, med mikrointeraksjonen (pek med musa, eller trykk). De gamle mønsterprøvene (bånd, båter, volleyball, spiral, polarhetter, flettet, nesten glatt, fasetter 30/80/200) er byttet ut; mønstrene finnes fortsatt i panels.js.
+  - `http://localhost:5173/orrery/plexus.html`: plexus A, B og C, også med mikrointeraksjonen.
+  - `http://localhost:5173/orrery/trisolaris.html`: tre soler i åttetallsbane (se Trisolaris).
   - `http://localhost:5173/orrery/rings.html`: Saturns ring i fire varianter (A satin, B instrument, C glass som i modellen, D blanding), hver stor og i samme størrelse som i modellen, med kameraet som går rundt. `?t=15&stop` står stille 15 s ut i runden. Hver rute tegner sin bit av gradienten, så glasset har noe å se gjennom.
 - Klikk stopper eller starter bevegelsen, og dra for å se fra andre vinkler.
 - Testsidene er ikke med i `npm run build`, så de kommer ikke på GitHub Pages. `vite preview` viser modellen i stedet for dem; bruk dev-serveren.
@@ -271,6 +323,15 @@
 - Plexus-kuler i modellen: `npm run check` regner kula som glatt med planetens radius, men nodene stikker litt utenfor (ca. 0,14 på Jupiter med B). Det spiser av klaringen på 0,3 mot Io. Overlappen er bare visuell, men sjekken fanger den ikke opp.
 
 ## Mulige neste steg
+- **Mikrointeraksjonen:**
+  - Prøv tallene i `bodyLift` i nettleseren og på mobil (`npm run dev -- --host`).
+  - På plexusA (sola) henger fasettene sammen i nodene, så kula bare sveller litt og kjernen synes ikke. Vil man se kjernen, må fasettene krympe mot midten sin eller skilles i tillegg.
+  - Klikk på en kule på testsidene stopper eller starter også dreiningen.
+- **Trisolaris:**
+  - Se over siden i nettleseren.
+  - Maskinene er store fordi X-sveiven er like lang som halve bredden (15). Det faste hjulet til 5θ har radius 12.
+  - Rammen i C henger i bjelkene bare langs kantene; vurder stag.
+  - Banen er satt i gang med θ jevnt i tid, som er riktig for den ekte banen (Fourier i tid).
 - **Farger på kulene** (stilguiden): fargene står i `bodyLooks` (dempede, ekte toner). Se over dem i nettleseren og juster; testsidene panels, plexus og rings er fortsatt hvite.
 - **favicon.svg** er fortsatt Vite-logoen (brukeren tar den senere).
 - **Uranus og Neptun:** se på månene, vinkelgiren, lagrene og føringsringen fra alle kanter i nettleseren. Hjulparene under Uranus er store fordi forlegsakselen ligger 7,7 under aksen; `uranusRing.scale` og `reachGap` kan gjøre modellen smalere.

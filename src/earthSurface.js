@@ -177,6 +177,21 @@ const outward = (pos) => {
   return pos;
 };
 
+// Retningene bodyLift.js hever land og is langs: rett ut fra sentrum for hjørnene
+// over `above`, ingen for resten (den nedre kanten av sidene står fast i havet,
+// så sidene strekkes). stretch: sidene, som trenger nye normaler når de strekkes.
+function liftable(mesh, above, stretch) {
+  const p = mesh.geometry.attributes.position.array;
+  const dirs = new Float32Array(p.length);
+  for (let i = 0; i < p.length; i += 3) {
+    const len = Math.hypot(p[i], p[i + 1], p[i + 2]);
+    if (len <= above) continue;
+    dirs[i] = p[i] / len; dirs[i + 1] = p[i + 1] / len; dirs[i + 2] = p[i + 2] / len;
+  }
+  Object.assign(mesh.geometry.userData, { liftDirs: dirs, liftKind: 'land', liftNormals: stretch });
+  return mesh;
+}
+
 // Kula med landmasser: havet som en glatt kule, og land og is som plater som
 // står height opp, med fas: toppen krympet chamfer inn, og en skrå kant ned til havet.
 export function createEarthSurface(radius, materials = createSurfaceMaterials()) {
@@ -193,9 +208,9 @@ export function createEarthSurface(radius, materials = createSurfaceMaterials())
       fillRegion(topRegion, radius + height, tops, tn);
       ribbon(topRegion.outline, radius + height, insetRegion(r, 0).outline, radius - 0.01, sides);
     }
-    group.add(meshOf(outwardWith(tops, tn), tn, materials[kind]));
+    group.add(liftable(meshOf(outwardWith(tops, tn), tn, materials[kind]), 0, false));
     const s = outward(sides);
-    group.add(meshOf(s, flatNormals(s), materials[kind]));
+    group.add(liftable(meshOf(s, flatNormals(s), materials[kind]), radius, true));
   }
   return group;
 }
@@ -233,6 +248,7 @@ export function createSpinBlur(parent, radius) {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.visible = false;
   mesh.userData.blur = true; // ikke mekanikk (drives.js og driveView.js)
+  liftable(mesh, 0, false); // heves like mye som landet (bodyLift.js), så landet ikke stikker gjennom
   parent.add(mesh);
   return {
     mesh,

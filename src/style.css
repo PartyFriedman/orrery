@@ -13,9 +13,11 @@ canvas {
 /* Glidebryteren for tid: et lite panel i mørkt metall nede på midten, med
    satengmatt hvit knott. --metal og --white settes fra look i config.js.
    Panelet er dempet til man peker på det eller bruker det.
-   Fokuspanelet øverst (navnet på kroppen som er valgt) har samme stil. */
+   Fokuspanelet øverst (navnet på kroppen som er valgt) og panelet på
+   testsiden trisolaris.html har samme stil. */
 .time-control,
-.focus-panel {
+.focus-panel,
+.tri-panel {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
@@ -212,4 +214,75 @@ canvas {
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, var(--white), color-mix(in srgb, var(--white) 72%, var(--metal)));
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+}
+
+/* Panelet på testsiden trisolaris.html: øverst på midten, med knappene for
+   variantene og banen, og tallene under. Knappen som er valgt er hvit. */
+.tri-panel {
+  top: 16px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.9;
+}
+.tri-panel:hover,
+.tri-panel:focus-within {
+  opacity: 1;
+}
+.tri-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+.tri-title {
+  margin-right: 6px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+.tri-button {
+  min-width: 28px;
+  height: 24px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--white) 8%, transparent);
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.tri-button:hover {
+  background: color-mix(in srgb, var(--white) 16%, transparent);
+}
+.tri-button[aria-pressed='true'] {
+  background: var(--white);
+  color: var(--metal);
+}
+.tri-button:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--white) 50%, transparent);
+  outline-offset: 1px;
+}
+.tri-info {
+  line-height: 1.5;
+  text-align: center;
+  opacity: 0.85;
+}
+.tri-info strong {
+  font-weight: 600;
+}
+.tri-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  color: color-mix(in srgb, #f4f6f7 60%, transparent);
+  font: 12px system-ui, sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
 }

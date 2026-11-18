@@ -11,8 +11,12 @@ import { focus } from './config.js';
 const world = new THREE.Vector3();
 const ndc = new THREE.Vector3();
 
-// bodies: { navn: { object, radius } }. onPick(navn) kalles ved klikk på en kule.
-export function createPicking(camera, dom, bodies, onPick) {
+// bodies: { navn: { object, radius } }. onPick(navn, pointerType) kalles ved
+// klikk på en kule ('mouse', 'touch' eller 'pen'). onHover(navn) kalles med
+// kula under musepekeren når den endrer seg (undefined når den ikke er over
+// noen). Gir tilbake update(), som kalles hvert bilde: kulene flytter seg under
+// en stille peker.
+export function createPicking(camera, dom, bodies, onPick, { onHover } = {}) {
   // Navnet på kula under punktet (x, y) i piksler i lerretet, eller undefined.
   function bodyAt(x, y) {
     const rect = dom.getBoundingClientRect();
@@ -53,13 +57,15 @@ export function createPicking(camera, dom, bodies, onPick) {
       gesture.click = false; // to fingre: zoom, ikke klikk
     }
   });
+  // Den siste posisjonen til musepekeren over lerretet (null når den er utenfor).
+  let mouse = null;
   dom.addEventListener('pointermove', (e) => {
     if (gesture?.id === e.pointerId && Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y) > focus.clickMove) {
       gesture.click = false;
     }
-    // Med mus: en hånd over kulene, så man ser at de kan klikkes.
-    if (e.pointerType === 'mouse' && down.size === 0) dom.style.cursor = at(e) ? 'pointer' : '';
+    if (e.pointerType === 'mouse') mouse = { x: e.clientX, y: e.clientY };
   });
+  dom.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') mouse = null; });
   const end = (e, cancelled) => {
     down.delete(e.pointerId);
     if (gesture?.id !== e.pointerId) return;
@@ -67,8 +73,22 @@ export function createPicking(camera, dom, bodies, onPick) {
     gesture = null;
     if (cancelled || !g.click || down.size > 0 || e.timeStamp - g.t > focus.clickTime) return;
     const name = at(e);
-    if (name) onPick(name);
+    if (name) onPick(name, e.pointerType);
   };
   dom.addEventListener('pointerup', (e) => end(e, false));
   dom.addEventListener('pointercancel', (e) => end(e, true));
+
+  // Med mus: en hånd over kulene, så man ser at de kan klikkes, og onHover.
+  // Mens en knapp er nede (dreie eller panorere) står det som det står.
+  let hovered;
+  return {
+    update() {
+      if (down.size > 0) return;
+      const name = mouse ? at({ clientX: mouse.x, clientY: mouse.y }) : undefined;
+      if (name === hovered) return;
+      hovered = name;
+      dom.style.cursor = name ? 'pointer' : '';
+      onHover?.(name);
+    },
+  };
 }

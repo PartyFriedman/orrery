@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "node scripts/check.mjs quick",
-    "check:full": "node scripts/check.mjs"
+    "check:full": "node scripts/check.mjs",
+    "check:trisolaris": "node scripts/checkTrisolaris.mjs"
   },
   "devDependencies": {
     "vite": "^8.3.6"

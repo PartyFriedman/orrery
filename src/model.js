@@ -8,15 +8,14 @@ import {
   drive, outerDrive, center, gear, bigGear, smallGear, arm, armStyle, planets, moonTrain, bodies, bodyLooks, accent, jupiterMoons,
   saturnMoons, saturnRing, marsMoons, counterDrive, uranusRing, uranusPost, iceMoons, earthDay,
 } from './config.js';
-import { createMaterials, createBodyMaterials, lookOf, lacquer } from './materials.js';
+import { createMaterials, createBodyMaterials } from './materials.js';
 import { makeBuilder, bandGeometry } from './build.js';
 import { createGearGeometry, createSprocketGeometry, createBevelGeometry, createRingGearGeometry } from './gear.js';
 import { createArmGeometry } from './arm.js';
-import { createPanelGeometry } from './panels.js';
-import { createPlexus, plexusPatterns } from './plexus.js';
+import { createBodySphere, createSun } from './sphere.js';
 import { trackRotation, trackValue, createTrail, createFan, createSmoothGear, createSmoothChain } from './blur.js';
 import { createGlassBands, createAnnulus, createGlassMaterials } from './ring.js';
-import { createEarthSurface, createSurfaceMaterials, createSpinBlur } from './earthSurface.js';
+import { createSpinBlur } from './earthSurface.js';
 import { buildEarthEnd } from './earthBuild.js';
 import {
   layout, anglesAt, pairModule, tube, tubes, heights, armParts, armLengths,
@@ -88,31 +87,16 @@ const turnsWith = (group, key) => {
 // så de kan velges med klikk (picking.js) og kameraet kan følge dem (focus.js).
 const plexusUpdates = []; // flytter nodene i plexus-kulene, se animasjonen nederst
 const spheres = {};
-let earthSurfaceMaterials = null;
-function addPlanetSphere(parent, radius, name, topMaterial = bodyMaterial(name), coreMaterial = mat.metal) {
-  const group = new THREE.Group();
+// Kula selv lages i sphere.js; her registreres den. plexus: funksjonen som
+// flytter nodene i en plexus-kule (bodyLift.js skyver dem ut med den), ellers null.
+function placeSphere(parent, radius, name, { group, plexus }) {
   parent.add(group);
-  group.userData.body = name; // en kule, ikke mekanikk (drives.js)
-  spheres[name] = { object: group, radius };
-  const { pattern, ...overrides } = bodyLooks[name] ?? {};
-  if (pattern === 'continents') {
-    // Jorda med landmasser (earthSurface.js), i fargene til havet, landet og isen.
-    group.add(createEarthSurface(radius, earthSurfaceMaterials ??= createSurfaceMaterials()));
-    return group;
-  }
-  if (plexusPatterns[pattern]) {
-    plexusUpdates.push(createPlexus(group, pattern, radius, { white: topMaterial, metal: mat.metal, core: coreMaterial }, overrides));
-    return group;
-  }
-  const { geometry, coreRadius } = createPanelGeometry({ radius, ...lookOf(name) });
-  const panelMesh = new THREE.Mesh(geometry, [topMaterial, mat.metal, mat.metal]); // topper, mørke sider, mørke topper (split)
-  panelMesh.castShadow = true;
-  panelMesh.receiveShadow = true;
-  group.add(panelMesh);
-  const core = new THREE.Mesh(new THREE.SphereGeometry(coreRadius, 48, 24), coreMaterial);
-  core.receiveShadow = true;
-  group.add(core);
+  spheres[name] = { object: group, radius, plexus };
+  if (plexus) plexusUpdates.push(plexus);
   return group;
+}
+function addPlanetSphere(parent, radius, name, topMaterial = bodyMaterial(name), coreMaterial = mat.metal) {
+  return placeSphere(parent, radius, name, createBodySphere(radius, name, { top: topMaterial, metal: mat.metal, core: coreMaterial }));
 }
 // En arm langs +x som smalner av mot enden, med myk overgang inn i navet og
 // en krage rundt stolpen ytterst. Navet stikker litt opp over og ned under
@@ -151,38 +135,9 @@ function addArm(parent, {
 // er blank lakk med mørke fuger. 'glass' er glass med en glødende kjerne og et
 // lys i midten, så den lyser innenfra og fugene gløder.
 function addSun() {
-  const sun = lookOf('sun');
-  if (sun.style !== 'lacquer' && sun.style !== 'glass') {
-    throw new Error(`Ukjent solstil '${sun.style}' i bodyLooks.sun. Velg 'lacquer' eller 'glass'.`);
-  }
-  if (sun.style === 'lacquer') {
-    addPlanetSphere(root, bodies.sunRadius, 'sun', lacquer(sun.color, sun.lacquer)).position.y = bodies.height;
-    return;
-  }
-  const glass = new THREE.MeshPhysicalMaterial({
-    color: sun.color,
-    roughness: sun.glass.roughness,
-    metalness: 0,
-    transmission: sun.glass.transmission,   // slipper lyset fra kjernen gjennom
-    thickness: sun.glass.thickness,
-    ior: sun.glass.ior,
-    attenuationColor: sun.color,
-    attenuationDistance: sun.glass.attenuationDistance,
-    emissive: sun.color,
-    emissiveIntensity: sun.glowParts.surface * sun.glow,
-  });
-  const glowCore = new THREE.MeshStandardMaterial({
-    color: sun.color,
-    emissive: sun.color,
-    emissiveIntensity: sun.glowParts.core * sun.glow,
-  });
-  const sunSphere = addPlanetSphere(root, bodies.sunRadius, 'sun', glass, glowCore);
-  sunSphere.position.y = bodies.height;
-  // Glasset kaster ingen skygge, så lyset fra kjernen slipper ut (som glasset i ringene).
-  sunSphere.traverse((o) => {
-    if (o.isMesh && [o.material].flat()[0].transmission > 0) o.castShadow = false;
-  });
-  const light = new THREE.PointLight(sun.color, sun.glowParts.light * sun.glow, 0, 1); // svakt lys innenfra i solas farge
+  const { light, ...made } = createSun(bodies.sunRadius, mat.metal);
+  placeSphere(root, bodies.sunRadius, 'sun', made).position.y = bodies.height;
+  if (!light) return;
   light.position.y = bodies.height;
   root.add(light);
 }
@@ -985,6 +940,7 @@ armGroup.add(earthEnd.end);
 const earthRaised = bodyLooks.earth?.pattern === 'continents' ? bodyLooks.earth.height : 0;
 const earthSpinBlur = createSpinBlur(earthEnd.tilted, bodies.earthRadius + earthRaised + 0.015);
 earthSpinBlur.source = spheres.earth.object; // dempes som jorda
+spheres.earth.also = [earthSpinBlur.mesh];   // heves med landet (bodyLift.js)
 earthEnd.spinEntry.extra.push(earthSpinBlur);
 fastParts.push(...earthEnd.fast);
 
