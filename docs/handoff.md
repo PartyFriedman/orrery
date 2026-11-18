@@ -44,6 +44,7 @@
 - `src/ephemeris.js`: middellengder for planetene (JPL, Standish tabell 1, også Uranus og Neptun), polene til Mars og Uranus (IAU), månen og knutelinjen (Meeus), Jupiters måner (Lieske via Meeus kap. 44, B1950 + 0,698° presesjon til J2000), og Saturns, Mars', Uranus' og Neptuns måner (JPL-middelelementer, lavpresisjon; Triton baklengs). `daysPerYear` = 365,256 (én runde for jorda).
 - `src/iceMoons.js`: geometrien for månene til Uranus og Neptun som ren matematikk (`uranusDesign`, `neptuneDesign`, `uranusParts`, `neptuneParts` for avstandssjekkene, `partReach`). Den importerer ikke `mechanism.js`; `mechanism.js` bruker den og sender inn `uranusTrain`, `armParts` og høydene ved armen.
 - `src/timeControl.js`: glidebryteren nede på siden (DOM), med dato og fart. Stilen ligger i `src/style.css`.
+- `src/focus.js`, `src/picking.js`, `src/focusPanel.js`: fokus på en kropp (se Fokus).
 - `src/gear.js`: evolventtannhjul, kjedehjul og `extrudeFlat`.
 - `src/arm.js`: armer som smalner av, med myk overgang inn i navet.
 - `src/panels.js`: panelkuler, med mørke fuger. Panelene er buede eller flate.
@@ -158,6 +159,15 @@
 - **`drive.speed` er fjernet.** Animasjonen regner `years` og bruker input = `years · inputPerYear`. Hvert bilde dekker høyst 0,1 s.
 - Titania og Oberon stilles i Uranus' ekvatorplan med `inPlane` (som Saturns og Mars' måner), Triton med fasen på Tritons hjul (`phases.triton`), etter middellengdene i `ephemeris.js`.
 - **`npm run check`** har en startsjekk som skriver ut lengdene ved startdatoen.
+
+## Fokus (grenen camera-focus, steg 1 av 2)
+- Klikk eller trykk på en kule, så glir kameraet over til den (`focus.glide` s) og følger den. Klikk på sola gir tilbake til startbildet. Tallene står i `focus` i config.
+- `addPlanetSphere` legger hver kule i `spheres` (navn → gruppe og radius). Det er registeret for valget.
+- `picking.js`: et klikk er én peker, flyttet under `clickMove` px og sluppet innen `clickTime` ms (`e.timeStamp`). Treffet regnes på skjermen: kula, eller innenfor `hitRadius` px fra sentrum. Treffer pekeren selve kula, vinner den nærmeste.
+- `focus.js`: `update(seconds)` kalles etter at delene har fått vinklene og før `controls.update()`. Den flytter målet til kroppen og kameraet like langt (ingen etterslep, ingen risting). Avstanden er `r·size / sin(atan(fill·tan(fov/2)))`. Med en kropp i fokus er panorering av, `minDistance` er 1,3 r, og `camera.near` følger avstanden.
+- Panelet øverst på midten viser navnet. `.focus-info` er tom og klar til mer.
+- Steg 2 (planlagt, ikke bygget): drivvisning med en bryter i panelet. Modellen flyttes ut til `src/model.js`, så `npm run check` kan sjekke at hver del hører til et drev. Planen ligger i `~/.claude/plans/compiled-kindling-popcorn.md`.
+- Test i hodeløs Chrome: input kommer bare én gang per bilde, og et bilde tar flere sekunder i swiftshader. Sett `clickTime` høyt og `glide` kort i scratch-kopien, og stopp tiden før du klikker på raske måner.
 
 ## Utseende
 - **Armene:** `armStyle` styrer avsmalning, overgang, nav som stikker opp og ned, og krage. En tynn rød ring der planetstolpen møter armen.

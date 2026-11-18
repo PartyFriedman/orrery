@@ -12,17 +12,14 @@ canvas {
 
 /* Glidebryteren for tid: et lite panel i mørkt metall nede på midten, med
    satengmatt hvit knott. --metal og --white settes fra look i config.js.
-   Panelet er dempet til man peker på det eller bruker det. */
-.time-control {
+   Panelet er dempet til man peker på det eller bruker det.
+   Fokuspanelet øverst (navnet på kroppen som er valgt) har samme stil. */
+.time-control,
+.focus-panel {
   position: fixed;
   left: 50%;
-  bottom: 20px;
   transform: translateX(-50%);
-  width: min(420px, calc(100vw - 32px));
   box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 12px;
   padding: 8px 16px;
   border-radius: 999px;
   background: linear-gradient(
@@ -37,10 +34,56 @@ canvas {
   font: 12px/1 system-ui, sans-serif;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
-  opacity: 0.55;
-  transition: opacity 0.3s;
   user-select: none;
 }
+.time-control {
+  bottom: 20px;
+  width: min(420px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0.55;
+  transition: opacity 0.3s;
+}
+
+/* Fokuspanelet: øverst på midten, så det aldri dekker fartspanelet. Tones inn
+   når en kropp velges, og ut når ingenting er valgt. .focus-info er plass til
+   mer senere, og vises ikke når den er tom. */
+.focus-panel {
+  top: 16px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.3s, visibility 0s 0.3s;
+}
+.focus-panel.shown {
+  opacity: 0.85;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.3s;
+}
+.focus-panel.shown:hover,
+.focus-panel.shown:focus-within {
+  opacity: 1;
+}
+.focus-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.focus-name {
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+.focus-info:empty {
+  display: none;
+}
+
 .time-control:hover,
 .time-control:focus-within {
   opacity: 1;
