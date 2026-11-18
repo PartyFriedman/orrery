@@ -24,6 +24,20 @@ export const focus = {
   clickTime: 500,     // millisekunder: holdes den lenger, er det ikke et klikk
 };
 
+// Kulene svarer når man peker på dem (PC) eller trykker på dem (mobil): panelene
+// løftes litt ut så fugene åpner seg og kjernen så vidt synes, land og is på
+// jorda heves, og nodene i en plexus-kule skyves ut fra kjernen. Med mus står
+// kula åpen så lenge pekeren er over den; et trykk åpner og lukker den igjen.
+// Kula og kameraet flytter seg ikke.
+export const bodyLift = {
+  panels: 0.04,       // hvor langt panelene løftes ut, som andel av radiusen
+  land: 0.03,         // hvor mye land og is på jorda heves, som andel av radiusen (platene står 0,06 opp fra før)
+  plexus: 0.05,       // hvor langt plexus-nodene skyves ut, som andel av radiusen
+  timeIn: 0.15,       // sekunder: åpne
+  timeOut: 0.3,       // sekunder: lukke
+  tapHold: 0.1,       // sekunder: hvor lenge kula står åpen etter et trykk (mobil) før den lukker seg
+};
+
 // Drivvisning: med bryteren «Drive» i fokuspanelet vises bare drivet fra tårnet
 // til kroppen som er valgt. Resten av mekanikken fades ut, og de andre kulene
 // dempes litt (de kan fortsatt klikkes).

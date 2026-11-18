@@ -43,11 +43,12 @@ export function createStage({ count, radius, columns = count, spacing = radius *
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  // Plassene, med navnet under hver.
+  // Plassene, med navnet under hver. slotRadius: kula på plassen, når den er
+  // mindre enn radius (navnet står rett under den).
   const slots = [];
   const labelBox = document.createElement('div');
   document.body.appendChild(labelBox);
-  const addSlot = (title, subtitle = '') => {
+  const addSlot = (title, subtitle = '', slotRadius = radius) => {
     const i = slots.length;
     const col = i % columns, row = Math.floor(i / columns);
     const group = new THREE.Group();
@@ -60,11 +61,13 @@ export function createStage({ count, radius, columns = count, spacing = radius *
       font: '500 14px/1.3 system-ui, sans-serif', color: look.gearColor, textShadow: '0 1px 3px #000',
     });
     labelBox.appendChild(label);
-    slots.push({ group, label });
+    slots.push({ group, label, slotRadius });
     return group;
   };
 
-  // Klikk stopper og starter bevegelsen.
+  // Klikk stopper og starter bevegelsen. update(time, seconds, frame): time og
+  // seconds står stille når bevegelsen er stoppet, frame er den ekte tiden siden
+  // forrige bilde (for det som skal gå uansett, som bodyLift).
   let running = true;
   renderer.domElement.addEventListener('click', () => { running = !running; });
 
@@ -75,9 +78,9 @@ export function createStage({ count, radius, columns = count, spacing = radius *
       const seconds = last === null ? 0 : Math.min((now - last) / 1000, 0.1);
       last = now;
       if (running) time += seconds;
-      update(time, running ? seconds : 0);
-      for (const { group, label } of slots) {
-        below.copy(group.position).add({ x: 0, y: -radius * 1.1, z: 0 }).project(camera);
+      update(time, running ? seconds : 0, seconds);
+      for (const { group, label, slotRadius } of slots) {
+        below.copy(group.position).add({ x: 0, y: -slotRadius * 1.1, z: 0 }).project(camera);
         label.style.left = `${((below.x + 1) / 2) * window.innerWidth}px`;
         label.style.top = `${((1 - below.y) / 2) * window.innerHeight + 6}px`;
       }

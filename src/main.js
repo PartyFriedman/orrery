@@ -13,6 +13,7 @@ import { createFocus } from './focus.js';
 import { createPicking } from './picking.js';
 import { createFocusPanel } from './focusPanel.js';
 import { createDriveView } from './driveView.js';
+import { createBodyLift } from './bodyLift.js';
 
 // Hvor langt ut og opp modellen rekker, så kamera og lys kan tilpasses.
 const reach = Math.max(...Object.values(armReach).map((r) => r.outer));
@@ -75,7 +76,12 @@ const setDriveView = (on) => {
   driveView.set(driveOn, cameraFocus.selected);
 };
 const focusPanel = createFocusPanel({ onClose: () => selectBody('sun'), onDrive: setDriveView });
-createPicking(camera, renderer.domElement, model.spheres, selectBody);
+// Kulene åpner seg litt under musepekeren, og ved et trykk på mobil (bodyLift.js).
+const bodyLift = createBodyLift(model.spheres);
+const picking = createPicking(camera, renderer.domElement, model.spheres, (name, pointerType) => {
+  selectBody(name);
+  if (pointerType !== 'mouse') bodyLift.pulse(name);
+}, { onHover: bodyLift.hover });
 
 // Animasjon: tiden går med farten fra glidebryteren, og inngangsvinkelen
 // følger av den. Hver del får vinkelen mekanismen regner ut fra tanntallene.
@@ -95,6 +101,9 @@ renderer.setAnimationLoop((time) => {
     shownYears = years;
     model.update(years);
   }
+  // Kula under pekeren åpner seg (før plexus-kulene, som leser hvor åpne de er).
+  picking.update();
+  bodyLift.update(seconds);
   // Plexus-kulene driver i vanlig tid, uansett hvor fort modellen går.
   for (const update of model.plexusUpdates) update(time / 1000);
   // Lysspor, vifter og glatte former for det som går fort (blur i config). Kalles

@@ -87,10 +87,11 @@ const turnsWith = (group, key) => {
 // så de kan velges med klikk (picking.js) og kameraet kan følge dem (focus.js).
 const plexusUpdates = []; // flytter nodene i plexus-kulene, se animasjonen nederst
 const spheres = {};
-// Kula selv lages i sphere.js; her registreres den.
+// Kula selv lages i sphere.js; her registreres den. plexus: funksjonen som
+// flytter nodene i en plexus-kule (bodyLift.js skyver dem ut med den), ellers null.
 function placeSphere(parent, radius, name, { group, plexus }) {
   parent.add(group);
-  spheres[name] = { object: group, radius };
+  spheres[name] = { object: group, radius, plexus };
   if (plexus) plexusUpdates.push(plexus);
   return group;
 }
@@ -939,6 +940,7 @@ armGroup.add(earthEnd.end);
 const earthRaised = bodyLooks.earth?.pattern === 'continents' ? bodyLooks.earth.height : 0;
 const earthSpinBlur = createSpinBlur(earthEnd.tilted, bodies.earthRadius + earthRaised + 0.015);
 earthSpinBlur.source = spheres.earth.object; // dempes som jorda
+spheres.earth.also = [earthSpinBlur.mesh];   // heves med landet (bodyLift.js)
 earthEnd.spinEntry.extra.push(earthSpinBlur);
 fastParts.push(...earthEnd.fast);
 

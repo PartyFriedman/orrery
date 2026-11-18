@@ -11,7 +11,8 @@
   - PR #12 (`Ice-giant-moons`, commit «Add moons to ice giants»): månene til Uranus og Neptun (alternativ B), farger på kulene, `npm run check` delt i rask og full, festesjekken, og den raskere simuleringen B. `src/cord.js` er slettet og `scripts/lastCheck.json` ligger i `.gitignore`.
   - PR #13 (`earth-rotation`): jorda roterer med ekte hjulverk, har landmasser, og en føringsring med en gaffel med ruller (se Jorda).
 - Ryddingen 17.11 (se under) og PR #15–16 (fokus og drivvisning) er merget.
-- **Ikke committet (18.11, på `main`):** testsiden trisolaris.html (se Trisolaris under), og kulekoden flyttet fra model.js til `src/sphere.js`. Brukeren lager grenen selv. Modellen er bevist uendret: et fingeravtrykk (md5) av hele `root` bygget i Node med låst dato (geometri, materialer, matriser og lys) var likt før og etter, og `npm run check` sier «Alt i orden».
+- Testsiden trisolaris.html og flyttingen av kulekoden til `src/sphere.js` er committet («Add trisolaris test page»), og panorering i fokus også («Add right click navigation»).
+- **Ikke committet (18.11, på grenen `Microinteractioon`):** mikrointeraksjonen på kulene (se Mikrointeraksjon under). Modellen er bevist uendret når ingenting er løftet: fingeravtrykket (md5) av hele `root` bygget i Node med låst dato (geometri, materialer, matriser og lys) var likt før og etter (`9f720ec1…`), og `npm run check` sier «Alt i orden». Datoen må låses (`config.time.startDate` før model.js importeres), ellers flytter klokkeslettet matrisene.
 - `git stash list` har fortsatt `stash@{0}`: den forkastede versjonen med snorer og hjultog for månene. Den trengs ikke; slett den med `git stash drop` når brukeren vil.
 - Utseendet til hver kule står i `bodyLooks` i config (én blokk per kule: farge, lakk, mønster, og solas stil og glød), og `accent` er fargen på ringene ved stolpene.
 
@@ -84,6 +85,7 @@ Et fiktivt system: tre like soler går etter hverandre i åttetallsbanen (Chenci
 - `src/iceMoons.js`: geometrien for månene til Uranus og Neptun som ren matematikk (`uranusDesign`, `neptuneDesign`, `uranusParts`, `neptuneParts` for avstandssjekkene, `partReach`). Den importerer ikke `mechanism.js`; `mechanism.js` bruker den og sender inn `uranusTrain`, `armParts` og høydene ved armen.
 - `src/timeControl.js`: glidebryteren nede på siden (DOM), med dato og fart. Stilen ligger i `src/style.css`.
 - `src/focus.js`, `src/picking.js`, `src/focusPanel.js`: fokus på en kropp (se Fokus).
+- `src/bodyLift.js`: mikrointeraksjonen på kulene (se Mikrointeraksjon).
 - `src/gear.js`: evolventtannhjul, kjedehjul og `extrudeFlat`.
 - `src/arm.js`: armer som smalner av, med myk overgang inn i navet.
 - `src/panels.js`: panelkuler, med mørke fuger. Panelene er buede eller flate.
@@ -92,7 +94,7 @@ Et fiktivt system: tre like soler går etter hverandre i åttetallsbanen (Chenci
   - `delaunayFlip` retter earcut-trekanter.
 - `src/scatter.js`: uregelmessige, jevnt spredte punkter på en kule (`spread`, «best candidate»), trekantene mellom dem (`triangulate`, konvekst skall) og et tilfeldighetstall med seed (`random`). Brukes av `facets` og plexus.
 - `src/plexus.js`: plexus-kulene `plexusA`, `plexusB` og `plexusC` (`createPlexus`). `addPlanetSphere` i `main.js` bruker den når en kule har et plexus-mønster, og animasjonen kaller `plexusUpdates` med vanlig tid.
-- `src/testStage.js`: oppstillingen på panels.html og plexus.html (kamera og navn under hver kule; lys og materialer fra scene.js og materials.js).
+- `src/testStage.js`: oppstillingen på panels.html og plexus.html (kamera og navn under hver kule; lys og materialer fra scene.js og materials.js). `addSlot(tittel, undertittel, radius)` tar radiusen per plass, og `run` gir `update(time, seconds, frame)`, der `frame` er den ekte tiden per bilde (også når bevegelsen er stoppet).
 - `src/ringLayout.js`: hvor båndene og spalten i Saturns ring ligger, og Uranus' tynne ringer (`thinRingLayout`) (ren matematikk). `src/ring.js`: `createAnnulus`, glassmaterialene med kantlys (`createGlassMaterials`) og glassbåndene (`createGlassBands`), brukt av både modellen og rings.html.
 - `src/blur.js`: lysspor, vifter og glatte former for raske deler (se Utseende).
 - `panels.html` + `src/panelTest.js`, `plexus.html` + `src/plexusTest.js` og `rings.html` + `src/ringTest.js`: testsidene (se Testsider).
@@ -201,7 +203,7 @@ Et fiktivt system: tre like soler går etter hverandre i åttetallsbanen (Chenci
 
 ## Fokus og drivvisning (grenene camera-focus og Isolate-view)
 - Klikk eller trykk på en kule, så glir kameraet over til den (`focus.glide` s) og følger den. Klikk på sola gir tilbake til startbildet. Tallene står i `focus` i config.
-- `addPlanetSphere` legger hver kule i `spheres` (navn → gruppe og radius). Det er registeret for valget.
+- `addPlanetSphere` legger hver kule i `spheres` (navn → gruppe, radius og `plexus`, funksjonen som flytter nodene, ellers null). Det er registeret for valget og mikrointeraksjonen.
 - `picking.js`: et klikk er én peker, flyttet under `clickMove` px og sluppet innen `clickTime` ms (`e.timeStamp`). Treffet regnes på skjermen: kula, eller innenfor `hitRadius` px fra sentrum. Treffer pekeren selve kula, vinner den nærmeste.
 - `focus.js`: `update(seconds)` kalles etter at delene har fått vinklene og før `controls.update()`. Den flytter målet og kameraet like langt som kroppen har flyttet seg siden forrige bilde (ingen etterslep, ingen risting). Avstanden er `r·size / sin(atan(fill·tan(fov/2)))`. Med en kropp i fokus virker panorering (høyre knapp): målet blir liggende der man drar det og følger kroppen derfra, så man kan gå langs drivverket. `minDistance` er 1,3 r, og `camera.near` følger avstanden.
 - Panelet øverst på midten viser navnet og en ×-knapp som gjør det samme som et klikk på sola (sola er ofte utenfor bildet når man er tett på). `.focus-info` er tom og klar til mer.
@@ -213,6 +215,18 @@ Et fiktivt system: tre like soler går etter hverandre i åttetallsbanen (Chenci
   - `flatBar` og `bracket` i build.js gir tilbake delene, og `drives` tar også en liste.
 - Skjermbilder med låst dato og plexus-tid, og `?focus=navn`, `?drive=1`, `?show=navn` (drivvisning uten å flytte kameraet) og `?cam=x,y,z&target=x,y,z`: lappefil i scratch som i Skjermbilder. Flyttingen til model.js ga like bilder (md5) i fire vinkler. Det første bildet etter at Chrome-profilen er ny, kan avvike; ta det på nytt.
 - Test i hodeløs Chrome: input kommer bare én gang per bilde, og et bilde tar flere sekunder i swiftshader. Sett `clickTime` høyt og `glide` kort i scratch-kopien, og stopp tiden før du klikker på raske måner.
+
+## Mikrointeraksjon (grenen Microinteractioon, 18.11)
+Kulene svarer når man peker på dem (PC) eller trykker på dem (mobil). Kula og kameraet flytter seg ikke. Tallene står i `bodyLift` i config, med løftet som andel av radiusen:
+- **Paneler** (`panels`, 0,04): hvert panel flyttes rett ut langs sin egen retning (midten av panelet). Naboene peker litt ulikt, så fugene åpner seg og kjernen så vidt synes; få, store paneler åpner seg mest.
+- **Jorda** (`land`, 0,03): toppene på land og is heves, og den øvre kanten av sidene følger med, mens den nedre står fast i havet. Sidene strekkes og får nye flatenormaler mens de beveger seg. Den glatte kula mot flimring (`createSpinBlur`, synlig ved startfarten) heves like mye, så landet ikke stikker gjennom; den ligger utenfor kula og er registrert som `spheres.earth.also`.
+- **Plexus** (`plexus`, 0,05, sola i dag): nodene skyves ut fra sentrum (`open` på funksjonen fra `createPlexus`). Ved A og B følger stengene og fasettene etter, og kjernen står. Ved C ganges punktene ut, og `linkDistance` er uendret, så noen linjer slipper.
+- **Tiden:** `timeIn` (0,15 s) og `timeOut` (0,3 s). Framdriften går lineært, og det som vises er smoothstep av den, så det rykker ikke om pekeren går bort midt i. `tapHold` (0,1 s): hvor lenge kula står åpen etter et trykk.
+- **PC:** kula står åpen så lenge musepekeren er over den. `picking.update()` regner ut kula under pekeren hvert bilde, fordi planetene flytter seg under en stille peker; mens en knapp er nede, står det som det står. Håndpekeren settes samme sted.
+- **Mobil:** `onPick(navn, pointerType)`. Når det ikke var mus, åpner og lukker `bodyLift.pulse` kula i tillegg til valget.
+- **Retningene:** `geometry.userData.liftDirs` (Float32Array i samme rekkefølge som `position`) og `liftKind` (`'panels'` eller `'land'`) lages i `createPanelGeometry` og `createEarthSurface`. `liftNormals: true` på sidene ved jorda.
+- **`src/bodyLift.js`** (uten DOM): `createBodyLift(spheres)` med `hover(navn)`, `pulse(navn)` og `update(sekunder)`. Posisjonene skrives om på CPU bare mens en kule beveger seg, så skyggene følger med. Når kula er lukket, settes utgangsposisjonene (og normalene) eksakt tilbake; det er prøvd i Node for Mars, Fobos, Iapetus, jorda og Jupiter. `boundingSphere` er gjort større med løftet, så kula ikke klippes i kanten av bildet.
+- `main.js` kaller `picking.update()` og `bodyLift.update(seconds)` etter `model.update` og før plexus-oppdateringene (som leser `open`).
 
 ## Utseende
 - **Armene:** `armStyle` styrer avsmalning, overgang, nav som stikker opp og ned, og krage. En tynn rød ring der planetstolpen møter armen.
@@ -229,7 +243,7 @@ Et fiktivt system: tre like soler går etter hverandre i åttetallsbanen (Chenci
 - **Farger:**
   - `accent.color` er fargen som skiller seg ut i mekanikken (i dag `#f3f595`): ringene ved stolpene og mellomhjulet ved Neptun.
   - `bodyLooks.<kule>.color` er fargen på hver kule, sola inkludert, i dempede, ekte toner. Jorda har `color` (havet), `land` og `ice`. Fugene er mørkt metall. Kuler uten blokk blir hvite.
-  - `createBodyMaterials` i materials.js lager ett materiale per navn. panels.html, plexus.html og rings.html er hvite.
+  - `createBodyMaterials` i materials.js lager ett materiale per navn. panels.html viser kulene i fargene sine; plexus.html og rings.html er hvite.
   - Alt i mekanikken er hvit lakk, også alle stag (stilguiden). Mørkt metall: fugene og kjernene i kulene, kjedene, kula i kryssleddet ved Mars, og rullene og rulleakslene på foten ved jorda.
 - **Sola:** `bodyLooks.sun.style` er `'lacquer'` eller `'glass'`. Glass har en glødende kjerne og et lys innenfra (`glow` og `glowParts`), og glasset kaster ingen skygge.
 - **Mot flimring** (`blur` i config, `src/blur.js`): hver rask del måles hvert bilde (grader dreid siden forrige bilde). Over `threshold` (4°) tones det inn over `fade` (8°):
@@ -243,8 +257,8 @@ Et fiktivt system: tre like soler går etter hverandre i åttetallsbanen (Chenci
 
 ## Testsider
 - Åpnes med `npm run dev`:
-  - `http://localhost:5173/orrery/panels.html`: én kule per panelmønster.
-  - `http://localhost:5173/orrery/plexus.html`: plexus A, B og C.
+  - `http://localhost:5173/orrery/panels.html`: ekte kuler i modellstørrelse (radius, farge og mønster fra config): Merkur, Venus, jorda, Mars, Jupiter, Saturn, Uranus, trisolaris-planeten, månen, Io, Iapetus og Fobos, med mikrointeraksjonen (pek med musa, eller trykk). De gamle mønsterprøvene (bånd, båter, volleyball, spiral, polarhetter, flettet, nesten glatt, fasetter 30/80/200) er byttet ut; mønstrene finnes fortsatt i panels.js.
+  - `http://localhost:5173/orrery/plexus.html`: plexus A, B og C, også med mikrointeraksjonen.
   - `http://localhost:5173/orrery/trisolaris.html`: tre soler i åttetallsbane (se Trisolaris).
   - `http://localhost:5173/orrery/rings.html`: Saturns ring i fire varianter (A satin, B instrument, C glass som i modellen, D blanding), hver stor og i samme størrelse som i modellen, med kameraet som går rundt. `?t=15&stop` står stille 15 s ut i runden. Hver rute tegner sin bit av gradienten, så glasset har noe å se gjennom.
 - Klikk stopper eller starter bevegelsen, og dra for å se fra andre vinkler.
@@ -309,6 +323,10 @@ Et fiktivt system: tre like soler går etter hverandre i åttetallsbanen (Chenci
 - Plexus-kuler i modellen: `npm run check` regner kula som glatt med planetens radius, men nodene stikker litt utenfor (ca. 0,14 på Jupiter med B). Det spiser av klaringen på 0,3 mot Io. Overlappen er bare visuell, men sjekken fanger den ikke opp.
 
 ## Mulige neste steg
+- **Mikrointeraksjonen:**
+  - Prøv tallene i `bodyLift` i nettleseren og på mobil (`npm run dev -- --host`).
+  - På plexusA (sola) henger fasettene sammen i nodene, så kula bare sveller litt og kjernen synes ikke. Vil man se kjernen, må fasettene krympe mot midten sin eller skilles i tillegg.
+  - Klikk på en kule på testsidene stopper eller starter også dreiningen.
 - **Trisolaris:**
   - Se over siden i nettleseren.
   - Maskinene er store fordi X-sveiven er like lang som halve bredden (15). Det faste hjulet til 5θ har radius 12.

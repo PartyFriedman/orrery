@@ -16,7 +16,9 @@ import { random, onSphere, spread, triangulate } from './scatter.js';
 export const plexusPatterns = { plexusA: 'A', plexusB: 'B', plexusC: 'C' };
 
 // Lager plexus-kula i `parent` og gir tilbake en funksjon som flytter nodene
-// til tiden `time` (sekunder). overrides: tall som erstatter dem i config.
+// til tiden `time` (sekunder). Funksjonen har egenskapen open (0 til vanlig):
+// så stor andel av radiusen skyves nodene ut fra sentrum (bodyLift.js), mens
+// kjernen står. overrides: tall som erstatter dem i config.
 // materials: { white, metal, core } som nodene og fyllet, stengene, og kjernen
 // får (core er valgfri; uten den får kjernen metal).
 export function createPlexus(parent, pattern, radius, materials, overrides = {}) {
@@ -93,7 +95,7 @@ function addPlexus(parent, settings, R, scale, materials) {
       positions[i].copy(n.p)
         .addScaledVector(n.u, reach * Math.sin(2 * Math.PI * n.f1 * time + n.a1))
         .addScaledVector(n.v, reach * Math.sin(2 * Math.PI * n.f2 * time + n.a2))
-        .setLength(R);
+        .setLength(R * (1 + update.open));
       if (!nodeMesh) return;
       placer.position.copy(positions[i]);
       placer.quaternion.identity();
@@ -118,6 +120,7 @@ function addPlexus(parent, settings, R, scale, materials) {
     attr.needsUpdate = true;
     fillGeometry.computeVertexNormals(); // uten indekser: én normal per fasett
   };
+  update.open = 0;
   update(0);
   return update;
 }
@@ -170,7 +173,7 @@ function addMotionPlexus(parent, settings, R, scale) {
   const update = (time) => {
     const pos = pointGeometry.attributes.position;
     points.forEach((pt, i) => {
-      now[i].copy(pt.p).applyQuaternion(q.setFromAxisAngle(pt.axis, pt.speed * time));
+      now[i].copy(pt.p).applyQuaternion(q.setFromAxisAngle(pt.axis, pt.speed * time)).multiplyScalar(1 + update.open);
       pos.setXYZ(i, now[i].x, now[i].y, now[i].z);
     });
     pos.needsUpdate = true;
@@ -191,6 +194,7 @@ function addMotionPlexus(parent, settings, R, scale) {
     lp.needsUpdate = true;
     lc.needsUpdate = true;
   };
+  update.open = 0;
   update(0);
   return update;
 }

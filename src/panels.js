@@ -569,13 +569,24 @@ export function createPanelGeometry({
   };
   const sides = [];     // sidene og undersiden, som ses ned i fugene
   let lowest = radius;  // det laveste punktet på noen panelflate
-  const push = (list, ...vs) => { for (const v of vs) list.push(v.x, v.y, v.z); };
+  // Retningen til panelet hvert hjørne hører til (midten av panelet), i samme
+  // rekkefølge som hjørnene. bodyLift.js løfter panelene ut langs den.
+  const dirsOf = new Map([[lightTops, []], [darkTops, []], [sides, []]]);
+  let panelDir = null;
+  const push = (list, ...vs) => {
+    const dirs = dirsOf.get(list);
+    for (const v of vs) {
+      list.push(v.x, v.y, v.z);
+      if (dirs) dirs.push(panelDir.x, panelDir.y, panelDir.z);
+    }
+  };
   const planeDistance = (a, b, c) => Math.abs(b.clone().sub(a).cross(c.clone().sub(a)).normalize().dot(a));
 
   for (const poly of polygons) {
     // Panelets retning (midt i panelet) og et flatt koordinatsystem på tvers av den.
     const normal = poly.reduce((s, p) => s.add(p), new THREE.Vector3()).normalize();
     chooseSide(normal);
+    panelDir = normal;
     const e1 = poly[0].clone().sub(normal.clone().multiplyScalar(poly[0].dot(normal))).normalize();
     const e2 = normal.clone().cross(e1);
     // Hjørnene skjøvet langs strålen fra sentrum ned i et plan, i 2D, så
@@ -658,6 +669,7 @@ export function createPanelGeometry({
     const spacing = curveStep / 2; // i projeksjonen er avstandene omtrent halvparten av vinkelen
     for (const { center, outline } of large) {
       chooseSide(center);
+      panelDir = center.clone().normalize();
       const proj = stereographic(center);
       const edge2 = outline.map(proj.to);
       // Rutenett innenfor kanten, med litt avstand til den.
@@ -714,6 +726,8 @@ export function createPanelGeometry({
   geometry.addGroup(0, nLight, 0);
   if (nDark) geometry.addGroup(nLight, nDark, 2);
   geometry.addGroup(nLight + nDark, sides.length / 3, 1);
+  geometry.userData.liftDirs = new Float32Array([...dirsOf.get(lightTops), ...dirsOf.get(darkTops), ...dirsOf.get(sides)]);
+  geometry.userData.liftKind = 'panels';
 
   // Kjernen ligger seamDepth under det laveste punktet på panelene, så fugene
   // går ned til den overalt.
