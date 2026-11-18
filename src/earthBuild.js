@@ -11,6 +11,7 @@ import { gear as gearStyle, moonTrain, earthDay as ED, moonGuide as MG } from '.
 import { createGearGeometry, createBevelGeometry, createSprocketGeometry } from './gear.js';
 import { createArmGeometry } from './arm.js';
 import { makeBuilder, bandGeometry } from './build.js';
+import { drives } from './drives.js';
 
 const TC = moonTrain.thickness;
 
@@ -33,6 +34,8 @@ const gearSettings = (teeth, module, thickness, hole) => {
 //   addEarth(group): legger jorda (overflaten) i gruppa som roterer
 //   addMoon(group, position): legger månen i glidebiten
 // Gir tilbake gruppene, delene som går fort (til blur.js) og update(vinkler).
+// Hver del er merket med kroppene den driver (drives.js): jorda, månen, eller
+// begge (parallellhjulet og stolperøret holder både jordaksen og føringsringen).
 export function buildEarthEnd(d, opts) {
   const { white, metal } = opts.materials;
   const { mesh, shaft: cyl, rod, ball, bracket, groupAt } = makeBuilder(white);
@@ -60,21 +63,21 @@ export function buildEarthEnd(d, opts) {
   };
   const s = d.stack, g = d.g, top = d.top, H = d.H, L = d.L;
   const P = ED.P, F = MG.follower;
-  const end = new THREE.Group();
+  const end = drives(new THREE.Group(), 'earth', 'moon');
   const fast = [];
   const track = (group, gears = [], trail = null, extra = []) => fast.push({ group, gears, trail, extra });
 
   // Forlegsakselen på armen, med tannhjulet og kjedehjulet til dagkjedet.
-  const layGroup = groupAt(end, d.lay.x - L);
+  const layGroup = drives(groupAt(end, d.lay.x - L), 'earth');
   cyl(layGroup, d.lay.shaftR, s.armTop, d.lay.top);
   const layGear = addGear(layGroup, P.layGear, P.module, ED.shaftGearThickness, d.lay.shaftR, s.level1 + ED.shaftGearThickness / 2);
   const laySprocket = addSprocket(layGroup, P.laySprocket, d.dayChain.radius2, d.dayChain.rollerRadius, d.lay.shaftR, s.day);
   track(layGroup, [layGear, laySprocket]);
 
   // Driveakselen (dreier sett fra armen), med tannhjulet nederst og lageret i armen.
-  const shaft = groupAt(end);
+  const shaft = drives(groupAt(end), 'earth');
   cyl(shaft, d.dsR, d.shaftBottom, d.shaftTop);
-  cyl(end, d.dsR + 0.25, s.armTop, s.armTop + 0.15);
+  drives(cyl(end, d.dsR + 0.25, s.armTop, s.armTop + 0.15), 'earth');
   const shaftGear = addGear(shaft, P.shaftGear, P.module, ED.shaftGearThickness, d.dsR, s.level1 + ED.shaftGearThickness / 2);
   track(shaft, [shaftGear]);
 
@@ -86,15 +89,15 @@ export function buildEarthEnd(d, opts) {
   mount.rotation.y = opts.earthAxisDirection;
 
   // Navet, stagene og ringen.
-  cyl(mount, d.hubR, d.hubY0, d.hubY1);
-  for (const [a, b] of d.struts) { rod(mount, a, b, MG.strutRadius); ball(mount, b, MG.strutRadius * 1.3); }
-  mesh(mount, bandGeometry(d.ringAt, g.w, g.h));
+  drives(cyl(mount, d.hubR, d.hubY0, d.hubY1), 'moon');
+  for (const [a, b] of d.struts) drives([rod(mount, a, b, MG.strutRadius), ball(mount, b, MG.strutRadius * 1.3)], 'moon');
+  drives(mesh(mount, bandGeometry(d.ringAt, g.w, g.h)), 'moon');
 
   // Braketten fra stolperøret til lageret.
-  bracket(mount, d.bracket, ED.bracket.radius, { fillet: ED.bracket.fillet, flareStart: true });
+  drives(bracket(mount, d.bracket, ED.bracket.radius, { fillet: ED.bracket.fillet, flareStart: true }), 'earth');
 
   // Rundt jordaksen: y i gruppen er aksen (s fra jordas sentrum), x er e1 (mot drivet).
-  const tilted = groupAt(mount, 0, H);
+  const tilted = drives(groupAt(mount, 0, H), 'earth');
   tilted.rotation.z = -d.tilt;
   const spin = groupAt(tilted);
   opts.addEarth(spin);
@@ -104,14 +107,14 @@ export function buildEarthEnd(d, opts) {
   const V = ED.V;
   const earthGear = addBevel(spin, V.earthTeeth, V.module, V.faceWidth, d.spR, top.sE, -top.sE);
   cyl(tilted, d.spR + ED.bearing.wall, ...top.bearing);
-  const vertical = groupAt(mount);
+  const vertical = drives(groupAt(mount), 'earth');
   const vGear = addBevel(vertical, V.shaftTeeth, V.module, V.faceWidth, d.dsR, top.yV, top.dropV);
   track(vertical, [vGear]);
   const spinEntry = { group: spin, gears: [earthGear], trail: null, extra: [] };
   fast.push(spinEntry);
 
   // Månen: røret, kjedehjulet, armen og hylsa dreier om stolpen.
-  const moon = groupAt(end);
+  const moon = drives(groupAt(end), 'moon');
   cyl(moon, d.moonTubeOuter, s.moonChain, d.moonTubeTop);
   addSprocket(moon, moonTrain.moonSprocket.teeth, opts.moonChain.radius2, opts.moonChain.rollerRadius, d.moonTubeOuter, s.moonChain, 0);
   const A = MG.arm;

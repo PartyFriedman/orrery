@@ -122,8 +122,10 @@ function addPlexus(parent, settings, R, scale, materials) {
   return update;
 }
 
-// Et mykt, lysende punkt.
+// Et mykt, lysende punkt. Uten DOM (npm run check bygger modellen i Node) blir
+// det ingen tekstur.
 function glowTexture() {
+  if (typeof document === 'undefined') return null;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 64;
   const g = canvas.getContext('2d');

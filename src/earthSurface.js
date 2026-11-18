@@ -232,9 +232,11 @@ export function createSpinBlur(parent, radius) {
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.visible = false;
+  mesh.userData.blur = true; // ikke mekanikk (drives.js og driveView.js)
   parent.add(mesh);
   return {
     mesh,
+    source: null, // kula den glatter ut; settes av model.js
     update(delta, f) {
       mesh.visible = f > 0;
       material.opacity = f;

@@ -80,6 +80,58 @@ canvas {
   font-size: 13px;
   letter-spacing: 0.06em;
 }
+/* Bryteren «Drive»: en liten skinne med en hvit knott, i accent når den er på.
+   Hele knappen (skinne og tekst) kan trykkes, og den er stor nok til en finger
+   uten at pillen blir høyere. */
+.focus-drive {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  margin: -6px 0;
+  padding: 0 6px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.focus-drive:hover {
+  background: color-mix(in srgb, var(--white) 8%, transparent);
+}
+.focus-drive:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--white) 50%, transparent);
+  outline-offset: 1px;
+}
+.focus-drive-track {
+  position: relative;
+  width: 26px;
+  height: 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--metal) 55%, black);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.5);
+  transition: background 0.2s;
+}
+.focus-drive-track > span {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--white), color-mix(in srgb, var(--white) 72%, var(--metal)));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+  transition: transform 0.2s;
+}
+.focus-drive[aria-checked='true'] .focus-drive-track {
+  background: var(--accent);
+}
+.focus-drive[aria-checked='true'] .focus-drive-track > span {
+  transform: translateX(12px);
+}
+
 /* ×: tilbake til sola. Stor nok til en finger, men pillen blir ikke høyere. */
 .focus-close {
   width: 28px;
