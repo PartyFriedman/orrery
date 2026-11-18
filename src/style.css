@@ -80,6 +80,26 @@ canvas {
   font-size: 13px;
   letter-spacing: 0.06em;
 }
+/* ×: tilbake til sola. Stor nok til en finger, men pillen blir ikke høyere. */
+.focus-close {
+  width: 28px;
+  height: 28px;
+  margin: -6px -10px -6px 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  font: 18px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+.focus-close:hover {
+  background: color-mix(in srgb, var(--white) 12%, transparent);
+}
+.focus-close:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--white) 50%, transparent);
+  outline-offset: 1px;
+}
 .focus-info:empty {
   display: none;
 }

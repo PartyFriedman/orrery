@@ -165,7 +165,7 @@
 - `addPlanetSphere` legger hver kule i `spheres` (navn → gruppe og radius). Det er registeret for valget.
 - `picking.js`: et klikk er én peker, flyttet under `clickMove` px og sluppet innen `clickTime` ms (`e.timeStamp`). Treffet regnes på skjermen: kula, eller innenfor `hitRadius` px fra sentrum. Treffer pekeren selve kula, vinner den nærmeste.
 - `focus.js`: `update(seconds)` kalles etter at delene har fått vinklene og før `controls.update()`. Den flytter målet til kroppen og kameraet like langt (ingen etterslep, ingen risting). Avstanden er `r·size / sin(atan(fill·tan(fov/2)))`. Med en kropp i fokus er panorering av, `minDistance` er 1,3 r, og `camera.near` følger avstanden.
-- Panelet øverst på midten viser navnet. `.focus-info` er tom og klar til mer.
+- Panelet øverst på midten viser navnet og en ×-knapp som gjør det samme som et klikk på sola (sola er ofte utenfor bildet når man er tett på). `.focus-info` er tom og klar til mer.
 - Steg 2 (planlagt, ikke bygget): drivvisning med en bryter i panelet. Modellen flyttes ut til `src/model.js`, så `npm run check` kan sjekke at hver del hører til et drev. Planen ligger i `~/.claude/plans/compiled-kindling-popcorn.md`.
 - Test i hodeløs Chrome: input kommer bare én gang per bilde, og et bilde tar flere sekunder i swiftshader. Sett `clickTime` høyt og `glide` kort i scratch-kopien, og stopp tiden før du klikker på raske måner.
 

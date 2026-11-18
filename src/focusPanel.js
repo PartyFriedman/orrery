@@ -1,10 +1,12 @@
-// Panelet øverst på midten når en kropp er valgt: navnet, og plass til mer
-// (.focus-info) senere. Samme stil som fartspanelet; stilen ligger i style.css.
+// Panelet øverst på midten når en kropp er valgt: navnet, en ×-knapp som går
+// tilbake til sola (startbildet), og plass til mer (.focus-info) senere. Samme
+// stil som fartspanelet; stilen ligger i style.css.
 import { look } from './config.js';
 
 const title = (name) => name.charAt(0).toUpperCase() + name.slice(1);
 
-export function createFocusPanel() {
+// onClose: kalles når man trykker på ×.
+export function createFocusPanel({ onClose }) {
   const panel = document.createElement('div');
   panel.className = 'focus-panel';
   panel.style.setProperty('--metal', look.seamColor);
@@ -14,7 +16,13 @@ export function createFocusPanel() {
   head.className = 'focus-head';
   const nameLabel = document.createElement('span');
   nameLabel.className = 'focus-name';
-  head.append(nameLabel);
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'focus-close';
+  close.textContent = '×';
+  close.setAttribute('aria-label', 'Back to overview');
+  close.addEventListener('click', () => onClose());
+  head.append(nameLabel, close);
   const info = document.createElement('div');
   info.className = 'focus-info';
   panel.append(head, info);

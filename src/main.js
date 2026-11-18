@@ -1034,14 +1034,15 @@ window.addEventListener('resize', () => {
 });
 
 // Fokus: klikk eller trykk på en kule, så glir kameraet over til den og følger
-// den (focus.js), og navnet vises øverst (focusPanel.js). Sola gir tilbake til
-// startbildet.
+// den (focus.js), og navnet vises øverst (focusPanel.js). Sola eller × i
+// panelet gir tilbake til startbildet.
 const cameraFocus = createFocus({ camera, controls, bodies: spheres, home });
-const focusPanel = createFocusPanel();
-createPicking(camera, renderer.domElement, spheres, (name) => {
+const selectBody = (name) => {
   cameraFocus.select(name);
   focusPanel.show(cameraFocus.selected);
-});
+};
+const focusPanel = createFocusPanel({ onClose: () => selectBody('sun') });
+createPicking(camera, renderer.domElement, spheres, selectBody);
 
 // Animasjon: tiden går med farten fra glidebryteren, og inngangsvinkelen
 // følger av den. Hver del får vinkelen mekanismen regner ut fra tanntallene.
