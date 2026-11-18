@@ -3,8 +3,11 @@
 // config.js.
 //
 // Følge: hvert bilde, etter at delene har fått sine vinkler og før
-// controls.update(), flyttes målet til kroppen og kameraet like langt. Kroppen
-// står da helt rolig i bildet, uansett fart, og ingenting henger etter.
+// controls.update(), flyttes målet og kameraet like langt som kroppen har
+// flyttet seg siden forrige bilde. Kroppen står da helt rolig i bildet, uansett
+// fart, og ingenting henger etter. Panorering (høyre knapp) virker også med en
+// kropp i fokus: målet blir liggende der man drar det, og følger kroppen
+// derfra, så man kan gå langs drivverket. Velg kroppen igjen for å sentrere.
 // Overgangen: målet glir dit kroppen er nå (den kan bevege seg underveis), og
 // avstanden glir logaritmisk til den som gjør at kula fyller focus.fill av den
 // korteste skjermsiden. Retningen beholdes, så man kan dreie underveis. Zoomer
@@ -20,6 +23,7 @@ export function createFocus({ camera, controls, bodies, home }) {
   let selected = null;
   let glide = null; // overgangen som pågår
   const goal = new THREE.Vector3();
+  const followed = new THREE.Vector3(); // der kroppen var forrige bilde
   const offset = new THREE.Vector3();
   const turn = new THREE.Quaternion();
   const noTurn = new THREE.Quaternion();
@@ -54,8 +58,7 @@ export function createFocus({ camera, controls, bodies, home }) {
       fromDir: from.clone().normalize(),
       toDir: name ? null : home.position.clone().sub(home.target).normalize(), // tilbake: retningen glir også
     };
-    // Med en kropp i fokus: ingen panorering (målet blir på kroppen), og ikke inn i kula.
-    controls.enablePan = !name;
+    // Med en kropp i fokus: ikke inn i kula.
     controls.minDistance = name ? bodies[name].radius * 1.3 : 0;
   }
 
@@ -80,11 +83,13 @@ export function createFocus({ camera, controls, bodies, home }) {
       camera.position.copy(target).addScaledVector(dir, distance);
       if (glide.t >= 1) glide = null;
     } else if (selected) {
-      // Følg kroppen: målet dit den er, og kameraet like langt.
-      offset.subVectors(goal, target);
-      target.copy(goal);
+      // Følg kroppen: målet og kameraet like langt som den har flyttet seg
+      // (målet kan være panorert bort fra den).
+      offset.subVectors(goal, followed);
+      target.add(offset);
       camera.position.add(offset);
     }
+    followed.copy(goal);
 
     // Nærplanet etter avstanden, så man kan komme tett inntil små måner.
     const near = THREE.MathUtils.clamp(camera.position.distanceTo(target) * 0.05, 0.02, 1);
