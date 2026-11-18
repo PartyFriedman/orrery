@@ -24,6 +24,15 @@ export const focus = {
   clickTime: 500,     // millisekunder: holdes den lenger, er det ikke et klikk
 };
 
+// Drivvisning: med bryteren «Drive» i fokuspanelet vises bare drivet fra tårnet
+// til kroppen som er valgt. Resten av mekanikken fades ut, og de andre kulene
+// dempes litt (de kan fortsatt klikkes).
+export const driveView = {
+  mechanism: 0.08,    // opasitet på mekanikk som ikke er med i drevet
+  bodies: 0.6,        // opasitet på de andre kulene
+  fade: 0.6,          // sekunder: overgangen
+};
+
 // Inngangen: mellomakselen driver alt. All bevegelse følger av tanntallene.
 export const drive = {
   distance: 40,      // avstanden fra mellomakselen (og forlegsakselen) til sentrum; alle hjulpar og begge kjedene nederst må nå over den

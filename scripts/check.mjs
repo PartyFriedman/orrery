@@ -1275,6 +1275,54 @@ problems += Object.values(minB).filter((r) => r.gap < 0.3).length;
   }
 }
 
+// ---------- Drev ----------
+// Modellen bygges i Node (model.js). Hver del i mekanikken må høre til drevet
+// til minst én kropp (drives.js), med navn som finnes. Kulene og delene blur.js
+// lager telles ikke. En gruppe som dreier over en kule må ha kula i drevet sitt,
+// og hver kropp utenom sola må ha mekanikk i drevet.
+{
+  const THREE = await import('three');
+  const model = await import(new URL('model.js', src).href);
+  const D = await import(new URL('drives.js', src).href);
+  const names = new Set(Object.keys(model.spheres));
+  const isBlur = (o) => { for (let x = o; x; x = x.parent) if (x.userData.blur) return true; return false; };
+  const where = (o) => {
+    const p = new THREE.Vector3();
+    o.getWorldPosition(p);
+    return `${o.geometry?.type ?? o.type} ved (${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)})`;
+  };
+  model.root.updateMatrixWorld(true);
+  const errors = [];
+  const count = {};
+  model.root.traverse((o) => {
+    if (!(o.isMesh || o.isPoints || o.isLine) || isBlur(o) || D.bodyOf(o)) return;
+    const d = D.drivesOf(o);
+    if (!d?.length) { errors.push(`hører ikke til noe drev: ${where(o)}`); return; }
+    for (const n of new Set(d)) {
+      if (n !== D.ALL && !names.has(n)) errors.push(`ukjent kropp '${n}': ${where(o)}`);
+      else count[n] = (count[n] ?? 0) + 1;
+    }
+  });
+  const turningGroups = new Set(model.turning.map(([g]) => g));
+  for (const [name, s] of Object.entries(model.spheres)) {
+    if (name === 'sun') continue;
+    for (let o = s.object.parent; o; o = o.parent) {
+      if (!turningGroups.has(o)) continue;
+      const d = D.drivesOf(o) ?? [];
+      if (!d.includes(name) && !d.includes(D.ALL)) errors.push(`${name}: en gruppe som dreier og bærer kula, har drevet [${d.join(', ')}]`);
+    }
+    if (!count[name]) errors.push(`${name}: ingen mekanikk i drevet`);
+  }
+  console.log(`\nDrev (deler per kropp, ${count[D.ALL] ?? 0} deler i alle):`);
+  const bodiesListed = [...names].filter((n) => n !== 'sun');
+  for (let i = 0; i < bodiesListed.length; i += 6) {
+    console.log(`  ${bodiesListed.slice(i, i + 6).map((n) => `${n} ${count[n] ?? 0}`).join(', ')}`);
+  }
+  for (const e of errors.slice(0, 20)) console.log(`  FEIL: ${e}`);
+  if (errors.length > 20) console.log(`  … og ${errors.length - 20} til`);
+  if (errors.length) problems++;
+}
+
 // ---------- Største radius ----------
 // Hvor langt den ytterste delen rekker fra sentrum, og endringen siden forrige
 // kjøring (lagret i scripts/lastCheck.json). Bare til informasjon, ingen grense.

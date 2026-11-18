@@ -44,19 +44,27 @@ export function makeBuilder(white) {
     return m;
   };
   // Flat stang langs x fra x0 til x1 (y0 til y1 i høyden), med runde ender.
+  // Gir tilbake delene (stanga og de to endene).
   const flatBar = (parent, x0, x1, y0, y1, width, material = white, endSegments = 24) => {
-    mesh(parent, new THREE.BoxGeometry(x1 - x0, y1 - y0, width), material).position.set((x0 + x1) / 2, (y0 + y1) / 2, 0);
+    const bar = mesh(parent, new THREE.BoxGeometry(x1 - x0, y1 - y0, width), material);
+    bar.position.set((x0 + x1) / 2, (y0 + y1) / 2, 0);
+    const parts = [bar];
     for (const x of [x0, x1]) {
-      mesh(parent, new THREE.CylinderGeometry(width / 2, width / 2, y1 - y0, endSegments), material).position.set(x, (y0 + y1) / 2, 0);
+      const end = mesh(parent, new THREE.CylinderGeometry(width / 2, width / 2, y1 - y0, endSegments), material);
+      end.position.set(x, (y0 + y1) / 2, 0);
+      parts.push(end);
     }
+    return parts;
   };
   // En knekt brakett gjennom punktene: stenger mellom dem, kuler i knekkene, og
-  // myke overganger i endene (fillet: lengden, eller 0 for ingen).
+  // myke overganger i endene (fillet: lengden, eller 0 for ingen). Gir tilbake delene.
   const bracket = (parent, points, r, { fillet = 0, flareStart = false, flareEnd = false, detail } = {}) => {
-    for (let i = 0; i < points.length - 1; i++) rod(parent, points[i], points[i + 1], r);
-    for (const p of points.slice(1, -1)) ball(parent, p, r, white, detail);
-    if (flareStart) flare(parent, points[0], points[1], r, fillet);
-    if (flareEnd) flare(parent, points.at(-1), points.at(-2), r, fillet);
+    const parts = [];
+    for (let i = 0; i < points.length - 1; i++) parts.push(rod(parent, points[i], points[i + 1], r));
+    for (const p of points.slice(1, -1)) parts.push(ball(parent, p, r, white, detail));
+    if (flareStart) parts.push(flare(parent, points[0], points[1], r, fillet));
+    if (flareEnd) parts.push(flare(parent, points.at(-1), points.at(-2), r, fillet));
+    return parts;
   };
   const groupAt = (parent, x = 0, y = 0, z = 0) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); return g; };
   return { mesh, shaft, rod, ball, flare, flatBar, bracket, groupAt };

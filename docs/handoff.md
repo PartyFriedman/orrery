@@ -40,7 +40,9 @@
 - `src/config.js`: alle innstillinger (se under).
 - `src/materials.js`, `src/scene.js`, `src/build.js`, `src/segments.js`: se Ryddingen 17.11.
 - `src/mechanism.js`: ren matematikk uten three.js. Pakker armlengder automatisk, ordner rørene, regner ut høyder, akselposisjoner og kjeder (`makeChain`), og alle vinkler fra inngangen (`anglesAt`). Har feilmeldinger når noe ikke passer.
-- `src/main.js`: kamera og alle deler. `addGear`, `addSprocket`, `addChain`, `addArm`, `addPlanetSphere`, `addSun`, `addTowerTube`, `turnsWith`.
+- `src/main.js`: renderer, scene, kamera, fokus, panelene og animasjonen.
+- `src/model.js`: alle delene, i gruppen `root`, uten DOM (så `npm run check` kan bygge modellen i Node). `addGear`, `addSprocket`, `addChain`, `addArm`, `addPlanetSphere`, `addSun`, `addTowerTube`, `turnsWith`. Gir `root`, `spheres`, `plexusUpdates`, `turning` og `update(years)`.
+- `src/drives.js`: merkene for drevene (`drives`, `drivesOf`, `bodyOf`, `moonsOf`, `system`, `ALL`). `src/driveView.js`: drivvisningen (se Fokus).
 - `src/ephemeris.js`: middellengder for planetene (JPL, Standish tabell 1, også Uranus og Neptun), polene til Mars og Uranus (IAU), månen og knutelinjen (Meeus), Jupiters måner (Lieske via Meeus kap. 44, B1950 + 0,698° presesjon til J2000), og Saturns, Mars', Uranus' og Neptuns måner (JPL-middelelementer, lavpresisjon; Triton baklengs). `daysPerYear` = 365,256 (én runde for jorda).
 - `src/iceMoons.js`: geometrien for månene til Uranus og Neptun som ren matematikk (`uranusDesign`, `neptuneDesign`, `uranusParts`, `neptuneParts` for avstandssjekkene, `partReach`). Den importerer ikke `mechanism.js`; `mechanism.js` bruker den og sender inn `uranusTrain`, `armParts` og høydene ved armen.
 - `src/timeControl.js`: glidebryteren nede på siden (DOM), med dato og fart. Stilen ligger i `src/style.css`.
@@ -160,13 +162,19 @@
 - Titania og Oberon stilles i Uranus' ekvatorplan med `inPlane` (som Saturns og Mars' måner), Triton med fasen på Tritons hjul (`phases.triton`), etter middellengdene i `ephemeris.js`.
 - **`npm run check`** har en startsjekk som skriver ut lengdene ved startdatoen.
 
-## Fokus (grenen camera-focus, steg 1 av 2)
+## Fokus og drivvisning (grenene camera-focus og Isolate-view)
 - Klikk eller trykk på en kule, så glir kameraet over til den (`focus.glide` s) og følger den. Klikk på sola gir tilbake til startbildet. Tallene står i `focus` i config.
 - `addPlanetSphere` legger hver kule i `spheres` (navn → gruppe og radius). Det er registeret for valget.
 - `picking.js`: et klikk er én peker, flyttet under `clickMove` px og sluppet innen `clickTime` ms (`e.timeStamp`). Treffet regnes på skjermen: kula, eller innenfor `hitRadius` px fra sentrum. Treffer pekeren selve kula, vinner den nærmeste.
 - `focus.js`: `update(seconds)` kalles etter at delene har fått vinklene og før `controls.update()`. Den flytter målet til kroppen og kameraet like langt (ingen etterslep, ingen risting). Avstanden er `r·size / sin(atan(fill·tan(fov/2)))`. Med en kropp i fokus er panorering av, `minDistance` er 1,3 r, og `camera.near` følger avstanden.
-- Panelet øverst på midten viser navnet. `.focus-info` er tom og klar til mer.
-- Steg 2 (planlagt, ikke bygget): drivvisning med en bryter i panelet. Modellen flyttes ut til `src/model.js`, så `npm run check` kan sjekke at hver del hører til et drev. Planen ligger i `~/.claude/plans/compiled-kindling-popcorn.md`.
+- Panelet øverst på midten viser navnet og en ×-knapp som gjør det samme som et klikk på sola (sola er ofte utenfor bildet når man er tett på). `.focus-info` er tom og klar til mer.
+- **Drivvisning** (bryteren «Drive» i panelet, `driveView` i config): bare drivet fra tårnet til kroppen som er valgt, vises som vanlig. Resten av mekanikken fades til `mechanism`, og de andre kulene dempes til `bodies` (fortsatt klikkbare). Bryteren huskes når man bytter kropp.
+  - Hver del er merket med kroppene den driver, der den lages: `drives(del, ...navn)` i model.js og earthBuild.js. En del arver merket fra nærmeste forelder. Regelen: kroppens posisjon eller retning avhenger av delen, eller delen bærer en slik del. `'all'` = sentralakselen og mellomakselen.
+  - En planet viser bare sitt eget drev (røret, armen, stolpen, par-røret og parallellkjedet). Månene har hvert sitt (med det som flytter planeten). Saturn-røret driver også motakselen, og hører derfor også til Uranus og Neptun.
+  - `driveView.js` samler delene i lag (ett per ulikt merke, ett per kule). Hvert lag glir mot målet over `fade` s. Under full opasitet får laget gjennomsiktige kopier av materialene. Kulene skriver dybde og tegnes skallet først, ellers skinner den mørke kjernen gjennom. Skyggen slås av under 0,5.
+  - blur.js: delene den lager er merket `userData.blur`, og hver bit har en `source`. `setBlurLevel(driveView.levelOf)` demper spor, vifter og glatte former med delen. Lyssporet til en måne følger kula.
+  - `flatBar` og `bracket` i build.js gir tilbake delene, og `drives` tar også en liste.
+- Skjermbilder med låst dato og plexus-tid, og `?focus=navn`, `?drive=1`, `?show=navn` (drivvisning uten å flytte kameraet) og `?cam=x,y,z&target=x,y,z`: lappefil i scratch som i Skjermbilder. Flyttingen til model.js ga like bilder (md5) i fire vinkler. Det første bildet etter at Chrome-profilen er ny, kan avvike; ta det på nytt.
 - Test i hodeløs Chrome: input kommer bare én gang per bilde, og et bilde tar flere sekunder i swiftshader. Sett `clickTime` høyt og `glide` kort i scratch-kopien, og stopp tiden før du klikker på raske måner.
 
 ## Utseende
@@ -232,6 +240,7 @@
   - Saturns omløpstider (Enceladus, Titan, Iapetus), driften til Saturn-stolpen, og ringens retning: ca. −3,8° åpen mot sola ved ringplanpasseringen 23.03.2025 (middellengder, toleranse 5°) og nordsiden opplyst 24.05.2017.
   - Jorda: døgnet (innen 0,01 %, prograd, og soldøgnet), og Greenwich-meridianen etter stjernetiden på startdatoen. I A og B er alt ved jordstolpen over månearmen ett område; dagkjedet og tannhjulet ved foten har egne. H: alt ved jordstolpen i 3D (`earthParts`), med festesjekken.
   - B tegner alt som massive sirkler, så rør må ikke legges inn der (de sjekkes i A). Saturn er ett område der (ring, måner og hjulkasse).
+  - Drev: modellen bygges i Node (ca. 1 s). Feil hvis en mesh (utenom kulene og blur-delene) ikke arver noe drev, hvis et navn ikke er en kropp, hvis en gruppe som dreier over en kule mangler kula i drevet, eller hvis en kropp ikke har noe mekanikk. Skriver ut antall deler per kropp. Fordi merkene arves, fanger den bare et glemt merke når delen ikke har noen merket forelder.
 
   Lengre kjøring: `node scripts/check.mjs 100000 10000`. Rask kjøring direkte: `node scripts/check.mjs quick`.
 - **Skjermbilder:** hodeløs Chrome (`--use-angle=swiftshader`) mot en scratch-kopi av prosjektet, med `node_modules` lenket inn som junction. Fjern junction med `cmd /c rmdir`, **aldri** `rm -rf`.

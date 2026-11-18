@@ -4,12 +4,19 @@
 //   månene: et lysende spor bak månen langs banen, som blir en svak ring over blur.ringAbove
 //   stag og armer: en vifte av gjennomsiktige kopier over strekningen siden forrige bilde
 //   tannhjul og kjeder: en glatt krans eller et glatt bånd over tennene og leddene
+// Alt herfra er merket userData.blur (det telles ikke som mekanikk). Hver bit
+// har en source: delen den kommer fra. Drivvisningen (driveView.js) gir nivået
+// til den delen med setBlurLevel, og innfasingen ganges med det.
 import * as THREE from 'three';
 import { blur } from './config.js';
 import { createAnnulus } from './ring.js';
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const entries = [];
+let levelOf = () => 1;
+// level(source) gir opasiteten (0–1) til delen en bit kommer fra.
+export function setBlurLevel(level) { levelOf = level; }
+const mark = (object) => { object.userData.blur = true; return object; };
 
 // Følger en gruppe som dreier om sin egen y-akse (rotation.y). pieces får
 // update(vinkel siden forrige bilde i radianer, andel inntoning, andel ring).
@@ -32,7 +39,10 @@ export function updateBlur() {
     const deg = (Math.abs(delta) * 180) / Math.PI;
     const f = clamp01((deg - blur.threshold) / blur.fade);
     const ring = clamp01((deg - blur.ringAbove) / blur.fade);
-    for (const p of e.pieces) p.update(delta, f, ring);
+    for (const p of e.pieces) {
+      const k = levelOf(p.source);
+      p.update(delta, f * k, ring * k);
+    }
   }
 }
 
@@ -72,12 +82,13 @@ export function createTrail(group, { radius, y = 0, tube = 0.06 }) {
         gl_FragColor = vec4(color, max(a, ring));
       }`,
   });
-  const mesh = new THREE.Mesh(geometry, material);
+  const mesh = mark(new THREE.Mesh(geometry, material));
   mesh.position.y = y;
   mesh.visible = false;
   mesh.renderOrder = 2;
   group.add(mesh);
   return {
+    source: group,
     update(delta, f, ring) {
       mesh.visible = f > 0 || ring > 0;
       material.uniforms.dir.value = delta < 0 ? -1 : 1;
@@ -95,13 +106,13 @@ export function createFan(group, meshes) {
   const toGroup = group.matrixWorld.clone().invert();
   const copies = blur.fanCopies, ghosts = [];
   for (let k = 1; k <= copies; k++) {
-    const holder = new THREE.Group();
+    const holder = mark(new THREE.Group());
     holder.position.copy(group.position);
     holder.visible = false;
     group.parent.add(holder);
     const material = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6, transparent: true, depthWrite: false });
     for (const m of meshes) {
-      const ghost = new THREE.Mesh(m.geometry, material);
+      const ghost = mark(new THREE.Mesh(m.geometry, material));
       ghost.matrixAutoUpdate = false;
       ghost.matrix.copy(toGroup.clone().multiply(m.matrixWorld));
       holder.add(ghost);
@@ -109,6 +120,7 @@ export function createFan(group, meshes) {
     ghosts.push({ holder, material, k });
   }
   return {
+    source: meshes[0],
     update(delta, f) {
       // Vifta blir aldri bredere enn blur.fanMaxAngle, så den leses som uskarphet bak delen.
       const max = (blur.fanMaxAngle * Math.PI) / 180;
@@ -130,12 +142,13 @@ export function createSmoothGear(mesh) {
   const r = Math.max(bb.max.x, -bb.min.x, bb.max.z, -bb.min.z);
   const material = mesh.material.clone();
   material.transparent = true;
-  const overlay = new THREE.Mesh(createAnnulus(r * 0.8, r * 1.01, bb.max.y - bb.min.y + 0.02, 0), material);
+  const overlay = mark(new THREE.Mesh(createAnnulus(r * 0.8, r * 1.01, bb.max.y - bb.min.y + 0.02, 0), material));
   overlay.position.copy(mesh.position);
   overlay.position.y += (bb.min.y + bb.max.y) / 2;
   overlay.visible = false;
   mesh.parent.add(overlay);
   return {
+    source: mesh,
     update(delta, f) {
       overlay.visible = f > 0;
       material.opacity = f;
@@ -146,7 +159,8 @@ export function createSmoothGear(mesh) {
 
 // Glatt bånd over et kjede: et flatt bånd langs hele kjedebanen, like bredt og
 // høyt som leddene (i kjedets koordinatsystem, i høyden y0 til y0 + height).
-export function createSmoothChain(parent, chain, y0, height, halfWidth, chainMaterial) {
+// source: delen båndet hører til (rullene i kjedet).
+export function createSmoothChain(parent, chain, y0, height, halfWidth, chainMaterial, source) {
   const L = chain.links * chain.pitch, n = 480;
   const pts = [];
   for (let i = 0; i < n; i++) pts.push(chain.point((L * i) / n));
@@ -164,11 +178,12 @@ export function createSmoothChain(parent, chain, y0, height, halfWidth, chainMat
   geometry.rotateX(-Math.PI / 2);
   const material = chainMaterial.clone();
   material.transparent = true;
-  const mesh = new THREE.Mesh(geometry, material);
+  const mesh = mark(new THREE.Mesh(geometry, material));
   mesh.position.y = y0;
   mesh.visible = false;
   parent.add(mesh);
   return {
+    source,
     update(delta, f) {
       mesh.visible = f > 0;
       material.opacity = f;
